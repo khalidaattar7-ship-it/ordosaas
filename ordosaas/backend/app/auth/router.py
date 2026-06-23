@@ -1,5 +1,5 @@
 """Auth API router."""
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.auth import service
