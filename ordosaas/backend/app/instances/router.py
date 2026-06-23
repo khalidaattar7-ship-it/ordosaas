@@ -12,8 +12,23 @@ from app.instances.schemas import (
     JobResponse,
     PatchJobRequest,
 )
+from app.resolutions import service as resolution_service
+from app.resolutions.schemas import ResolveRequest, ResolveResponse
 
 router = APIRouter()
+
+
+@router.post(
+    "/{instance_id}/resolve", response_model=ResolveResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(require_planificateur)],
+)
+async def resolve_instance(
+    instance_id, payload: ResolveRequest, current_user: CurrentUser, db: DbSession
+):
+    return await resolution_service.resolve(
+        instance_id, payload, current_user.tenant_id, current_user.id, db
+    )
 
 
 async def _read(file: UploadFile | None) -> str | None:
