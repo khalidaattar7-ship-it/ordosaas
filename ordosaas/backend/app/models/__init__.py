@@ -1,4 +1,5 @@
 """ORM models package — import all models so metadata is registered."""
+from app.models.audit_log import AuditLog
 from app.models.base import BaseModel, TimestampedModel
 from app.models.comparison import SolutionComparison
 from app.models.instance import ProblemInstance
@@ -28,4 +29,5 @@ __all__ = [
     "TimeWindow",
     "ScheduleEntry",
     "SolutionComparison",
+    "AuditLog",
 ]
