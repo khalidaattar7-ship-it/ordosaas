@@ -6,12 +6,14 @@ from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.audit.router import router as audit_router
 from app.auth.router import router as auth_router
 from app.comparisons.router import router as comparisons_router
 from app.config import settings
 from app.database import init_db
+from app.errors import AppError
 from app.instances.router import router as instances_router
 from app.machines.router import router as machines_router
 from app.resolutions.router import router as resolutions_router
@@ -58,11 +60,43 @@ app.include_router(tenant_router, prefix=f"{API_PREFIX}/tenant", tags=["tenant"]
 app.include_router(audit_router, prefix=f"{API_PREFIX}/audit-logs", tags=["audit"])
 
 
+@app.exception_handler(AppError)
+async def app_error_handler(request: Request, exc: AppError):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error": exc.code, "message": exc.message, "detail": exc.extra},
+    )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    code_map = {
+        400: "bad_request",
+        401: "unauthorized",
+        403: "forbidden",
+        404: "not_found",
+        409: "conflict",
+    }
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": code_map.get(exc.status_code, "http_error"),
+            "message": exc.detail if isinstance(exc.detail, str) else "Erreur",
+            "detail": {} if isinstance(exc.detail, str) else exc.detail,
+        },
+        headers=getattr(exc, "headers", None),
+    )
+
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content={"error": "validation_error", "detail": exc.errors()},
+        content={
+            "error": "validation_error",
+            "message": "Données de requête invalides",
+            "detail": {"errors": exc.errors()},
+        },
     )
 
 
@@ -71,7 +105,11 @@ async def internal_exception_handler(request: Request, exc: Exception):
     logger.exception("Unhandled error: %s", exc)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"error": "internal_server_error", "detail": "Une erreur interne est survenue."},
+        content={
+            "error": "internal_server_error",
+            "message": "Une erreur interne est survenue.",
+            "detail": {},
+        },
     )
 
 
