@@ -1,141 +1,71 @@
-"""Solver dispatcher: selects a strategy and produces a feasible schedule.
-
-This implementation provides a deterministic ATCS-style list-scheduling
-heuristic that yields a valid non-preemptive job-shop schedule honouring
-operation precedence (by position), machine no-overlap and sequence-dependent
-setup times. The exact (CP-SAT) and windowed (LNS) solvers are scaffolded in
-``scheduling/solvers`` and will refine this baseline.
 """
-from __future__ import annotations
+SolverDispatcher : selectionne automatiquement le bon solveur selon l'instance.
+Implemente le Strategy Pattern (Open/Closed principle).
+"""
+import logging
 
-import math
+from scheduling.models.job import ProblemInstance
+from scheduling.models.schedule import Schedule
+from scheduling.solvers.atcs_solver import ATCSSolver
+from scheduling.solvers.base import BaseSolver
+from scheduling.solvers.cpsat_solver import CPSATSolver
+from scheduling.solvers.lns_recursive import LNSRecursiveSolver
 
-from scheduling.models import Job, Schedule, ScheduledOperation, SolverContext, Window
+logger = logging.getLogger(__name__)
+
+SEUIL_EXACT = 50  # CP-SAT direct si nb_jobs <= SEUIL_EXACT
 
 
 class SolverDispatcher:
-    def __init__(self, context: SolverContext):
-        self.ctx = context
+    """Route vers le bon solveur selon la taille de l'instance et la strategie."""
 
-    # -- strategy selection -------------------------------------------------
-    def select_strategy(self, jobs: list[Job]) -> str:
-        if self.ctx.strategy != "auto":
-            return self.ctx.strategy
-        return "cpsat" if len(jobs) <= self.ctx.seuil_exact else "lns"
+    def __init__(self, config: dict = None):
+        self.config = config or {}
+        self.seuil_exact = self.config.get("seuil_exact", SEUIL_EXACT)
 
-    # -- ATCS priority index ------------------------------------------------
-    def _atcs_priority(self, job: Job, t: int, p_avg: float) -> float:
-        slack = job.deadline - t - job.total_processing
-        k1 = self.ctx.k1 or 1.0
-        k2 = self.ctx.k2 or 1.0
-        p = max(1, job.total_processing)
-        urgency = math.exp(-max(0.0, slack) / (k1 * p_avg)) if p_avg > 0 else 1.0
-        return (job.weight / p) * urgency / (k2 if k2 else 1.0)
+    def select_strategy(self, nb_jobs: int, strategy: str = "auto") -> str:
+        """Resout la strategie 'auto' en un solveur concret."""
+        if strategy == "cpsat":
+            return "cpsat"
+        if strategy == "atcs":
+            return "atcs"
+        if strategy == "lns":
+            return "lns"
+        return "cpsat" if nb_jobs <= self.seuil_exact else "lns"
 
-    # -- core list scheduling ----------------------------------------------
-    def _schedule_jobs(
-        self, jobs: list[Job], setups: dict, method: str
+    def dispatch(
+        self, instance: ProblemInstance, strategy: str = "auto", progress_callback=None
     ) -> Schedule:
-        machine_free: dict[str, int] = {}
-        machine_last_job: dict[str, str] = {}
-        job_ready: dict[str, int] = {j.job_id: 0 for j in jobs}
-        entries: list[ScheduledOperation] = []
-        total_setup = 0
-        p_avg = (sum(j.total_processing for j in jobs) / len(jobs)) if jobs else 1.0
+        nb_jobs = len(instance.jobs)
+        solver = self._select_solver(nb_jobs, strategy, progress_callback)
+        logger.info(
+            "Dispatching to %s for %d jobs (strategy=%s)",
+            solver.get_name(), nb_jobs, strategy,
+        )
+        schedule = solver.solve(instance)
+        if schedule is not None and schedule.method_used in ("unknown", None):
+            schedule.method_used = solver.get_name().lower().replace("solver", "")
+        return schedule
 
-        remaining = list(jobs)
-        # Order jobs by ATCS priority at t=0 (stable, deterministic).
-        remaining.sort(key=lambda j: self._atcs_priority(j, 0, p_avg), reverse=True)
+    def _select_solver(self, nb_jobs: int, strategy: str, progress_callback=None) -> BaseSolver:
+        cpsat_timeout = self.config.get("cpsat_timeout", 30)
+        max_jobs_per_window = self.config.get("max_jobs_per_window", 50)
+        min_jobs_per_window = self.config.get("min_jobs_per_window", 5)
+        max_recursion_depth = self.config.get("max_recursion_depth", 4)
+        max_iterations = self.config.get("max_iterations", 5)
+        epsilon = self.config.get("epsilon", 0.01)
+        junction_radius = self.config.get("junction_radius", 10)
+        k1 = self.config.get("k1", None)
+        k2 = self.config.get("k2", None)
 
-        for job in remaining:
-            for op in job.ordered_operations():
-                m = op.machine_id
-                m_free = machine_free.get(m, 0)
-                prev_job = machine_last_job.get(m)
-                setup = setups.get((prev_job, job.job_id, m), 0) if prev_job else 0
-                earliest = max(job_ready[job.job_id], m_free)
-                setup_start = earliest if setup else None
-                setup_end = earliest + setup if setup else None
-                start = earliest + setup
-                end = start + op.duration
-                entries.append(ScheduledOperation(
-                    job_id=job.job_id, op_id=op.op_id, machine_id=m, position=op.position,
-                    start_time=start, end_time=end,
-                    setup_from_job=prev_job if setup else None,
-                    setup_start_time=setup_start, setup_end_time=setup_end,
-                    setup_duration=setup, window_index=1,
-                ))
-                machine_free[m] = end
-                machine_last_job[m] = job.job_id
-                job_ready[job.job_id] = end
-                total_setup += setup
-
-        return self._finalize(jobs, entries, total_setup, method)
-
-    def _finalize(self, jobs, entries, total_setup, method) -> Schedule:
-        sched = Schedule(entries=entries, method_used=method, total_setup_time=total_setup)
-        horizon = max((e.end_time for e in entries), default=0)
-        sched.horizon = horizon
-
-        twt = 0.0
-        max_tard = 0.0
-        late = 0
-        for job in jobs:
-            completion = max(
-                (e.end_time for e in entries if e.job_id == job.job_id), default=0
-            )
-            tard = max(0, completion - job.deadline)
-            sched.job_completion[job.job_id] = completion
-            sched.job_tardiness[job.job_id] = tard
-            twt += job.weight * tard
-            max_tard = max(max_tard, tard)
-            if tard > 0:
-                late += 1
-        sched.total_weighted_tardiness = round(twt, 4)
-        sched.nb_jobs_late = late
-        sched.nb_jobs_on_time = len(jobs) - late
-        sched.max_tardiness = float(max_tard)
-
-        # Machine utilisation = busy / (horizon * nb_machines)
-        machines = {e.machine_id for e in entries}
-        if machines and horizon > 0:
-            busy = sum(e.end_time - e.start_time for e in entries)
-            sched.machine_utilization_pct = round(
-                100.0 * busy / (horizon * len(machines)), 2
-            )
-
-        # Single covering window
-        sched.windows = [Window(
-            index=1, t_start=0, t_end=max(1, horizon),
-            job_ids=[j.job_id for j in jobs], status="feasible",
-            method_used=method, local_weighted_tardiness=sched.total_weighted_tardiness,
-        )]
-        return sched
-
-    # -- public entrypoint --------------------------------------------------
-    def solve(self, jobs: list[Job], setups: dict | None = None) -> Schedule:
-        setups = setups or {}
-        method = self.select_strategy(jobs)
-
-        # ATCS baseline (also used as comparison reference)
-        atcs = self._schedule_jobs(jobs, setups, "atcs")
-
-        if method == "atcs":
-            atcs.atcs_weighted_tardiness = atcs.total_weighted_tardiness
-            atcs.improvement_vs_atcs_pct = 0.0
-            return atcs
-
-        # cpsat / lns currently reuse the heuristic baseline; record the
-        # ATCS reference so the improvement KPI is meaningful once exact
-        # solvers are plugged in.
-        result = self._schedule_jobs(jobs, setups, method)
-        result.atcs_weighted_tardiness = atcs.total_weighted_tardiness
-        if atcs.total_weighted_tardiness > 0:
-            improvement = (
-                (atcs.total_weighted_tardiness - result.total_weighted_tardiness)
-                / atcs.total_weighted_tardiness * 100.0
-            )
-            result.improvement_vs_atcs_pct = round(improvement, 2)
-        else:
-            result.improvement_vs_atcs_pct = 0.0
-        return result
+        resolved = self.select_strategy(nb_jobs, strategy)
+        if resolved == "cpsat":
+            return CPSATSolver(timeout_seconds=cpsat_timeout)
+        if resolved == "atcs":
+            return ATCSSolver(k1=k1, k2=k2)
+        return LNSRecursiveSolver(
+            cpsat_timeout=cpsat_timeout, max_jobs_per_window=max_jobs_per_window,
+            min_jobs_per_window=min_jobs_per_window, max_recursion_depth=max_recursion_depth,
+            max_iterations=max_iterations, epsilon=epsilon, junction_radius=junction_radius,
+            k1=k1, k2=k2, progress_callback=progress_callback,
+        )

@@ -33,7 +33,21 @@ from app.resolutions.schemas import (
 from scheduling.dispatcher import SolverDispatcher
 from scheduling.models import Job as SJob
 from scheduling.models import Operation as SOperation
-from scheduling.models import SolverContext
+from scheduling.models import ProblemInstance as SInstance
+
+
+def _config_dict(config: SolverConfig) -> dict:
+    return {
+        "cpsat_timeout": config.cpsat_timeout,
+        "max_jobs_per_window": config.max_jobs_per_window,
+        "min_jobs_per_window": config.min_jobs_per_window,
+        "max_recursion_depth": config.max_recursion_depth,
+        "max_iterations": config.max_iterations,
+        "epsilon": float(config.epsilon),
+        "junction_radius": config.junction_radius,
+        "k1": float(config.k1) if config.k1 is not None else None,
+        "k2": float(config.k2) if config.k2 is not None else None,
+    }
 
 
 def _now() -> datetime:
@@ -73,18 +87,8 @@ async def resolve(instance_id, config_data, tenant_id, user_id, db: AsyncSession
     await db.commit()
     await db.refresh(resolution)
 
-    ctx = SolverContext(
-        wr=config.wr, strategy=config.strategy, cpsat_timeout=config.cpsat_timeout,
-        max_jobs_per_window=config.max_jobs_per_window,
-        min_jobs_per_window=config.min_jobs_per_window,
-        max_recursion_depth=config.max_recursion_depth,
-        max_iterations=config.max_iterations, epsilon=config.epsilon,
-        junction_radius=config.junction_radius,
-        k1=float(config.k1) if config.k1 is not None else None,
-        k2=float(config.k2) if config.k2 is not None else None,
-    )
-    strategy_selected = SolverDispatcher(ctx).select_strategy(
-        [SJob(str(i), 1, 1.0) for i in range(inst.nb_jobs)]
+    strategy_selected = SolverDispatcher(_config_dict(config)).select_strategy(
+        inst.nb_jobs, config.strategy
     )
     estimated = min(config.cpsat_timeout, 5 + inst.nb_jobs // 10)
 
@@ -104,29 +108,32 @@ async def _load_scheduling_input(db, instance_id, tenant_id):
         .options(selectinload(Job.operations))
     )
     db_jobs = jrows.scalars().all()
-    mrows = await db.execute(select(Machine).where(Machine.tenant_id == tenant_id))
-    machines = {m.id: m for m in mrows.scalars().all()}
     srows = await db.execute(select(SetupTime).where(SetupTime.instance_id == instance_id))
     setups_db = srows.scalars().all()
 
     ext_by_job = {j.id: j.external_id for j in db_jobs}
     sjobs = []
     op_lookup = {}
+    machine_ids: set[str] = set()
     for j in db_jobs:
         s_ops = []
         for o in j.operations:
+            mid = str(o.machine_id)
+            machine_ids.add(mid)
             s_ops.append(SOperation(
-                op_id=str(o.id), machine_id=str(o.machine_id),
+                job_id=j.external_id, machine_id=mid,
                 duration=o.duration, position=o.position,
             ))
             op_lookup[(j.external_id, o.position)] = o
-        sjobs.append(SJob(j.external_id, j.deadline, float(j.weight), s_ops))
+        sjobs.append(SJob(
+            id=j.external_id, operations=s_ops, deadline=j.deadline, weight=float(j.weight)
+        ))
 
     setups = {}
     for s in setups_db:
         setups[(ext_by_job.get(s.from_job_id), ext_by_job.get(s.to_job_id), str(s.machine_id))] = s.duration
 
-    return db_jobs, machines, sjobs, setups, op_lookup, ext_by_job
+    return db_jobs, sjobs, setups, op_lookup, sorted(machine_ids)
 
 
 # --------------------------------------------------------------------------
@@ -147,7 +154,7 @@ async def _run_resolution_async(resolution_id) -> None:
             resolution.progress_detail = {"phase": 1, "label": "Chargement des donnees"}
             await db.commit()
 
-            db_jobs, machines, sjobs, setups, op_lookup, ext_by_job = \
+            db_jobs, sjobs, setups, op_lookup, machine_ids = \
                 await _load_scheduling_input(db, resolution.instance_id, resolution.tenant_id)
 
             resolution.current_phase = 2
@@ -155,15 +162,8 @@ async def _run_resolution_async(resolution_id) -> None:
             resolution.progress_detail = {"phase": 2, "label": "Decoupage en fenetres"}
             await db.commit()
 
-            ctx = SolverContext(
-                wr=config.wr, strategy=config.strategy, cpsat_timeout=config.cpsat_timeout,
-                max_jobs_per_window=config.max_jobs_per_window,
-                min_jobs_per_window=config.min_jobs_per_window,
-                max_recursion_depth=config.max_recursion_depth,
-                max_iterations=config.max_iterations, epsilon=float(config.epsilon),
-                junction_radius=config.junction_radius,
-                k1=float(config.k1) if config.k1 is not None else None,
-                k2=float(config.k2) if config.k2 is not None else None,
+            s_instance = SInstance(
+                jobs=sjobs, machines=machine_ids, setup_times=setups, wr=config.wr
             )
 
             resolution.current_phase = 3
@@ -171,46 +171,55 @@ async def _run_resolution_async(resolution_id) -> None:
             resolution.progress_detail = {"phase": 3, "label": "Resolution"}
             await db.commit()
 
-            schedule = SolverDispatcher(ctx).solve(sjobs, setups)
+            schedule = SolverDispatcher(_config_dict(config)).dispatch(
+                s_instance, config.strategy
+            )
+            if schedule is None:
+                raise RuntimeError("Le solveur n'a retourne aucune solution realisable")
 
             resolution.current_phase = 4
             resolution.progress_pct = 90
             resolution.progress_detail = {"phase": 4, "label": "Sauvegarde des resultats"}
             await db.commit()
 
-            # Persist windows
-            ext_to_window_id = {}
-            window_id_by_index = {}
-            for w in schedule.windows:
-                tw = TimeWindow(
-                    tenant_id=resolution.tenant_id, resolution_id=resolution.id,
-                    window_index=w.index, t_start=w.t_start, t_end=w.t_end,
-                    nb_jobs=max(1, w.nb_jobs), status=w.status, method_used=w.method_used,
-                    recursion_depth=w.recursion_depth,
-                    local_weighted_tardiness=w.local_weighted_tardiness,
-                )
-                db.add(tw)
-                await db.flush()
-                window_id_by_index[w.index] = tw.id
+            # Persist a single covering window
+            horizon = schedule.horizon
+            tw = TimeWindow(
+                tenant_id=resolution.tenant_id, resolution_id=resolution.id,
+                window_index=1, t_start=0, t_end=max(1, horizon),
+                nb_jobs=max(1, len(db_jobs)), status="feasible",
+                method_used=schedule.method_used, recursion_depth=0,
+                local_weighted_tardiness=schedule.total_weighted_tardiness,
+            )
+            db.add(tw)
+            await db.flush()
+            window_id = tw.id
 
             job_by_ext = {j.external_id: j for j in db_jobs}
-            ext_by_job_id_str = {str(j.id): j.external_id for j in db_jobs}
+            completion_by_job = {r.job_id: r.completion_time for r in schedule.jobs_result}
+            tard_by_job = {r.job_id: r.tardiness for r in schedule.jobs_result}
             for e in schedule.entries:
-                op = op_lookup.get((e.job_id, e.position))
+                op = op_lookup.get((e.job_id, e.position_in_job))
                 if op is None:
                     continue
                 job = job_by_ext[e.job_id]
-                setup_from_id = job_by_ext[e.setup_from_job].id if e.setup_from_job else None
+                setup_from_id = setup_start = setup_end = None
+                setup_dur = 0
+                if e.setup:
+                    sf = job_by_ext.get(e.setup.from_job_id)
+                    setup_from_id = sf.id if sf else None
+                    setup_start, setup_end = e.setup.start_time, e.setup.end_time
+                    setup_dur = e.setup.duration
                 db.add(ScheduleEntry(
                     tenant_id=resolution.tenant_id, resolution_id=resolution.id,
                     operation_id=op.id, job_id=job.id, machine_id=op.machine_id,
-                    window_id=window_id_by_index.get(e.window_index),
+                    window_id=window_id,
                     start_time=e.start_time, end_time=e.end_time,
                     setup_from_job_id=setup_from_id,
-                    setup_start_time=e.setup_start_time, setup_end_time=e.setup_end_time,
-                    setup_duration=e.setup_duration,
-                    job_completion_time=schedule.job_completion.get(e.job_id),
-                    job_tardiness=schedule.job_tardiness.get(e.job_id),
+                    setup_start_time=setup_start, setup_end_time=setup_end,
+                    setup_duration=setup_dur,
+                    job_completion_time=completion_by_job.get(e.job_id),
+                    job_tardiness=tard_by_job.get(e.job_id),
                 ))
 
             # KPIs
@@ -219,9 +228,9 @@ async def _run_resolution_async(resolution_id) -> None:
             resolution.nb_jobs_late = schedule.nb_jobs_late
             resolution.nb_jobs_on_time = schedule.nb_jobs_on_time
             resolution.max_tardiness = schedule.max_tardiness
-            resolution.machine_utilization_pct = schedule.machine_utilization_pct
+            resolution.machine_utilization_pct = schedule.machine_utilization_pct(machine_ids)
             resolution.total_setup_time = schedule.total_setup_time
-            resolution.atcs_weighted_tardiness = schedule.atcs_weighted_tardiness
+            resolution.atcs_weighted_tardiness = schedule.atcs_twt
             resolution.improvement_vs_atcs_pct = schedule.improvement_vs_atcs_pct
             resolution.status = "completed"
             resolution.completed_at = _now()
