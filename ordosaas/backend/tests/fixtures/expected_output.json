@@ -1,0 +1,15 @@
+{
+  "instance": {
+    "nb_jobs": 10,
+    "nb_machines": 3,
+    "wr": 2
+  },
+  "kpis": {
+    "total_weighted_tardiness": 3012.84,
+    "nb_jobs_late": 8,
+    "nb_jobs_on_time": 2,
+    "max_tardiness": 449,
+    "total_setup_time": 0,
+    "method_used": "optimal"
+  }
+}
