@@ -1,0 +1,16 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build images
+        run: docker compose -f ordosaas/docker-compose.prod.yml build
+      - name: Deploy
+        run: echo "Add deployment steps (registry push / server update) here."

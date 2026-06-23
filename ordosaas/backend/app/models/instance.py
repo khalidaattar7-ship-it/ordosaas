@@ -1,0 +1,1 @@
+"""instance ORM model."""

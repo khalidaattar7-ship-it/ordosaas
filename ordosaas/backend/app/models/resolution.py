@@ -1,0 +1,1 @@
+"""resolution ORM model."""

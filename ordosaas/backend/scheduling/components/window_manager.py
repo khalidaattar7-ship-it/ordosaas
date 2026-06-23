@@ -1,0 +1,1 @@
+"""component window_manager."""

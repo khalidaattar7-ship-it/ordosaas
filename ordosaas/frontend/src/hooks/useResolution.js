@@ -1,0 +1,1 @@
+// useResolution hook

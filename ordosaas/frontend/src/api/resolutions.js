@@ -1,0 +1,1 @@
+// resolutions API module
