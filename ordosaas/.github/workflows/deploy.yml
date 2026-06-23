@@ -1,16 +1,25 @@
-name: Deploy
+name: Deploy to Render
 
 on:
   push:
     branches: [main]
-    tags: ["v*"]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Build images
-        run: docker compose -f ordosaas/docker-compose.prod.yml build
-      - name: Deploy
-        run: echo "Add deployment steps (registry push / server update) here."
+      - name: Deploy Backend to Render
+        run: |
+          if [ -n "${{ secrets.RENDER_DEPLOY_HOOK_BACKEND }}" ]; then
+            curl -fsSL -X POST "${{ secrets.RENDER_DEPLOY_HOOK_BACKEND }}"
+          else
+            echo "RENDER_DEPLOY_HOOK_BACKEND not set, skipping."
+          fi
+
+      - name: Deploy Frontend to Render
+        run: |
+          if [ -n "${{ secrets.RENDER_DEPLOY_HOOK_FRONTEND }}" ]; then
+            curl -fsSL -X POST "${{ secrets.RENDER_DEPLOY_HOOK_FRONTEND }}"
+          else
+            echo "RENDER_DEPLOY_HOOK_FRONTEND not set, skipping."
+          fi
