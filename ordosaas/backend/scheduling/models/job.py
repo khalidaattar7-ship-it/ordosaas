@@ -1,27 +1,37 @@
-"""Scheduling domain dataclasses for jobs and operations."""
-from __future__ import annotations
-
-from dataclasses import dataclass, field
+"""Scheduling domain models: Operation, Job, ProblemInstance."""
+from dataclasses import dataclass
 
 
 @dataclass
 class Operation:
-    op_id: str
+    job_id: str
     machine_id: str
     duration: int
-    position: int
+    position: int  # 1-indexed
 
 
 @dataclass
 class Job:
-    job_id: str
+    id: str  # external_id (ex: "J1")
+    operations: list  # list[Operation], ordered by position
     deadline: int
     weight: float
-    operations: list = field(default_factory=list)
 
-    def ordered_operations(self):
-        return sorted(self.operations, key=lambda o: o.position)
+
+@dataclass
+class ProblemInstance:
+    jobs: list  # list[Job]
+    machines: list  # external_ids of machines
+    setup_times: dict  # {(from_job_id, to_job_id, machine_id): duration}
+    wr: int  # nb of simultaneous setup technicians
+
+    def get_setup(self, from_job: str, to_job: str, machine: str) -> int:
+        return self.setup_times.get((from_job, to_job, machine), 0)
 
     @property
-    def total_processing(self) -> int:
-        return sum(o.duration for o in self.operations)
+    def horizon(self) -> int:
+        """Maximum time horizon (sum of all durations + all setups)."""
+        return (
+            sum(op.duration for job in self.jobs for op in job.operations)
+            + sum(self.setup_times.values())
+        )

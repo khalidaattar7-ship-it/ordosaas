@@ -1,14 +1,18 @@
 """Scheduling domain models."""
-from scheduling.models.context import SolverContext
-from scheduling.models.job import Job, Operation
-from scheduling.models.schedule import Schedule, ScheduledOperation
-from scheduling.models.window import Window
+from scheduling.models.context import BoundaryContext
+from scheduling.models.job import Job, Operation, ProblemInstance
+from scheduling.models.schedule import JobResult, Schedule, ScheduleEntry, SetupEntry
+from scheduling.models.window import Window, WindowResult
 
 __all__ = [
-    "SolverContext",
+    "BoundaryContext",
     "Job",
     "Operation",
+    "ProblemInstance",
+    "JobResult",
     "Schedule",
-    "ScheduledOperation",
+    "ScheduleEntry",
+    "SetupEntry",
     "Window",
+    "WindowResult",
 ]

@@ -1,20 +1,28 @@
-"""Time window dataclass used by the windowed solvers."""
-from __future__ import annotations
+"""Window and WindowResult models for the windowed LNS solver."""
+from dataclasses import dataclass
 
-from dataclasses import dataclass, field
+from scheduling.models.context import BoundaryContext
+from scheduling.models.schedule import Schedule
 
 
 @dataclass
 class Window:
-    index: int
+    index: int  # 1-indexed
     t_start: int
     t_end: int
-    job_ids: list = field(default_factory=list)
-    status: str = "pending"
-    method_used: str | None = None
-    recursion_depth: int = 0
-    local_weighted_tardiness: float | None = None
+    jobs: list  # list[Job]
 
     @property
     def nb_jobs(self) -> int:
-        return len(self.job_ids)
+        return len(self.jobs)
+
+
+@dataclass
+class WindowResult:
+    window: Window
+    schedule: Schedule
+    exit_context: BoundaryContext
+    objective: float
+    method: str  # 'optimal', 'feasible', 'atcs_fallback', ...
+    duration_seconds: float = 0.0
+    recursion_depth: int = 0
