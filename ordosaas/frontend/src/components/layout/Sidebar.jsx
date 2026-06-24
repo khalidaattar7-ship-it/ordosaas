@@ -1,5 +1,6 @@
 import clsx from 'clsx'
 import {
+  GitCompareArrows,
   LayoutDashboard,
   Package,
   ScrollText,
@@ -14,6 +15,7 @@ import { useAuth } from '../../hooks/useAuth'
 const LINKS = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/instances', label: 'Instances', icon: Package },
+  { to: '/comparisons', label: 'Comparaisons', icon: GitCompareArrows },
   { to: '/machines', label: 'Machines', icon: Settings2 },
   { to: '/users', label: 'Utilisateurs', icon: Users, admin: true },
   { to: '/audit', label: 'Audit Logs', icon: ScrollText, admin: true },

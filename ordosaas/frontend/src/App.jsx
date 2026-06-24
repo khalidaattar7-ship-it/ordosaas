@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import Layout from './components/layout/Layout'
 import { useAuth } from './hooks/useAuth'
 import AuditLogs from './pages/AuditLogs'
+import Comparisons from './pages/Comparisons'
 import Dashboard from './pages/Dashboard'
 import InstanceDetail from './pages/InstanceDetail'
 import Instances from './pages/Instances'
@@ -34,6 +35,7 @@ export default function App() {
         <Route path="/instances" element={<Instances />} />
         <Route path="/instances/:id" element={<InstanceDetail />} />
         <Route path="/resolutions/:id" element={<ResolutionDetail />} />
+        <Route path="/comparisons" element={<Comparisons />} />
         <Route path="/machines" element={<Machines />} />
         <Route path="/users" element={<Users />} />
         <Route path="/audit" element={<AuditLogs />} />
