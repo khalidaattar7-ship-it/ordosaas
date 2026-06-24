@@ -34,6 +34,9 @@ class ATCSSolver(BaseSolver):
         machine_time = {m: 0 for m in machines}
         last_job_on_machine = {m: None for m in machines}
         job_op_end = {job.id: 0 for job in jobs}
+        # Track (job_id, position) of operations already scheduled so we can
+        # check precedence robustly even when an op finishes at end_time=0.
+        completed_ops: set[tuple[str, int]] = set()
 
         schedule = Schedule(method_used="atcs")
 
@@ -59,8 +62,8 @@ class ATCSSolver(BaseSolver):
             for job, op in pending_ops:
                 if op.machine_id != best_machine:
                     continue
-                if op.position > 1 and job_op_end.get(job.id, 0) == 0:
-                    continue  # previous op not yet scheduled
+                if op.position > 1 and (job.id, op.position - 1) not in completed_ops:
+                    continue  # previous operation not yet scheduled
 
                 last_j = last_job_on_machine[best_machine]
                 s_dur = instance.get_setup(last_j, job.id, best_machine) if last_j else 0
@@ -112,6 +115,7 @@ class ATCSSolver(BaseSolver):
             machine_time[best_machine] = actual_end
             last_job_on_machine[best_machine] = best_job.id
             job_op_end[best_job.id] = actual_end
+            completed_ops.add((best_job.id, best_op.position))
 
             pending_ops.remove((best_job, best_op))
             ops_sorted = sorted(best_job.operations, key=lambda o: o.position)
