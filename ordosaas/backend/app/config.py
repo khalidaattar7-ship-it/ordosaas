@@ -1,5 +1,4 @@
 """Application configuration loaded from environment variables."""
-from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,7 +10,9 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     ENVIRONMENT: str = "development"
-    CORS_ORIGINS: list[str] = ["http://localhost:3000"]
+    # Comma-separated list; kept as a plain string to avoid pydantic-settings
+    # JSON pre-parsing of complex types from env/.env. Use `cors_origins`.
+    CORS_ORIGINS: str = "http://localhost:3000"
 
     # --- Scheduling engine tuning ---
     SEUIL_EXACT: int = 50  # Au-delà, LNS au lieu de CP-SAT direct
@@ -25,12 +26,9 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    @field_validator("CORS_ORIGINS", mode="before")
-    @classmethod
-    def _split_cors(cls, v):
-        if isinstance(v, str):
-            return [o.strip() for o in v.split(",") if o.strip()]
-        return v
+    @property
+    def cors_origins(self) -> list[str]:
+        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
 
 
 settings = Settings()

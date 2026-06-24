@@ -40,7 +40,11 @@ async def init_db() -> None:
 
 # --- Sync engine / session (Alembic, scripts) ---
 def _sync_url() -> str:
-    return settings.DATABASE_URL.replace("+asyncpg", "+psycopg2")
+    return (
+        settings.DATABASE_URL
+        .replace("+asyncpg", "+psycopg2")
+        .replace("+aiosqlite", "+pysqlite")
+    )
 
 
 sync_engine = create_engine(_sync_url(), echo=False, future=True)

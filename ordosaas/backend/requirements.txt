@@ -13,3 +13,5 @@ ortools==9.11.4210
 aiofiles==24.1.0
 python-csv==0.0.13
 httpx==0.27.2
+aiosqlite==0.20.0
+bcrypt==4.0.1

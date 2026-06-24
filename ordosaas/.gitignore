@@ -11,6 +11,7 @@ dist/
 htmlcov/
 .env
 benchmark_results.json
+*.db
 
 # Node
 node_modules/

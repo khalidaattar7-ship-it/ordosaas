@@ -2,7 +2,7 @@
 import uuid
 
 from sqlalchemy import CheckConstraint, ForeignKey, Integer, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
+from app.models._types import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import BaseModel
