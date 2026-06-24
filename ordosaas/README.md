@@ -135,6 +135,34 @@ ordosaas/
 └── .github/workflows/  # ci.yml, deploy.yml
 ```
 
+## Déploiement sur Railway (gratuit, sans carte bancaire)
+
+OrdoSaaS se déploie en **un seul service** sur Railway : le backend FastAPI sert
+aussi le frontend React buildé (un `Dockerfile` multi-stage à la racine du repo
+construit le frontend puis le bundle dans l'image backend).
+
+1. Créer un compte sur [railway.app](https://railway.app) (*Sign up with GitHub*).
+2. **New Project → Deploy from GitHub repo** → sélectionner `khalidaattar7-ship-it/PFA`.
+3. Railway détecte le **`Dockerfile` à la racine** (build frontend + backend).
+4. Ajouter une base : **New → Database → PostgreSQL**. Railway injecte
+   automatiquement `DATABASE_URL` (format `postgres://…`, converti en
+   `postgresql+asyncpg://` par l'app).
+5. Sur le service backend, ajouter les variables d'environnement :
+   - `SECRET_KEY` = une chaîne aléatoire de 64 caractères
+   - `ENVIRONMENT` = `production`
+   - `CORS_ORIGINS` = `*` (ou l'URL publique Railway une fois connue)
+6. Déployer. Au premier démarrage, `start.sh` applique les migrations Alembic
+   puis le seed, et lance uvicorn sur `$PORT`. Le frontend est servi sur le même
+   domaine (les appels `/api/v1/...` sont gérés directement par FastAPI).
+
+Healthcheck : `GET /healthz` → `{"status":"ok"}`.
+Identifiants de démo : **admin@ensias-demo.ma** / **demo_password**.
+
+> Le `Dockerfile` et le `railway.json` à la racine pilotent ce déploiement.
+> `ordosaas/backend/{Dockerfile,Procfile,railway.json,nixpacks.toml}` permettent
+> aussi un déploiement backend-seul. Un `render.yaml` (blueprint Render) est
+> également fourni.
+
 ## Références
 
 - **Avgerinos, I. et al. (2023)** — *A hybrid CP / heuristic approach for the weighted tardiness scheduling problem with sequence-dependent setups.*
