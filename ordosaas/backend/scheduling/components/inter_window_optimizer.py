@@ -48,7 +48,9 @@ class InterWindowOptimizer:
                         window_results, new_results, instance
                     )
                     if test_schedule.total_weighted_tardiness < current_twt * (1 - self.epsilon):
-                        window_results = self._apply_new_results(window_results, new_results)
+                        window_results = self._apply_new_results(
+                            window_results, new_results, instance
+                        )
                         current_twt = test_schedule.total_weighted_tardiness
                         current_schedule = test_schedule
                         improved = True
@@ -122,7 +124,12 @@ class InterWindowOptimizer:
         result = self.cpsat_solver.solve_with_context(micro_instance, left_context, None)
         if result is None:
             return []
-        return [result]
+        return [{
+            "index": junction["index"],
+            "micro_schedule": result,
+            "left_job_ids": {j.id for j in left_jobs},
+            "right_job_ids": {j.id for j in right_jobs},
+        }]
 
     def _assemble_schedule(self, window_results: list, instance: ProblemInstance) -> Schedule:
         final = Schedule(method_used="lns")
@@ -154,8 +161,80 @@ class InterWindowOptimizer:
         final.total_weighted_tardiness = round(total_wt, 4)
         return final
 
+    def _recompute_window_kpis(self, wr) -> None:
+        """Recompute the local weighted tardiness of a window from its entries."""
+        sched = wr.schedule
+        sched.jobs_result = []
+        total = 0.0
+        for job in wr.window.jobs:
+            last_op = max(job.operations, key=lambda o: o.position)
+            ends = [
+                e.end_time for e in sched.entries
+                if e.job_id == job.id and e.machine_id == last_op.machine_id
+            ]
+            completion = max(ends) if ends else 0
+            tardiness = max(0, completion - job.deadline)
+            wt = round(job.weight * tardiness, 4)
+            total += wt
+            sched.jobs_result.append(JobResult(
+                job_id=job.id, deadline=job.deadline, weight=job.weight,
+                completion_time=completion, tardiness=tardiness,
+                is_late=tardiness > 0, weighted_tardiness=wt,
+            ))
+        sched.total_weighted_tardiness = round(total, 4)
+        wr.objective = sched.total_weighted_tardiness
+
+    def _build_applied(self, window_results, new_results):
+        """Return a copy of window_results with the re-optimised junction
+        micro-schedule applied to the affected left/right windows (non-mutating
+        of the originals' entry lists)."""
+        applied = list(window_results)
+        for nr in new_results:
+            idx = nr["index"]
+            if idx < 0 or idx + 1 >= len(applied):
+                continue
+            left_wr = applied[idx]
+            right_wr = applied[idx + 1]
+            micro_entries = nr["micro_schedule"].entries
+            left_ids = nr["left_job_ids"]
+            right_ids = nr["right_job_ids"]
+
+            new_left = _clone_window_result(left_wr)
+            new_right = _clone_window_result(right_wr)
+            # Drop the re-optimised jobs' entries, then re-insert from the micro-schedule.
+            new_left.schedule.entries = [
+                e for e in new_left.schedule.entries if e.job_id not in left_ids
+            ] + [e for e in micro_entries if e.job_id in left_ids]
+            new_right.schedule.entries = [
+                e for e in new_right.schedule.entries if e.job_id not in right_ids
+            ] + [e for e in micro_entries if e.job_id in right_ids]
+            self._recompute_window_kpis(new_left)
+            self._recompute_window_kpis(new_right)
+            applied[idx] = new_left
+            applied[idx + 1] = new_right
+        return applied
+
     def _assemble_from_mixed(self, window_results, new_results, instance):
-        return self._assemble_schedule(window_results, instance)
+        return self._assemble_schedule(
+            self._build_applied(window_results, new_results), instance
+        )
 
     def _apply_new_results(self, window_results, new_results, instance=None):
-        return window_results
+        return self._build_applied(window_results, new_results)
+
+
+def _clone_window_result(wr):
+    """Shallow clone of a WindowResult with an independent schedule/entry list."""
+    from copy import copy
+
+    from scheduling.models.schedule import Schedule
+
+    new_sched = Schedule(
+        entries=list(wr.schedule.entries),
+        jobs_result=list(wr.schedule.jobs_result),
+        total_weighted_tardiness=wr.schedule.total_weighted_tardiness,
+        method_used=wr.schedule.method_used,
+    )
+    clone = copy(wr)
+    clone.schedule = new_sched
+    return clone
