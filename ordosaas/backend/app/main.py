@@ -1,11 +1,13 @@
 """OrdoSaaS FastAPI application entrypoint."""
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.audit.router import router as audit_router
@@ -113,6 +115,54 @@ async def internal_exception_handler(request: Request, exc: Exception):
     )
 
 
-@app.get("/", tags=["system"])
-async def health():
+@app.get("/healthz", tags=["system"])
+async def healthz():
     return {"status": "ok", "version": "1.0.0"}
+
+
+def _find_frontend_dist() -> str | None:
+    """Locate the built frontend across the supported deploy layouts."""
+    here = os.path.dirname(__file__)
+    candidates = [
+        os.path.join(here, "..", "frontend_dist"),          # backend/frontend_dist (root Docker)
+        "/app/frontend_dist",                                 # absolute in Docker image
+        os.path.join(here, "..", "..", "frontend_dist"),      # ordosaas/frontend_dist
+        os.path.join(here, "..", "..", "frontend", "dist"),   # local `npm run build`
+    ]
+    for c in candidates:
+        if os.path.isdir(c):
+            return os.path.abspath(c)
+    return None
+
+
+FRONTEND_DIST = _find_frontend_dist()
+
+# Reserved API/system prefixes that must never be served as SPA routes.
+_RESERVED = ("api", "docs", "redoc", "openapi.json", "healthz")
+
+if FRONTEND_DIST:
+    _assets = os.path.join(FRONTEND_DIST, "assets")
+    if os.path.isdir(_assets):
+        app.mount("/assets", StaticFiles(directory=_assets), name="assets")
+
+    @app.get("/", include_in_schema=False)
+    async def serve_index():
+        return FileResponse(os.path.join(FRONTEND_DIST, "index.html"))
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_spa(full_path: str):
+        # Keep API/docs semantics intact (JSON 404 instead of HTML fallback).
+        if full_path.startswith("api") or full_path in _RESERVED:
+            return JSONResponse(
+                status_code=404,
+                content={"error": "not_found", "message": "Not found", "detail": {}},
+            )
+        candidate = os.path.join(FRONTEND_DIST, full_path)
+        if os.path.isfile(candidate):
+            return FileResponse(candidate)
+        return FileResponse(os.path.join(FRONTEND_DIST, "index.html"))
+else:
+    # No bundled frontend (e.g. local dev) — keep the JSON health root.
+    @app.get("/", tags=["system"])
+    async def health():
+        return {"status": "ok", "version": "1.0.0"}
