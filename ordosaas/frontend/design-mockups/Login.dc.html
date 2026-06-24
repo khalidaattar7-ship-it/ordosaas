@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+
+<helmet>
+  <title>OrdoSaaS — Connexion</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+
+    input:-webkit-autofill,
+    input:-webkit-autofill:hover,
+    input:-webkit-autofill:focus {
+      -webkit-box-shadow: 0 0 0 40px #FFFFFF inset !important;
+      -webkit-text-fill-color: #18191F !important;
+      caret-color: #18191F;
+    }
+
+    @keyframes rowFade {
+      from { opacity: 0; transform: translateX(-6px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(14px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes pulseGold {
+      0%, 100% { opacity: 0.45; }
+      50%       { opacity: 0.9; }
+    }
+  </style>
+</helmet>
+
+<div style="display:flex; height:100vh; font-family:'DM Sans',sans-serif; overflow:hidden; background:#08090F;">
+
+  <!-- ════════════ LEFT PANEL ════════════ -->
+  <div style="flex:0 0 59%; display:flex; flex-direction:column; padding:52px 56px 48px; position:relative; overflow:hidden; background:linear-gradient(155deg,#0E0F1C 0%,#08090F 50%,#0B0C17 100%);">
+
+    <!-- Grid texture -->
+    <svg style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:0;" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+      <defs>
+        <pattern id="g" width="52" height="52" patternUnits="userSpaceOnUse">
+          <path d="M52 0L0 0 0 52" fill="none" stroke="#8890AA" stroke-width="0.4" opacity="0.09"/>
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#g)"/>
+    </svg>
+
+    <!-- Glow spot -->
+    <div style="position:absolute;top:-120px;left:-80px;width:600px;height:600px;background:radial-gradient(ellipse,rgba(196,150,58,0.07) 0%,transparent 65%);pointer-events:none;z-index:0;"></div>
+
+    <!-- ── Logo ── -->
+    <div style="display:flex;align-items:center;gap:16px;z-index:1;animation:fadeUp 0.55s 0.05s ease-out both;">
+      <svg width="46" height="46" viewBox="0 0 46 46" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="23" cy="23" r="20" stroke="#C4963A" stroke-width="1.5"/>
+        <rect x="11" y="16.5" width="13" height="3.5" rx="1.75" fill="#C4963A"/>
+        <rect x="11" y="22.5" width="21" height="3.5" rx="1.75" fill="#C4963A"/>
+        <rect x="11" y="28.5" width="16" height="3.5" rx="1.75" fill="#C4963A" opacity="0.65"/>
+      </svg>
+      <div>
+        <div style="font-size:21px;font-weight:600;letter-spacing:-0.03em;color:#EAEAF5;line-height:1.1;">OrdoSaaS</div>
+        <div style="font-size:9px;letter-spacing:0.2em;color:#C4963A;font-family:'DM Mono',monospace;margin-top:3px;text-transform:uppercase;">Production Scheduling</div>
+      </div>
+    </div>
+
+    <!-- ── Gantt visualization ── -->
+    <div style="flex:1;display:flex;flex-direction:column;justify-content:center;z-index:1;margin:36px 0 28px;">
+
+      <div style="font-size:8.5px;letter-spacing:0.2em;color:#2E3048;font-family:'DM Mono',monospace;margin-bottom:18px;animation:fadeUp 0.55s 0.15s ease-out both;text-transform:uppercase;">
+        Atelier 2 — Semaine 25 — Plan optimisé
+      </div>
+
+      <svg viewBox="0 0 548 278" width="100%" fill="none" xmlns="http://www.w3.org/2000/svg" style="animation:fadeUp 0.7s 0.2s ease-out both;">
+        <defs>
+          <filter id="glow" x="-30%" y="-150%" width="160%" height="400%">
+            <feGaussianBlur stdDeviation="2.8" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+
+        <!-- Time labels -->
+        <text x="94"  y="15" font-family="DM Mono" font-size="8" fill="#30324A" letter-spacing="0.5">06h</text>
+        <text x="168" y="15" font-family="DM Mono" font-size="8" fill="#30324A" letter-spacing="0.5">08h</text>
+        <text x="242" y="15" font-family="DM Mono" font-size="8" fill="#30324A" letter-spacing="0.5">10h</text>
+        <text x="316" y="15" font-family="DM Mono" font-size="8" fill="#30324A" letter-spacing="0.5">12h</text>
+        <text x="390" y="15" font-family="DM Mono" font-size="8" fill="#30324A" letter-spacing="0.5">14h</text>
+        <text x="464" y="15" font-family="DM Mono" font-size="8" fill="#30324A" letter-spacing="0.5">16h</text>
+
+        <!-- Vertical grid lines -->
+        <line x1="94"  y1="22" x2="94"  y2="258" stroke="#181A28" stroke-width="1"/>
+        <line x1="168" y1="22" x2="168" y2="258" stroke="#181A28" stroke-width="1"/>
+        <line x1="242" y1="22" x2="242" y2="258" stroke="#181A28" stroke-width="1"/>
+        <line x1="316" y1="22" x2="316" y2="258" stroke="#181A28" stroke-width="1"/>
+        <line x1="390" y1="22" x2="390" y2="258" stroke="#181A28" stroke-width="1"/>
+        <line x1="464" y1="22" x2="464" y2="258" stroke="#181A28" stroke-width="1"/>
+        <line x1="538" y1="22" x2="538" y2="258" stroke="#181A28" stroke-width="1"/>
+
+        <!-- NOW marker at 10h = x=242 -->
+        <line x1="242" y1="20" x2="242" y2="258" stroke="#C4963A" stroke-width="1" stroke-dasharray="3,3" style="animation:pulseGold 2.4s 1s ease-in-out infinite;"/>
+        <rect x="228" y="13" width="28" height="11" rx="2" fill="#C4963A"/>
+        <text x="242" y="21.5" font-family="DM Mono" font-size="7" fill="#08090F" text-anchor="middle" font-weight="500">10h</text>
+
+        <!-- Row 0: Presse A (y center=50) -->
+        <g style="animation:rowFade 0.65s 0.18s ease-out both;">
+          <text x="88" y="53" font-family="DM Mono" font-size="8.5" fill="#3C3F5C" text-anchor="end">Presse A</text>
+          <line x1="94" y1="50" x2="538" y2="50" stroke="#16172A" stroke-width="1"/>
+          <rect x="94"  y="46" width="70"  height="7" rx="2" fill="#222339"/>
+          <rect x="210" y="46" width="90"  height="7" rx="2" fill="#C4963A" filter="url(#glow)"/>
+          <rect x="370" y="46" width="82"  height="7" rx="2" fill="#222339"/>
+        </g>
+
+        <!-- Row 1: Tour CNC (y center=82) -->
+        <g style="animation:rowFade 0.65s 0.27s ease-out both;">
+          <text x="88" y="85" font-family="DM Mono" font-size="8.5" fill="#3C3F5C" text-anchor="end">Tour CNC</text>
+          <line x1="94" y1="82" x2="538" y2="82" stroke="#16172A" stroke-width="1"/>
+          <rect x="104" y="78" width="90"  height="7" rx="2" fill="#222339"/>
+          <rect x="252" y="78" width="86"  height="7" rx="2" fill="#C4963A" filter="url(#glow)"/>
+          <rect x="402" y="78" width="80"  height="7" rx="2" fill="#222339"/>
+        </g>
+
+        <!-- Row 2: Soudure (y center=114) -->
+        <g style="animation:rowFade 0.65s 0.36s ease-out both;">
+          <text x="88" y="117" font-family="DM Mono" font-size="8.5" fill="#3C3F5C" text-anchor="end">Soudure</text>
+          <line x1="94" y1="114" x2="538" y2="114" stroke="#16172A" stroke-width="1"/>
+          <rect x="94"  y="110" width="54"  height="7" rx="2" fill="#222339"/>
+          <rect x="190" y="110" width="98"  height="7" rx="2" fill="#C4963A" filter="url(#glow)"/>
+          <rect x="350" y="110" width="94"  height="7" rx="2" fill="#222339"/>
+        </g>
+
+        <!-- Row 3: Peinture (y center=146) -->
+        <g style="animation:rowFade 0.65s 0.45s ease-out both;">
+          <text x="88" y="149" font-family="DM Mono" font-size="8.5" fill="#3C3F5C" text-anchor="end">Peinture</text>
+          <line x1="94" y1="146" x2="538" y2="146" stroke="#16172A" stroke-width="1"/>
+          <rect x="130" y="142" width="78"  height="7" rx="2" fill="#222339"/>
+          <rect x="266" y="142" width="74"  height="7" rx="2" fill="#C4963A" filter="url(#glow)"/>
+          <rect x="404" y="142" width="76"  height="7" rx="2" fill="#222339"/>
+        </g>
+
+        <!-- Row 4: Assemblage (y center=178) -->
+        <g style="animation:rowFade 0.65s 0.54s ease-out both;">
+          <text x="88" y="181" font-family="DM Mono" font-size="8.5" fill="#3C3F5C" text-anchor="end">Assemblage</text>
+          <line x1="94" y1="178" x2="538" y2="178" stroke="#16172A" stroke-width="1"/>
+          <rect x="178" y="174" width="126" height="7" rx="2" fill="#C4963A" filter="url(#glow)"/>
+          <rect x="364" y="174" width="96"  height="7" rx="2" fill="#222339"/>
+        </g>
+
+        <!-- Row 5: Contrôle Q (y center=210) -->
+        <g style="animation:rowFade 0.65s 0.63s ease-out both;">
+          <text x="88" y="213" font-family="DM Mono" font-size="8.5" fill="#3C3F5C" text-anchor="end">Contrôle Q</text>
+          <line x1="94" y1="210" x2="538" y2="210" stroke="#16172A" stroke-width="1"/>
+          <rect x="104" y="206" width="50"  height="7" rx="2" fill="#222339"/>
+          <rect x="272" y="206" width="62"  height="7" rx="2" fill="#C4963A" filter="url(#glow)"/>
+          <rect x="398" y="206" width="80"  height="7" rx="2" fill="#222339"/>
+        </g>
+
+        <!-- Row 6: Logistique (y center=242) -->
+        <g style="animation:rowFade 0.65s 0.72s ease-out both;">
+          <text x="88" y="245" font-family="DM Mono" font-size="8.5" fill="#3C3F5C" text-anchor="end">Logistique</text>
+          <line x1="94" y1="242" x2="538" y2="242" stroke="#16172A" stroke-width="1"/>
+          <rect x="142" y="238" width="72"  height="7" rx="2" fill="#222339"/>
+          <rect x="286" y="238" width="104" height="7" rx="2" fill="#C4963A" filter="url(#glow)"/>
+        </g>
+
+        <!-- Bottom axis -->
+        <line x1="94" y1="258" x2="538" y2="258" stroke="#1C1D2C" stroke-width="1"/>
+
+        <!-- Legend -->
+        <rect x="94"  y="266" width="16" height="4" rx="2" fill="#222339"/>
+        <text x="116" y="270" font-family="DM Mono" font-size="7.5" fill="#30324A">Planifié</text>
+        <rect x="202" y="266" width="16" height="4" rx="2" fill="#C4963A"/>
+        <text x="224" y="270" font-family="DM Mono" font-size="7.5" fill="#30324A">Chemin optimisé</text>
+      </svg>
+    </div>
+
+    <!-- ── Tagline ── -->
+    <div style="z-index:1;animation:fadeUp 0.6s 0.5s ease-out both;">
+      <div style="font-size:9px;letter-spacing:0.2em;color:#C4963A;font-family:'DM Mono',monospace;margin-bottom:14px;text-transform:uppercase;">Intelligence de planification</div>
+      <p style="font-size:19px;line-height:1.5;color:#C8C9DC;max-width:440px;font-weight:300;letter-spacing:-0.01em;text-wrap:pretty;">
+        Ordonnancement de précision<br/>pour l'industrie manufacturière.
+      </p>
+      <p style="margin-top:14px;font-size:10.5px;color:#25273A;letter-spacing:0.07em;font-family:'DM Mono',monospace;">
+        Multi-contraintes · Temps réel · Conformité normative
+      </p>
+    </div>
+
+  </div>
+
+  <!-- ════════════ RIGHT PANEL ════════════ -->
+  <div style="flex:1;background:#F9F8F6;display:flex;align-items:center;justify-content:center;padding:48px;border-left:1px solid rgba(0,0,0,0.035);">
+
+    <div style="width:100%;max-width:352px;animation:fadeUp 0.65s 0.35s ease-out both;">
+
+      <!-- Header -->
+      <div style="margin-bottom:40px;">
+        <div style="font-size:9px;letter-spacing:0.2em;color:#C4963A;font-family:'DM Mono',monospace;margin-bottom:14px;text-transform:uppercase;">Accès sécurisé</div>
+        <h1 style="font-size:30px;font-weight:500;letter-spacing:-0.035em;color:#0C0D18;line-height:1;">Connexion</h1>
+        <p style="margin-top:9px;font-size:14px;color:#9A9BAA;line-height:1.55;font-weight:300;">Bienvenue sur votre espace de pilotage industriel.</p>
+      </div>
+
+      <!-- Error -->
+      <sc-if value="{{ showError }}" hint-placeholder-val="{{ false }}">
+        <div style="background:#FDF6F6;border:1px solid #EDCFCF;border-radius:3px;padding:11px 14px;margin-bottom:22px;font-size:12.5px;color:#A83838;font-family:'DM Mono',monospace;letter-spacing:0.01em;line-height:1.5;">
+          {{ error }}
+        </div>
+      </sc-if>
+
+      <!-- Form -->
+      <form onSubmit="{{ handleSubmit }}">
+
+        <!-- Email -->
+        <div style="margin-bottom:22px;">
+          <label style="display:block;font-size:9px;letter-spacing:0.16em;color:#AAAAB8;font-family:'DM Mono',monospace;margin-bottom:8px;text-transform:uppercase;">Adresse e-mail</label>
+          <input
+            type="email"
+            value="{{ email }}"
+            onChange="{{ handleEmailChange }}"
+            placeholder="prenom.nom@entreprise.fr"
+            autocomplete="email"
+            style="width:100%;padding:12px 14px;font-size:14px;font-family:'DM Sans',sans-serif;border:1px solid #DDDBD6;border-radius:3px;background:#FFFFFF;color:#18191F;outline:none;transition:border-color 0.2s,box-shadow 0.2s;"
+            style-focus="border-color:#C4963A;box-shadow:0 0 0 3px rgba(196,150,58,0.11);"
+          />
+        </div>
+
+        <!-- Password -->
+        <div style="margin-bottom:26px;">
+          <label style="display:block;font-size:9px;letter-spacing:0.16em;color:#AAAAB8;font-family:'DM Mono',monospace;margin-bottom:8px;text-transform:uppercase;">Mot de passe</label>
+          <div style="position:relative;">
+            <input
+              type="{{ inputType }}"
+              value="{{ password }}"
+              onChange="{{ handlePasswordChange }}"
+              placeholder="••••••••••••"
+              autocomplete="current-password"
+              style="width:100%;padding:12px 14px;font-size:14px;font-family:'DM Sans',sans-serif;border:1px solid #DDDBD6;border-radius:3px;background:#FFFFFF;color:#18191F;outline:none;transition:border-color 0.2s,box-shadow 0.2s;padding-right:92px;"
+              style-focus="border-color:#C4963A;box-shadow:0 0 0 3px rgba(196,150,58,0.11);"
+            />
+            <button
+              type="button"
+              onClick="{{ togglePassword }}"
+              style="position:absolute;right:0;top:0;bottom:0;padding:0 14px;background:none;border:none;cursor:pointer;font-size:9.5px;font-family:'DM Mono',monospace;letter-spacing:0.1em;color:#B8B8C5;text-transform:uppercase;transition:color 0.2s;"
+              style-hover="color:#C4963A;"
+            >{{ eyeLabel }}</button>
+          </div>
+        </div>
+
+        <!-- Remember me + Forgot -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;">
+          <label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-size:13px;color:#696A7A;font-weight:400;user-select:none;">
+            <input
+              type="checkbox"
+              checked="{{ rememberMe }}"
+              onChange="{{ toggleRemember }}"
+              style="width:15px;height:15px;accent-color:#C4963A;cursor:pointer;flex-shrink:0;"
+            />
+            Se souvenir de moi
+          </label>
+          <a
+            href="#"
+            style="font-size:13px;color:#B0B0BE;text-decoration:none;transition:color 0.2s;"
+            style-hover="color:#C4963A;"
+          >Mot de passe oublié</a>
+        </div>
+
+        <!-- Submit -->
+        <button
+          type="submit"
+          style="{{ buttonStyle }}"
+        >{{ buttonText }}</button>
+
+      </form>
+
+      <!-- Divider -->
+      <div style="display:flex;align-items:center;gap:14px;margin:28px 0;">
+        <div style="flex:1;height:1px;background:#E8E6E1;"></div>
+        <span style="font-size:9.5px;color:#CCCAC4;font-family:'DM Mono',monospace;letter-spacing:0.06em;">ou</span>
+        <div style="flex:1;height:1px;background:#E8E6E1;"></div>
+      </div>
+
+      <!-- Request access -->
+      <p style="text-align:center;font-size:13px;color:#9A9BAA;line-height:1.65;font-weight:300;">
+        Vous n'avez pas encore d'accès ?
+      </p>
+      <p style="text-align:center;margin-top:6px;">
+        <a
+          href="#"
+          style="font-size:13px;font-weight:500;color:#0C0D18;text-decoration:none;border-bottom:1px solid rgba(12,13,24,0.35);padding-bottom:1px;transition:color 0.2s,border-color 0.2s;"
+          style-hover="color:#C4963A;border-bottom-color:rgba(196,150,58,0.5);"
+        >Demander un accès</a>
+      </p>
+
+      <!-- Copyright -->
+      <p style="text-align:center;margin-top:52px;font-size:9px;color:#CCCAC4;font-family:'DM Mono',monospace;letter-spacing:0.1em;">
+        © 2026 OrdoSaaS · Tous droits réservés
+      </p>
+
+    </div>
+  </div>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+
+class Component extends DCLogic {
+  state = {
+    email: '',
+    password: '',
+    rememberMe: false,
+    showPassword: false,
+    isLoading: false,
+    error: null,
+  };
+
+  renderVals() {
+    const { email, password, rememberMe, showPassword, isLoading, error } = this.state;
+
+    const handleSubmit = (e) => {
+      e.preventDefault();
+      if (!email.trim() || !password.trim()) {
+        this.setState({ error: 'Veuillez renseigner votre e-mail et votre mot de passe.' });
+        return;
+      }
+      this.setState({ isLoading: true, error: null });
+      setTimeout(() => {
+        window.location.href = 'Dashboard.dc.html';
+      }, 1200);
+    };
+
+    return {
+      email,
+      password,
+      rememberMe,
+      showPassword,
+      isLoading,
+      error,
+      showError: !!error,
+      eyeLabel: showPassword ? 'masquer' : 'afficher',
+      inputType: showPassword ? 'text' : 'password',
+      buttonText: isLoading ? 'Connexion en cours…' : 'Se connecter',
+      buttonStyle: {
+        width: '100%',
+        padding: '13px 20px',
+        background: isLoading ? '#74758A' : '#0C0D18',
+        color: '#F9F8F6',
+        fontSize: '12px',
+        fontFamily: "'DM Sans', sans-serif",
+        fontWeight: '500',
+        letterSpacing: '0.13em',
+        border: 'none',
+        borderRadius: '3px',
+        cursor: isLoading ? 'not-allowed' : 'pointer',
+        transition: 'background 0.25s',
+        textTransform: 'uppercase',
+      },
+      togglePassword: () => this.setState(s => ({ showPassword: !s.showPassword })),
+      toggleRemember:  () => this.setState(s => ({ rememberMe: !s.rememberMe })),
+      handleEmailChange:    (e) => this.setState({ email: e.target.value, error: null }),
+      handlePasswordChange: (e) => this.setState({ password: e.target.value, error: null }),
+      handleSubmit,
+    };
+  }
+}
+
+</script>
+</body>
+</html>

@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+
+<helmet>
+  <title>OrdoSaaS — Re-dispatch</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    @keyframes fadeUp  { from{transform:translateY(7px)} to{transform:translateY(0)} }
+    @keyframes slideIn { from{transform:translateX(-8px)} to{transform:translateX(0)} }
+    @keyframes popIn   { from{transform:scale(0.96)} to{transform:scale(1)} }
+    .scroll-y::-webkit-scrollbar { width: 5px; }
+    .scroll-y::-webkit-scrollbar-track { background: transparent; }
+    .scroll-y::-webkit-scrollbar-thumb { background: #E0DED8; border-radius: 3px; }
+    .mod-row { animation: popIn 0.22s ease-out both; }
+    input[type=range] { -webkit-appearance: none; height: 4px; border-radius: 2px; background: #E8E6DF; outline: none; }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #C4963A; cursor: pointer; border: 2px solid #FFF; box-shadow: 0 1px 4px rgba(0,0,0,0.15); }
+    select { -webkit-appearance: none; appearance: none; background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888899' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; }
+  </style>
+</helmet>
+
+<div style="display:flex; height:100vh; font-family:'DM Sans',sans-serif; overflow:hidden; background:#08090F;">
+
+  <!-- ══ SIDEBAR ══ -->
+  <aside style="width:232px; background:#08090F; display:flex; flex-direction:column; border-right:1px solid rgba(255,255,255,0.045); flex-shrink:0;">
+    <div style="padding:26px 22px 22px; border-bottom:1px solid rgba(255,255,255,0.04); cursor:pointer;" onClick="{{ goHome }}">
+      <div style="display:flex; align-items:center; gap:13px;">
+        <svg width="36" height="36" viewBox="0 0 46 46" fill="none"><circle cx="23" cy="23" r="20" stroke="#C4963A" stroke-width="1.5"/><rect x="11" y="16.5" width="13" height="3.5" rx="1.75" fill="#C4963A"/><rect x="11" y="22.5" width="21" height="3.5" rx="1.75" fill="#C4963A"/><rect x="11" y="28.5" width="16" height="3.5" rx="1.75" fill="#C4963A" opacity="0.6"/></svg>
+        <div>
+          <div style="font-size:16.5px; font-weight:600; letter-spacing:-0.03em; color:#EAEAF5; line-height:1;">OrdoSaaS</div>
+          <div style="font-size:8px; letter-spacing:0.2em; color:#C4963A; font-family:'DM Mono',monospace; margin-top:3px; text-transform:uppercase;">Scheduling</div>
+        </div>
+      </div>
+    </div>
+
+    <nav style="flex:1; padding:16px 10px 8px; overflow-y:auto;">
+      <div style="font-size:7.5px; letter-spacing:0.2em; color:#1E2032; font-family:'DM Mono',monospace; text-transform:uppercase; padding:0 12px; margin-bottom:8px;">Menu</div>
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:4px;cursor:pointer;color:#3E4058;margin-bottom:2px;transition:all 0.15s;" style-hover="color:#9090A4;" onClick="{{ goHome }}">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="9" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="1.5" y="9" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="9" y="9" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/></svg>
+        <span style="font-size:13.5px; letter-spacing:-0.01em;">Tableau de bord</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:4px;cursor:pointer;color:#3E4058;margin-bottom:2px;transition:all 0.15s;" style-hover="color:#9090A4;" onClick="{{ goHome }}">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><path d="M2 5l6-3 6 3-6 3-6-3Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M2 9l6 3 6-3" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M2 12l6 3 6-3" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+        <span style="font-size:13.5px; letter-spacing:-0.01em;">Mes instances</span>
+        <span style="margin-left:auto; background:rgba(196,150,58,0.13); color:#C4963A; font-size:10px; font-family:'DM Mono',monospace; padding:2px 7px; border-radius:10px; flex-shrink:0;">47</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:4px;cursor:pointer;color:#3E4058;margin-bottom:2px;transition:all 0.15s;" style-hover="color:#9090A4;" onClick="{{ goResults }}">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><path d="M3 13V7M6.5 13V9M10 13V5M13.5 13V8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        <span style="font-size:13.5px; letter-spacing:-0.01em;">Résultats</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:4px;cursor:pointer;color:#3E4058;margin-bottom:2px;transition:all 0.15s;" style-hover="color:#9090A4;" onClick="{{ goGantt }}">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><line x1="2" y1="1.5" x2="2" y2="14.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><rect x="3" y="3" width="8" height="2.5" rx="1.25" fill="currentColor" opacity="0.9"/><rect x="3" y="6.75" width="11" height="2.5" rx="1.25" fill="currentColor" opacity="0.7"/><rect x="3" y="10.5" width="6.5" height="2.5" rx="1.25" fill="currentColor" opacity="0.55"/></svg>
+        <span style="font-size:13.5px; letter-spacing:-0.01em;">Diagramme de Gantt</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:4px;cursor:pointer;background:rgba(196,150,58,0.1);color:#E8E8F2;margin-bottom:2px;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><path d="M8 1l1.8 3.6 4 .6-2.9 2.8.7 4-3.6-1.9-3.6 1.9.7-4L2.2 5.2l4-.6z" stroke="currentColor" stroke-width="1.15" stroke-linejoin="round"/></svg>
+        <span style="font-size:13.5px; font-weight:500; letter-spacing:-0.01em;">Re-dispatch</span>
+      </div>
+      <div style="height:1px; background:rgba(255,255,255,0.04); margin:10px 12px;"></div>
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:4px;cursor:pointer;color:#3E4058;margin-bottom:2px;transition:all 0.15s;" style-hover="color:#9090A4;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+        <span style="font-size:13.5px; letter-spacing:-0.01em;">Paramètres</span>
+      </div>
+    </nav>
+
+    <div style="padding:16px 20px; border-top:1px solid rgba(255,255,255,0.04);">
+      <div style="display:flex; align-items:center; gap:11px;">
+        <div style="width:34px; height:34px; border-radius:50%; background:linear-gradient(140deg,#C4963A,#7A5214); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; color:#0C0D18; flex-shrink:0;">ML</div>
+        <div style="min-width:0; flex:1;">
+          <div style="font-size:13px; font-weight:500; color:#D8D8E5; letter-spacing:-0.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">M. Lefebvre</div>
+          <div style="font-size:9.5px; color:#36384E; font-family:'DM Mono',monospace; margin-top:1px;">Planificateur</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ══ MAIN ══ -->
+  <main style="flex:1; background:#F2F1EE; display:flex; flex-direction:column; min-width:0; overflow:hidden;">
+
+    <!-- HEADER -->
+    <div style="padding:22px 28px 16px; display:flex; align-items:flex-start; justify-content:space-between; gap:20px; flex-shrink:0; border-bottom:1px solid rgba(0,0,0,0.05); animation:fadeUp 0.35s ease-out both;">
+      <div>
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+          <span style="font-size:8.5px; letter-spacing:0.2em; color:#AAAAB8; font-family:'DM Mono',monospace; text-transform:uppercase; cursor:pointer;" onClick="{{ goGantt }}">Gantt</span>
+          <svg width="7" height="7" viewBox="0 0 7 7" fill="none"><path d="M2 1.5l3 2-3 2" stroke="#C4963A" stroke-width="1.2" stroke-linecap="round"/></svg>
+          <span style="font-size:8.5px; letter-spacing:0.2em; color:#C4963A; font-family:'DM Mono',monospace; text-transform:uppercase;">Re-dispatch</span>
+        </div>
+        <h1 style="font-size:23px; font-weight:500; letter-spacing:-0.035em; color:#0C0D18; line-height:1.1;">Ajustements avant re-lancement</h1>
+        <p style="margin-top:6px; font-size:13px; color:#8A8A9E; font-weight:300;">Job Shop — Atelier 3 · Solution LNS du 22 juin 2026, 10h46</p>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px; flex-shrink:0; margin-top:2px;">
+        <button onClick="{{ goGantt }}" style="display:flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid #DDDBD6;border-radius:3px;background:#FFF;font-size:11.5px;font-family:'DM Sans',sans-serif;color:#666677;cursor:pointer;letter-spacing:0.03em;transition:all 0.15s;" style-hover="border-color:#0C0D18;color:#0C0D18;">
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M7 2L3 5.5 7 9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Retour au Gantt
+        </button>
+        <button onClick="{{ launchRedispatch }}" style="{{ launchBtnStyle }}">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l2.5 2.5L10 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          {{ launchBtnLabel }}
+        </button>
+      </div>
+    </div>
+
+    <!-- 3-COLUMN BODY -->
+    <div style="flex:1; display:flex; gap:0; min-height:0; overflow:hidden;">
+
+      <!-- ══ COL 1: Current solution + Edit form (320px) ══ -->
+      <div class="scroll-y" style="width:268px; flex-shrink:0; overflow-y:auto; padding:20px 16px 28px; border-right:1px solid rgba(0,0,0,0.055); display:flex; flex-direction:column; gap:14px; animation:fadeUp 0.4s 0.05s ease-out both;">
+
+        <!-- Current solution KPIs -->
+        <div>
+          <div style="font-size:8px; letter-spacing:0.18em; color:#C0BFC8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:10px;">Solution actuelle</div>
+          <div style="background:#0C0D18; border-radius:4px; padding:16px; display:flex; flex-direction:column; gap:12px;">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+              <div style="display:flex; flex-direction:column; gap:4px;">
+                <div style="font-size:8px; letter-spacing:0.14em; color:#3A3C55; font-family:'DM Mono',monospace; text-transform:uppercase;">Retard pondéré</div>
+                <div style="font-size:24px; font-weight:300; letter-spacing:-0.05em; color:#EAEAF5; font-variant-numeric:tabular-nums;">1&thinsp;248</div>
+                <div style="font-size:9px; color:#44465A; font-family:'DM Mono',monospace;">min pondérées</div>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:4px;">
+                <div style="font-size:8px; letter-spacing:0.14em; color:#3A3C55; font-family:'DM Mono',monospace; text-transform:uppercase;">Jobs en retard</div>
+                <div style="display:flex; align-items:baseline; gap:3px;">
+                  <span style="font-size:24px; font-weight:300; letter-spacing:-0.05em; color:#C84848; font-variant-numeric:tabular-nums;">38</span>
+                  <span style="font-size:14px; color:#2A2C40;">/180</span>
+                </div>
+                <div style="font-size:9px; color:#44465A; font-family:'DM Mono',monospace;">21.1% des jobs</div>
+              </div>
+            </div>
+            <div style="height:1px; background:rgba(255,255,255,0.05);"></div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+              <div>
+                <div style="font-size:8px; letter-spacing:0.14em; color:#3A3C55; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:4px;">Taux de service</div>
+                <div style="font-size:15px; font-weight:400; color:#2A7A5B; letter-spacing:-0.03em;">78.9%</div>
+              </div>
+              <div>
+                <div style="font-size:8px; letter-spacing:0.14em; color:#3A3C55; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:4px;">Amélioration</div>
+                <div style="font-size:15px; font-weight:400; color:#2A7A5B; letter-spacing:-0.03em;">−56% vs ATCS</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Edit job form -->
+        <div>
+          <div style="font-size:8px; letter-spacing:0.18em; color:#C0BFC8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:10px;">Modifier un job</div>
+          <div style="background:#FFFFFF; border-radius:4px; border:1px solid rgba(0,0,0,0.06); padding:16px; display:flex; flex-direction:column; gap:13px;">
+
+            <!-- Job selector -->
+            <div style="display:flex; flex-direction:column; gap:5px;">
+              <label style="font-size:10.5px; color:#666677; font-weight:500; letter-spacing:0.02em;">Job ID</label>
+              <div style="position:relative;">
+                <select value="{{ editJobId }}" onChange="{{ onEditJobChange }}" style="width:100%; padding:8px 30px 8px 11px; font-size:12.5px; font-family:'DM Mono',monospace; border:1px solid #DDDBD6; border-radius:3px; color:#0C0D18; outline:none; cursor:pointer; letter-spacing:0.04em; transition:border-color 0.15s;" style-focus="border-color:#C4963A; box-shadow:0 0 0 3px rgba(196,150,58,0.1);">
+                  <option value="">— Sélectionner —</option>
+                  <sc-for list="{{ jobOptions }}" as="jo" hint-placeholder-count="8">
+                    <option value="{{ jo.val }}">{{ jo.label }}</option>
+                  </sc-for>
+                </select>
+              </div>
+            </div>
+
+            <!-- Job info chips when selected -->
+            <sc-if value="{{ hasEditJob }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                <span style="font-size:10px; font-family:'DM Mono',monospace; background:rgba(196,150,58,0.1); color:#B07820; padding:2px 8px; border-radius:2px; letter-spacing:0.05em;">{{ editJobFamily }}</span>
+                <span style="font-size:10px; font-family:'DM Mono',monospace; background:rgba(0,0,0,0.05); color:#666677; padding:2px 8px; border-radius:2px;">{{ editJobMach }}</span>
+                <span style="font-size:10px; font-family:'DM Mono',monospace; background:{{ editJobLateBg }}; color:{{ editJobLateColor }}; padding:2px 8px; border-radius:2px;">{{ editJobLateLabel }}</span>
+              </div>
+
+              <!-- Field selector -->
+              <div style="display:flex; flex-direction:column; gap:5px;">
+                <label style="font-size:10.5px; color:#666677; font-weight:500; letter-spacing:0.02em;">Champ à modifier</label>
+                <div style="display:flex; gap:5px;">
+                  <button onClick="{{ setFieldDeadline }}" style="{{ editFieldDeadlineStyle }}">Deadline</button>
+                  <button onClick="{{ setFieldPriority }}" style="{{ editFieldPriorityStyle }}">Priorité</button>
+                  <button onClick="{{ setFieldMachine }}" style="{{ editFieldMachineStyle }}">Machine</button>
+                </div>
+              </div>
+
+              <!-- Deadline editor -->
+              <sc-if value="{{ editFieldIsDeadline }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex; flex-direction:column; gap:5px;">
+                  <div style="display:flex; justify-content:space-between;">
+                    <label style="font-size:10.5px; color:#666677; font-weight:500;">Nouvelle deadline</label>
+                    <span style="font-size:10.5px; font-family:'DM Mono',monospace; color:#C4963A; font-weight:500;">{{ editDeadlineVal }} u.t.</span>
+                  </div>
+                  <input type="range" min="20" max="400" step="5" value="{{ editDeadlineVal }}" onChange="{{ onDeadlineChange }}" style="width:100%;" />
+                  <div style="display:flex; justify-content:space-between; font-size:9px; color:#CCCCDA; font-family:'DM Mono',monospace;">
+                    <span>Actuelle: <span style="color:#888899;">{{ editJobDeadlineCur }} u.t.</span></span>
+                    <span style="color:{{ editDeadlineDeltaColor }};">{{ editDeadlineDelta }}</span>
+                  </div>
+                </div>
+              </sc-if>
+
+              <!-- Priority editor -->
+              <sc-if value="{{ editFieldIsPriority }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex; flex-direction:column; gap:5px;">
+                  <div style="display:flex; justify-content:space-between;">
+                    <label style="font-size:10.5px; color:#666677; font-weight:500;">Nouveau poids</label>
+                    <span style="font-size:10.5px; font-family:'DM Mono',monospace; color:#C4963A; font-weight:500;">{{ editPriorityVal }}</span>
+                  </div>
+                  <input type="range" min="1" max="5" step="1" value="{{ editPriorityVal }}" onChange="{{ onPriorityChange }}" style="width:100%;" />
+                  <div style="display:flex; justify-content:space-between; font-size:9px; color:#CCCCDA; font-family:'DM Mono',monospace;">
+                    <span>Actuel: <span style="color:#888899;">{{ editJobWeightCur }}</span></span>
+                    <span style="color:{{ editPriorityDeltaColor }};">{{ editPriorityDelta }}</span>
+                  </div>
+                </div>
+              </sc-if>
+
+              <!-- Machine reassign -->
+              <sc-if value="{{ editFieldIsMachine }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex; flex-direction:column; gap:5px;">
+                  <label style="font-size:10.5px; color:#666677; font-weight:500;">Nouvelle machine</label>
+                  <div style="position:relative;">
+                    <select value="{{ editMachineVal }}" onChange="{{ onMachineChange }}" style="width:100%; padding:8px 30px 8px 11px; font-size:12px; font-family:'DM Mono',monospace; border:1px solid #DDDBD6; border-radius:3px; color:#0C0D18; outline:none; cursor:pointer; letter-spacing:0.04em; transition:border-color 0.15s;" style-focus="border-color:#C4963A;">
+                      <sc-for list="{{ machineOptions }}" as="mo" hint-placeholder-count="10">
+                        <option value="{{ mo.val }}">{{ mo.label }}</option>
+                      </sc-for>
+                    </select>
+                  </div>
+                  <div style="font-size:9px; color:#CCCCDA; font-family:'DM Mono',monospace;">Actuelle: <span style="color:#888899;">{{ editJobMach }}</span></div>
+                </div>
+              </sc-if>
+
+              <button onClick="{{ addEditMod }}" style="display:flex;align-items:center;justify-content:center;gap:7px;width:100%;padding:9px;border:none;border-radius:3px;background:#0C0D18;color:#F2F1EE;font-size:11px;font-family:'DM Sans',sans-serif;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;transition:background 0.2s;" style-hover="background:#1C1E30;">
+                <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M5.5 1.5v8M1.5 5.5h8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+                Ajouter la modification
+              </button>
+            </sc-if>
+          </div>
+        </div>
+
+        <!-- Add / remove job -->
+        <div>
+          <div style="font-size:8px; letter-spacing:0.18em; color:#C0BFC8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:10px;">Ajouter / supprimer un job</div>
+          <div style="background:#FFFFFF; border-radius:4px; border:1px solid rgba(0,0,0,0.06); padding:14px; display:flex; flex-direction:column; gap:11px;">
+
+            <!-- Add urgent -->
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <div style="font-size:11px; color:#444455; font-weight:500; display:flex; align-items:center; gap:6px;">
+                <div style="width:5px; height:5px; border-radius:1px; background:#C4963A; flex-shrink:0;"></div>
+                Nouveau job urgent
+              </div>
+              <div style="display:flex; gap:7px;">
+                <div style="flex:1; position:relative;">
+                  <input type="text" value="{{ newJobId }}" onChange="{{ onNewJobIdChange }}" placeholder="ex: J181" style="width:100%; padding:7px 10px; font-size:11.5px; font-family:'DM Mono',monospace; border:1px solid #DDDBD6; border-radius:3px; color:#0C0D18; outline:none; letter-spacing:0.05em; transition:border-color 0.15s;" style-focus="border-color:#C4963A; box-shadow:0 0 0 3px rgba(196,150,58,0.08);" />
+                </div>
+                <div style="position:relative; width:80px;">
+                  <input type="number" value="{{ newJobDeadline }}" onChange="{{ onNewJobDeadlineChange }}" placeholder="dlq" min="10" max="400" style="width:100%; padding:7px 10px; font-size:11.5px; font-family:'DM Mono',monospace; border:1px solid #DDDBD6; border-radius:3px; color:#0C0D18; outline:none; letter-spacing:0.04em;" style-focus="border-color:#C4963A;" />
+                </div>
+              </div>
+              <button onClick="{{ addJobMod }}" style="display:flex;align-items:center;justify-content:center;gap:6px;padding:7px;border:1px solid rgba(196,150,58,0.35);border-radius:3px;background:rgba(196,150,58,0.06);color:#B07820;font-size:10.5px;font-family:'DM Sans',sans-serif;font-weight:500;letter-spacing:0.06em;cursor:pointer;transition:all 0.15s;" style-hover="background:rgba(196,150,58,0.12);border-color:#C4963A;">
+                <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M5.5 1.5v8M1.5 5.5h8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+                Ajouter ce job
+              </button>
+            </div>
+
+            <div style="height:1px; background:#F0EEE9;"></div>
+
+            <!-- Remove job -->
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <div style="font-size:11px; color:#444455; font-weight:500; display:flex; align-items:center; gap:6px;">
+                <div style="width:5px; height:5px; border-radius:1px; background:#C84848; flex-shrink:0;"></div>
+                Supprimer un job
+              </div>
+              <div style="display:flex; gap:7px;">
+                <div style="flex:1; position:relative;">
+                  <select value="{{ rmJobId }}" onChange="{{ onRmJobChange }}" style="width:100%; padding:7px 30px 7px 10px; font-size:11.5px; font-family:'DM Mono',monospace; border:1px solid #DDDBD6; border-radius:3px; color:#0C0D18; outline:none; cursor:pointer; letter-spacing:0.04em;" style-focus="border-color:#C84848;">
+                    <option value="">— Choisir —</option>
+                    <sc-for list="{{ jobOptions }}" as="jo" hint-placeholder-count="5">
+                      <option value="{{ jo.val }}">{{ jo.label }}</option>
+                    </sc-for>
+                  </select>
+                </div>
+                <button onClick="{{ addRemoveMod }}" style="padding:7px 13px;border:1px solid rgba(200,72,72,0.3);border-radius:3px;background:rgba(200,72,72,0.05);color:#C84848;font-size:10.5px;font-family:'DM Sans',sans-serif;font-weight:500;cursor:pointer;transition:all 0.15s;letter-spacing:0.04em;" style-hover="background:rgba(200,72,72,0.1);border-color:#C84848;">Retirer</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ══ COL 2: Modifications list (flex) ══ -->
+      <div style="flex:1; min-width:0; display:flex; flex-direction:column; border-right:1px solid rgba(0,0,0,0.055); animation:fadeUp 0.4s 0.08s ease-out both;">
+
+        <!-- Col header -->
+        <div style="padding:16px 22px 13px; border-bottom:1px solid #E8E6DF; display:flex; align-items:center; justify-content:space-between; flex-shrink:0;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div style="font-size:8px; letter-spacing:0.18em; color:#C0BFC8; font-family:'DM Mono',monospace; text-transform:uppercase;">File de modifications</div>
+            <div style="font-size:10.5px; font-family:'DM Mono',monospace; background:#0C0D18; color:#F2F1EE; padding:2px 8px; border-radius:10px; min-width:22px; text-align:center;">{{ modCount }}</div>
+          </div>
+          <sc-if value="{{ hasAnyMod }}" hint-placeholder-val="{{ false }}">
+            <button onClick="{{ clearAllMods }}" style="font-size:10px;font-family:'DM Mono',monospace;color:#AAAAB8;background:none;border:none;cursor:pointer;letter-spacing:0.06em;transition:color 0.15s;padding:4px 6px;" style-hover="color:#C84848;">Tout effacer</button>
+          </sc-if>
+        </div>
+
+        <!-- Empty state -->
+        <sc-if value="{{ noMods }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; padding:40px; text-align:center;">
+            <svg width="52" height="52" viewBox="0 0 52 52" fill="none" opacity="0.2">
+              <rect x="9" y="15" width="34" height="5" rx="2.5" fill="#0C0D18"/>
+              <rect x="9" y="24" width="25" height="5" rx="2.5" fill="#0C0D18"/>
+              <rect x="9" y="33" width="18" height="5" rx="2.5" fill="#0C0D18"/>
+              <circle cx="40" cy="38" r="8" fill="#0C0D18"/>
+              <path d="M37 38l2 2 4-4" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            <div>
+              <p style="font-size:13.5px; color:#0C0D18; font-weight:500; margin-bottom:5px; letter-spacing:-0.01em;">Aucune modification</p>
+              <p style="font-size:12px; color:#C0BFC8; font-weight:300; line-height:1.65; text-wrap:pretty; max-width:280px;">Utilisez le formulaire à gauche pour ajouter des ajustements.<br/>Chaque modification sera optimisée localement.</p>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- Mods list -->
+        <sc-if value="{{ hasAnyMod }}" hint-placeholder-val="{{ false }}">
+          <div class="scroll-y" style="flex:1; overflow-y:auto; padding:14px 22px 20px; display:flex; flex-direction:column; gap:6px;">
+            <sc-for list="{{ modsList }}" as="mod" hint-placeholder-count="3">
+              <div class="mod-row" style="{{ mod.rowStyle }}">
+                <!-- Type badge -->
+                <div style="{{ mod.typeStyle }}">{{ mod.typeLabel }}</div>
+
+                <!-- Center info -->
+                <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:3px;">
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="font-size:13px; font-weight:500; color:#0C0D18; letter-spacing:-0.01em; font-family:'DM Mono',monospace;">{{ mod.jobId }}</span>
+                    <span style="font-size:10px; color:#9A9AAA; font-family:'DM Mono',monospace; background:rgba(0,0,0,0.04); padding:1px 6px; border-radius:2px;">{{ mod.fieldLabel }}</span>
+                    <span style="font-size:10px; font-family:'DM Mono',monospace; background:{{ mod.winBg }}; color:{{ mod.winColor }}; padding:1px 7px; border-radius:2px; letter-spacing:0.04em; flex-shrink:0;">{{ mod.winLabel }}</span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:7px;">
+                    <span style="font-size:11px; color:#AAAAB8; font-family:'DM Mono',monospace;">{{ mod.before }}</span>
+                    <svg width="14" height="10" viewBox="0 0 14 10" fill="none"><path d="M1 5h10M8 1l4 4-4 4" stroke="{{ mod.arrowColor }}" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    <span style="font-size:11px; font-family:'DM Mono',monospace; color:#0C0D18; font-weight:500;">{{ mod.after }}</span>
+                    <span style="font-size:10px; font-family:'DM Mono',monospace; color:{{ mod.deltaColor }};">{{ mod.delta }}</span>
+                  </div>
+                </div>
+
+                <!-- Undo button -->
+                <button onClick="{{ mod.undo }}" style="width:28px;height:28px;border:1px solid #ECEAE4;border-radius:3px;background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#C0BFC8;flex-shrink:0;transition:all 0.15s;" style-hover="border-color:#C84848;color:#C84848;background:rgba(200,72,72,0.04);">
+                  <svg width="9" height="9" viewBox="0 0 9 9" fill="none"><path d="M1 1l7 7M8 1L1 8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                </button>
+              </div>
+            </sc-for>
+          </div>
+
+          <!-- Impact estimate banner -->
+          <div style="margin:0 22px 16px; background:rgba(42,122,91,0.07); border:1px solid rgba(42,122,91,0.18); border-radius:4px; padding:12px 16px; display:flex; align-items:center; gap:14px; flex-shrink:0;">
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="9" stroke="#2A7A5B" stroke-width="1.2"/><path d="M7 11l3 3 5-5" stroke="#2A7A5B" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <div style="flex:1; min-width:0;">
+              <div style="font-size:11.5px; color:#2A7A5B; font-weight:500; margin-bottom:2px; letter-spacing:-0.01em;">Impact estimé — {{ modCount }} modification(s)</div>
+              <div style="font-size:10.5px; color:#5A9A7A; font-family:'DM Mono',monospace;">{{ impactDesc }}</div>
+            </div>
+            <div style="text-align:right; flex-shrink:0;">
+              <div style="font-size:18px; font-weight:300; color:#2A7A5B; letter-spacing:-0.04em;">{{ estTimeSaving }}</div>
+              <div style="font-size:9px; color:#5A9A7A; font-family:'DM Mono',monospace; letter-spacing:0.08em; text-transform:uppercase;">gain estimé</div>
+            </div>
+          </div>
+        </sc-if>
+
+      </div>
+
+      <!-- ══ COL 3: Mode + Launch (280px) ══ -->
+      <div class="scroll-y" style="width:248px; flex-shrink:0; overflow-y:auto; padding:20px 16px 28px; display:flex; flex-direction:column; gap:14px; animation:fadeUp 0.4s 0.11s ease-out both;">
+
+        <!-- Resolution mode -->
+        <div>
+          <div style="font-size:8px; letter-spacing:0.18em; color:#C0BFC8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:10px;">Mode de résolution</div>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+
+            <!-- Option A: windows only -->
+            <div onClick="{{ setModeWindows }}" style="{{ modeWindowsStyle }}">
+              <div style="display:flex; align-items:flex-start; gap:11px;">
+                <div style="{{ modeWindowsDot }}"></div>
+                <div style="flex:1; min-width:0;">
+                  <div style="font-size:13px; font-weight:500; color:#0C0D18; letter-spacing:-0.01em; margin-bottom:3px;">Fenêtres impactées</div>
+                  <div style="font-size:11px; color:#8A8A9E; line-height:1.55; text-wrap:pretty;">Réoptimise uniquement les fenêtres touchées par vos modifications. Rapide et chirurgical.</div>
+                  <div style="display:flex; align-items:center; gap:8px; margin-top:8px;">
+                    <div style="display:flex; align-items:center; gap:4px;">
+                      <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><circle cx="5.5" cy="5.5" r="4.5" stroke="#2A7A5B" stroke-width="1.1"/><path d="M3.5 5.5l1.5 1.5 2.5-2.5" stroke="#2A7A5B" stroke-width="1.1" stroke-linecap="round"/></svg>
+                      <span style="font-size:9.5px; color:#2A7A5B; font-family:'DM Mono',monospace;">{{ windowsCount }} fenêtre(s)</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:4px;">
+                      <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><circle cx="5.5" cy="5.5" r="4.5" stroke="#2A7A5B" stroke-width="1.1"/><path d="M5.5 3v3l1.5 1.5" stroke="#2A7A5B" stroke-width="1.1" stroke-linecap="round"/></svg>
+                      <span style="font-size:9.5px; color:#2A7A5B; font-family:'DM Mono',monospace;">~{{ estTimeWindows }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Option B: full solve -->
+            <div onClick="{{ setModeFull }}" style="{{ modeFullStyle }}">
+              <div style="display:flex; align-items:flex-start; gap:11px;">
+                <div style="{{ modeFullDot }}"></div>
+                <div style="flex:1; min-width:0;">
+                  <div style="font-size:13px; font-weight:500; color:#0C0D18; letter-spacing:-0.01em; margin-bottom:3px;">Résolution complète</div>
+                  <div style="font-size:11px; color:#8A8A9E; line-height:1.55; text-wrap:pretty;">Repart de zéro sur tout l'horizon. Peut trouver une meilleure solution globale mais prend plus de temps.</div>
+                  <div style="display:flex; align-items:center; gap:8px; margin-top:8px;">
+                    <div style="display:flex; align-items:center; gap:4px;">
+                      <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><circle cx="5.5" cy="5.5" r="4.5" stroke="#888899" stroke-width="1.1"/><path d="M5.5 3v3l1.5 1.5" stroke="#888899" stroke-width="1.1" stroke-linecap="round"/></svg>
+                      <span style="font-size:9.5px; color:#888899; font-family:'DM Mono',monospace;">~{{ estTimeFull }}</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:4px;">
+                      <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><circle cx="5.5" cy="5.5" r="4.5" stroke="#888899" stroke-width="1.1"/><path d="M5.5 2.5v5M2.5 5.5h5" stroke="#888899" stroke-width="1.1" stroke-linecap="round"/></svg>
+                      <span style="font-size:9.5px; color:#888899; font-family:'DM Mono',monospace;">180 jobs</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Scope summary -->
+        <div>
+          <div style="font-size:8px; letter-spacing:0.18em; color:#C0BFC8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:10px;">Périmètre de résolution</div>
+          <div style="background:#FFFFFF; border-radius:4px; border:1px solid rgba(0,0,0,0.06); padding:14px; display:flex; flex-direction:column; gap:8px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #F5F3EF;">
+              <span style="font-size:11px; color:#8A8A9E;">Jobs concernés</span>
+              <span style="font-size:12.5px; font-family:'DM Mono',monospace; font-weight:500; color:#0C0D18;">{{ scopeJobs }}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #F5F3EF;">
+              <span style="font-size:11px; color:#8A8A9E;">Fenêtres impactées</span>
+              <span style="font-size:12.5px; font-family:'DM Mono',monospace; font-weight:500; color:#0C0D18;">{{ windowsCount }}/5</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #F5F3EF;">
+              <span style="font-size:11px; color:#8A8A9E;">Modifications</span>
+              <span style="font-size:12.5px; font-family:'DM Mono',monospace; font-weight:500; color:#0C0D18;">{{ modCount }}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0;">
+              <span style="font-size:11px; color:#8A8A9E;">Temps estimé</span>
+              <span style="font-size:12.5px; font-family:'DM Mono',monospace; font-weight:500; color:#C4963A;">{{ estTimeDisplay }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Algorithm params -->
+        <div>
+          <div style="font-size:8px; letter-spacing:0.18em; color:#C0BFC8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:10px;">Paramètres algorithme</div>
+          <div style="background:#FFFFFF; border-radius:4px; border:1px solid rgba(0,0,0,0.06); padding:14px; display:flex; flex-direction:column; gap:11px;">
+            <div style="display:flex; flex-direction:column; gap:5px;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label style="font-size:10.5px; color:#666677; font-weight:500;">Taille du voisinage (WR)</label>
+                <span style="font-size:11px; font-family:'DM Mono',monospace; color:#C4963A; font-weight:500;">{{ wrVal }}</span>
+              </div>
+              <input type="range" min="1" max="6" step="1" value="{{ wrVal }}" onChange="{{ onWrChange }}" style="width:100%;" />
+              <div style="display:flex; justify-content:space-between; font-size:9px; color:#CCCCDA; font-family:'DM Mono',monospace;">
+                <span>1 = rapide</span><span>6 = précis</span>
+              </div>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:10.5px; color:#666677; font-weight:500;">Réinitialiser seed</span>
+              <div onClick="{{ toggleSeed }}" style="{{ seedToggleStyle }}">
+                <div style="{{ seedKnobStyle }}"></div>
+              </div>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:10.5px; color:#666677; font-weight:500;">Garder meilleure sol.</span>
+              <div onClick="{{ toggleKeepBest }}" style="{{ keepBestToggleStyle }}">
+                <div style="{{ keepBestKnobStyle }}"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Launch button -->
+        <div style="margin-top:4px;">
+          <button onClick="{{ launchRedispatch }}" style="{{ launchBigBtnStyle }}">
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M3 7.5h9M8.5 3.5l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            {{ launchBigLabel }}
+          </button>
+          <p style="font-size:10px; color:#BCBCC8; text-align:center; margin-top:9px; line-height:1.6; font-family:'DM Mono',monospace; letter-spacing:0.03em;">{{ launchHint }}</p>
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+
+class Component extends DCLogic {
+  state = {
+    modifications: [
+      { id: 'm1', type: 'edit', jobId: 'J007', field: 'deadline', before: '120', after: '100', windowIdx: 1, beforeRaw: 120, afterRaw: 100 },
+      { id: 'm2', type: 'edit', jobId: 'J042', field: 'priority', before: 'Poids 2', after: 'Poids 5', windowIdx: 2, beforeRaw: 2, afterRaw: 5 },
+      { id: 'm3', type: 'add',  jobId: 'J181', field: 'nouveau', before: '—', after: 'dlq 160, M3', windowIdx: 2, beforeRaw: 0, afterRaw: 0 },
+    ],
+    editJobId: '',
+    editField: 'deadline',
+    editDeadlineVal: 120,
+    editPriorityVal: 3,
+    editMachineVal: 1,
+    newJobId: '',
+    newJobDeadline: '',
+    rmJobId: '',
+    resolveMode: 'windows',
+    wrVal: 3,
+    seedEnabled: false,
+    keepBest: true,
+  };
+
+  jobData() {
+    // Lightweight representative sample (deterministic)
+    const MACH = ['M1','M2','M3','M4','M5','M6','M7','M8','M9','M10'];
+    const FAM = ['FA','FB','FC','FD','FE','FF'];
+    const jobs = [];
+    let seed = 42;
+    const r = () => { seed = (Math.imul(1664525, seed) + 1013904223) | 0; return (seed >>> 0) / 0xFFFFFFFF; };
+    for (let i = 1; i <= 180; i++) {
+      const m = Math.floor(r() * 10);
+      const ddl = [80,100,120,140,160,200,240,280,320,360,400][Math.floor(r()*11)];
+      jobs.push({
+        id: `J${String(i).padStart(3,'0')}`,
+        machine: MACH[m], machIdx: m,
+        family: FAM[Math.floor(r()*6)],
+        deadline: ddl,
+        weight: Math.round(r()*4)+1,
+        windowIdx: Math.min(4, Math.floor(r()*5)),
+      });
+    }
+    return jobs;
+  }
+
+  getJob(id) { return this.jobData().find(j => j.id === id) || null; }
+
+  windowLabel(idx) { return `Fenêtre ${idx+1}`; }
+  winColors(idx) {
+    const c = ['#C4963A','#2A7A5B','#3A5A8A','#8A4A8A','#2A7A8A'];
+    const bg = ['rgba(196,150,58,0.08)','rgba(42,122,91,0.08)','rgba(58,90,138,0.08)','rgba(138,74,138,0.08)','rgba(42,122,138,0.08)'];
+    return { color: c[idx] || '#888', bg: bg[idx] || 'transparent' };
+  }
+
+  toggleStyle(on) {
+    return { display:'flex', alignItems:'center', width:'36px', height:'20px',
+      borderRadius:'10px', background: on ? '#2A7A5B' : '#E0DED8',
+      padding:'2px', cursor:'pointer', transition:'background 0.2s', flexShrink:0 };
+  }
+  knobStyle(on) {
+    return { width:'16px', height:'16px', borderRadius:'50%', background:'#FFF',
+      boxShadow:'0 1px 3px rgba(0,0,0,0.2)', transform: on ? 'translateX(16px)' : 'translateX(0)',
+      transition:'transform 0.2s', flexShrink:0 };
+  }
+
+  modeCardStyle(active) {
+    return {
+      padding:'13px 14px', borderRadius:'4px', cursor:'pointer', transition:'all 0.18s',
+      border: `1px solid ${active ? '#C4963A' : 'rgba(0,0,0,0.06)'}`,
+      background: active ? 'rgba(196,150,58,0.05)' : '#FFFFFF',
+    };
+  }
+  modeDotStyle(active) {
+    return { width:'16px', height:'16px', borderRadius:'50%', flexShrink:0, marginTop:'1px',
+      border: `2px solid ${active ? '#C4963A' : '#DDDBD6'}`,
+      background: active ? '#C4963A' : 'transparent', transition:'all 0.18s' };
+  }
+
+  fieldBtnStyle(active) {
+    return { flex:1, padding:'7px 4px', fontSize:'10.5px', fontFamily:"'DM Mono',monospace",
+      letterSpacing:'0.04em', borderRadius:'3px', cursor:'pointer', transition:'all 0.15s', border:'none',
+      background: active ? '#0C0D18' : 'rgba(0,0,0,0.05)',
+      color: active ? '#F2F1EE' : '#888899', fontWeight: active ? '500' : '400' };
+  }
+
+  impactDesc(mods) {
+    if (!mods.length) return '';
+    const edits = mods.filter(m => m.type === 'edit').length;
+    const adds  = mods.filter(m => m.type === 'add').length;
+    const rms   = mods.filter(m => m.type === 'remove').length;
+    const parts = [];
+    if (edits) parts.push(`${edits} édit${edits>1?'s':''}`);
+    if (adds)  parts.push(`${adds} ajout${adds>1?'s':''}`);
+    if (rms)   parts.push(`${rms} suppression${rms>1?'s':''}`);
+    return parts.join(' · ') + ' · Impact sur les fenêtres impactées uniquement';
+  }
+
+  renderVals() {
+    const s = this.state;
+    const jobs = this.jobData();
+    const jobOptions = jobs.filter((_,i)=>i<60).map(j=>({ val:j.id, label:`${j.id} · ${j.machine}` }));
+    const machineOptions = Array.from({length:10},(_,i)=>({ val:i+1, label:`M${i+1}` }));
+
+    // Edit job
+    const editJob = s.editJobId ? this.getJob(s.editJobId) : null;
+    const hasEditJob = !!editJob;
+
+    const editDeadlineDelta = editJob
+      ? (s.editDeadlineVal - editJob.deadline)
+      : 0;
+    const editPriorityDelta = editJob
+      ? (s.editPriorityVal - editJob.weight)
+      : 0;
+
+    // Modifications list
+    const WIN_C = ['#C4963A','#2A7A5B','#3A5A8A','#8A4A8A','#2A7A8A'];
+    const WIN_BG = ['rgba(196,150,58,0.08)','rgba(42,122,91,0.08)','rgba(58,90,138,0.08)','rgba(138,74,138,0.08)','rgba(42,122,138,0.08)'];
+
+    const TYPE_META = {
+      edit:   { label:'ÉDIT.',   bg:'rgba(58,90,138,0.1)',  color:'#3A5A8A', arrow:'#3A5A8A' },
+      add:    { label:'AJOUT',   bg:'rgba(42,122,91,0.1)',  color:'#2A7A5B', arrow:'#2A7A5B' },
+      remove: { label:'SUPPR.',  bg:'rgba(200,72,72,0.1)',  color:'#C84848', arrow:'#C84848' },
+    };
+
+    const modsList = s.modifications.map((mod, i) => {
+      const tm = TYPE_META[mod.type] || TYPE_META.edit;
+      const wc = WIN_C[mod.windowIdx] || '#888';
+      const wb = WIN_BG[mod.windowIdx] || 'transparent';
+      const isEdit = mod.type === 'edit';
+      const delta = isEdit && mod.field === 'deadline'
+        ? (mod.afterRaw - mod.beforeRaw > 0 ? `+${mod.afterRaw - mod.beforeRaw}` : `${mod.afterRaw - mod.beforeRaw}`)
+        : isEdit && mod.field === 'priority'
+        ? (mod.afterRaw - mod.beforeRaw > 0 ? `+${mod.afterRaw - mod.beforeRaw}` : `${mod.afterRaw - mod.beforeRaw}`)
+        : '';
+      const deltaColor = mod.afterRaw > mod.beforeRaw ? '#C84848' : '#2A7A5B';
+      const fieldLabelMap = { deadline:'Deadline', priority:'Priorité', machine:'Machine', nouveau:'Nouveau job' };
+
+      return {
+        ...mod,
+        typeLabel: tm.label,
+        typeStyle: { display:'flex', alignItems:'center', justifyContent:'center',
+          padding:'3px 7px', borderRadius:'2px', fontSize:'8.5px', fontFamily:"'DM Mono',monospace",
+          letterSpacing:'0.12em', fontWeight:'600', background:tm.bg, color:tm.color, flexShrink:0, minWidth:'46px' },
+        rowStyle: { display:'flex', alignItems:'center', gap:'10px', padding:'11px 13px',
+          background:'#FFFFFF', borderRadius:'4px', border:'1px solid rgba(0,0,0,0.055)' },
+        winLabel: `F${mod.windowIdx+1}`,
+        winColor: wc, winBg: wb,
+        arrowColor: tm.arrow,
+        delta, deltaColor,
+        fieldLabel: fieldLabelMap[mod.field] || mod.field,
+        undo: () => this.setState(st => ({
+          modifications: st.modifications.filter(m => m.id !== mod.id)
+        })),
+      };
+    });
+
+    // Windows impacted
+    const impactedWindows = [...new Set(s.modifications.map(m => m.windowIdx))];
+    const windowsCount = impactedWindows.length || 1;
+    const scopeJobs = s.resolveMode === 'windows'
+      ? `${windowsCount * 36}/180`
+      : '180/180';
+
+    // Time estimates
+    const baseTimeFull = 142;
+    const baseTimeWindows = Math.round(18 + windowsCount * 14 + s.wrVal * 4);
+    const estTimeWindows = `${baseTimeWindows}s`;
+    const estTimeFull = `${Math.round(baseTimeFull + s.wrVal * 8)}s`;
+    const estTimeDisplay = s.resolveMode === 'windows' ? estTimeWindows : estTimeFull;
+
+    const estTimeSaving = s.modifications.length > 0
+      ? `−${Math.round((1 - baseTimeWindows / baseTimeFull) * 100)}%`
+      : '—';
+
+    // Launch
+    const hasMods = s.modifications.length > 0;
+    const launchBtnLabel = hasMods
+      ? `Lancer re-dispatch (${s.modifications.length})`
+      : 'Lancer re-dispatch';
+    const launchBigLabel = s.resolveMode === 'windows'
+      ? `Optimiser les fenêtres impactées`
+      : 'Résoudre complètement';
+    const launchHint = s.resolveMode === 'windows'
+      ? `${windowsCount} fenêtre(s) · ~${estTimeWindows} · WR=${s.wrVal}`
+      : `Horizon complet · ~${estTimeFull} · WR=${s.wrVal}`;
+
+    const launchBtnBase = {
+      display:'flex', alignItems:'center', gap:'7px',
+      padding:'9px 18px', borderRadius:'3px', fontSize:'11.5px',
+      fontFamily:"'DM Sans',sans-serif", fontWeight:'500',
+      letterSpacing:'0.08em', textTransform:'uppercase', cursor:'pointer',
+      transition:'background 0.2s', border:'none',
+    };
+
+    return {
+      // Nav
+      goHome:    () => { window.location.href='Dashboard.dc.html'; },
+      goResults: () => { window.location.href='Resultats.dc.html'; },
+      goGantt:   () => { window.location.href='Gantt.dc.html'; },
+
+      // Job options
+      jobOptions, machineOptions,
+
+      // Edit job form
+      editJobId: s.editJobId,
+      hasEditJob,
+      editJobFamily: editJob ? editJob.family : '',
+      editJobMach:   editJob ? editJob.machine : '',
+      editJobLateBg:    editJob ? 'rgba(200,72,72,0.08)' : 'transparent',
+      editJobLateColor: editJob ? '#C84848' : '#888',
+      editJobLateLabel: editJob ? 'En retard' : '',
+      editJobDeadlineCur: editJob ? editJob.deadline : '—',
+      editJobWeightCur:   editJob ? editJob.weight : '—',
+      onEditJobChange: (e) => {
+        const j = this.getJob(e.target.value);
+        this.setState({ editJobId: e.target.value,
+          editDeadlineVal: j ? j.deadline : 120,
+          editPriorityVal: j ? j.weight : 3,
+          editMachineVal:  j ? j.machIdx+1 : 1 });
+      },
+
+      // Field tabs
+      editField: s.editField,
+      editFieldIsDeadline: s.editField === 'deadline',
+      editFieldIsPriority: s.editField === 'priority',
+      editFieldIsMachine:  s.editField === 'machine',
+      setFieldDeadline: () => this.setState({ editField:'deadline' }),
+      setFieldPriority: () => this.setState({ editField:'priority' }),
+      setFieldMachine:  () => this.setState({ editField:'machine'  }),
+      editFieldDeadlineStyle: this.fieldBtnStyle(s.editField === 'deadline'),
+      editFieldPriorityStyle: this.fieldBtnStyle(s.editField === 'priority'),
+      editFieldMachineStyle:  this.fieldBtnStyle(s.editField === 'machine'),
+
+      // Deadline slider
+      editDeadlineVal: s.editDeadlineVal,
+      onDeadlineChange: (e) => this.setState({ editDeadlineVal: Number(e.target.value) }),
+      editDeadlineDelta: editDeadlineDelta !== 0
+        ? (editDeadlineDelta > 0 ? `+${editDeadlineDelta} u.t.` : `${editDeadlineDelta} u.t.`)
+        : 'inchangé',
+      editDeadlineDeltaColor: editDeadlineDelta > 0 ? '#C84848' : editDeadlineDelta < 0 ? '#2A7A5B' : '#AAAAB8',
+
+      // Priority slider
+      editPriorityVal: s.editPriorityVal,
+      onPriorityChange: (e) => this.setState({ editPriorityVal: Number(e.target.value) }),
+      editPriorityDelta: editPriorityDelta !== 0
+        ? (editPriorityDelta > 0 ? `+${editPriorityDelta}` : `${editPriorityDelta}`)
+        : 'inchangé',
+      editPriorityDeltaColor: editPriorityDelta !== 0 ? '#C4963A' : '#AAAAB8',
+
+      // Machine
+      editMachineVal: s.editMachineVal,
+      onMachineChange: (e) => this.setState({ editMachineVal: Number(e.target.value) }),
+
+      // Add mod
+      addEditMod: () => {
+        if (!editJob) return;
+        const field = s.editField;
+        let before, after, beforeRaw, afterRaw;
+        if (field === 'deadline') {
+          before = `${editJob.deadline} u.t.`; after = `${s.editDeadlineVal} u.t.`;
+          beforeRaw = editJob.deadline; afterRaw = s.editDeadlineVal;
+        } else if (field === 'priority') {
+          before = `Poids ${editJob.weight}`; after = `Poids ${s.editPriorityVal}`;
+          beforeRaw = editJob.weight; afterRaw = s.editPriorityVal;
+        } else {
+          before = editJob.machine; after = `M${s.editMachineVal}`;
+          beforeRaw = editJob.machIdx+1; afterRaw = s.editMachineVal;
+        }
+        const newMod = {
+          id: `m${Date.now()}`, type:'edit', jobId:editJob.id,
+          field, before, after, beforeRaw, afterRaw,
+          windowIdx: editJob.windowIdx,
+        };
+        this.setState(st => ({ modifications: [...st.modifications, newMod], editJobId:'' }));
+      },
+
+      // New / remove job
+      newJobId: s.newJobId, newJobDeadline: s.newJobDeadline,
+      onNewJobIdChange: (e) => this.setState({ newJobId: e.target.value }),
+      onNewJobDeadlineChange: (e) => this.setState({ newJobDeadline: e.target.value }),
+      addJobMod: () => {
+        if (!s.newJobId) return;
+        const ddl = parseInt(s.newJobDeadline) || 200;
+        const wIdx = Math.min(4, Math.floor(ddl / 80));
+        this.setState(st => ({
+          modifications: [...st.modifications, {
+            id:`m${Date.now()}`, type:'add', jobId:s.newJobId,
+            field:'nouveau', before:'—', after:`dlq ${ddl}, urgent`,
+            beforeRaw:0, afterRaw:ddl, windowIdx: wIdx,
+          }],
+          newJobId:'', newJobDeadline:'',
+        }));
+      },
+      rmJobId: s.rmJobId,
+      onRmJobChange: (e) => this.setState({ rmJobId: e.target.value }),
+      addRemoveMod: () => {
+        if (!s.rmJobId) return;
+        const j = this.getJob(s.rmJobId);
+        if (!j) return;
+        this.setState(st => ({
+          modifications: [...st.modifications, {
+            id:`m${Date.now()}`, type:'remove', jobId:j.id,
+            field:'suppression', before:`${j.machine} · dlq ${j.deadline}`, after:'Supprimé',
+            beforeRaw:0, afterRaw:0, windowIdx: j.windowIdx,
+          }],
+          rmJobId:'',
+        }));
+      },
+
+      // Mods list
+      modsList, modCount: s.modifications.length,
+      hasAnyMod: s.modifications.length > 0,
+      noMods: s.modifications.length === 0,
+      clearAllMods: () => this.setState({ modifications:[] }),
+      impactDesc: this.impactDesc(s.modifications),
+      estTimeSaving,
+
+      // Mode
+      resolveMode: s.resolveMode,
+      setModeWindows: () => this.setState({ resolveMode:'windows' }),
+      setModeFull:    () => this.setState({ resolveMode:'full' }),
+      modeWindowsStyle: this.modeCardStyle(s.resolveMode === 'windows'),
+      modeFullStyle:    this.modeCardStyle(s.resolveMode === 'full'),
+      modeWindowsDot:   this.modeDotStyle(s.resolveMode === 'windows'),
+      modeFullDot:      this.modeDotStyle(s.resolveMode === 'full'),
+
+      // Scope summary
+      windowsCount, scopeJobs,
+      estTimeWindows, estTimeFull, estTimeDisplay,
+
+      // Algo params
+      wrVal: s.wrVal,
+      onWrChange: (e) => this.setState({ wrVal: Number(e.target.value) }),
+      seedEnabled: s.seedEnabled,
+      toggleSeed: () => this.setState(st => ({ seedEnabled: !st.seedEnabled })),
+      seedToggleStyle: this.toggleStyle(s.seedEnabled),
+      seedKnobStyle: this.knobStyle(s.seedEnabled),
+      keepBest: s.keepBest,
+      toggleKeepBest: () => this.setState(st => ({ keepBest: !st.keepBest })),
+      keepBestToggleStyle: this.toggleStyle(s.keepBest),
+      keepBestKnobStyle: this.knobStyle(s.keepBest),
+
+      // Launch
+      launchBtnLabel,
+      launchBigLabel,
+      launchHint,
+      launchBtnStyle: {
+        ...{ display:'flex', alignItems:'center', gap:'7px', padding:'9px 18px',
+             borderRadius:'3px', fontSize:'11.5px', fontFamily:"'DM Sans',sans-serif",
+             fontWeight:'500', letterSpacing:'0.08em', textTransform:'uppercase',
+             cursor:'pointer', transition:'background 0.2s', border:'none' },
+        background: hasMods ? '#0C0D18' : '#DDDBD6',
+        color: hasMods ? '#F2F1EE' : '#AAAAB8',
+      },
+      launchBigBtnStyle: {
+        display:'flex', alignItems:'center', justifyContent:'center', gap:'9px',
+        width:'100%', padding:'13px', borderRadius:'3px', border:'none',
+        background: '#C4963A', color:'#0C0D18',
+        fontSize:'12px', fontFamily:"'DM Sans',sans-serif", fontWeight:'600',
+        letterSpacing:'0.1em', textTransform:'uppercase', cursor:'pointer',
+        transition:'background 0.2s',
+      },
+      launchRedispatch: () => { window.location.href = 'Solving.dc.html'; },
+    };
+  }
+}
+
+</script>
+</body>
+</html>

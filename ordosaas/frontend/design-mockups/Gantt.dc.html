@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+
+<helmet>
+  <title>OrdoSaaS — Diagramme de Gantt</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(7px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes slideIn { from{opacity:0;transform:translateX(10px)} to{opacity:1;transform:translateX(0)} }
+    #gantt-scroll::-webkit-scrollbar { height: 7px; }
+    #gantt-scroll::-webkit-scrollbar-track { background: #F5F4F0; border-radius: 4px; }
+    #gantt-scroll::-webkit-scrollbar-thumb { background: #CCCAC0; border-radius: 4px; }
+    #gantt-scroll::-webkit-scrollbar-thumb:hover { background: #AAAAA0; }
+    .detail-body::-webkit-scrollbar { width: 4px; }
+    .detail-body::-webkit-scrollbar-thumb { background: #E0DED8; border-radius: 2px; }
+    @media print { .no-print { display: none !important; } html,body { overflow:visible !important; height:auto !important; } }
+  </style>
+</helmet>
+
+<div style="display:flex; height:100vh; font-family:'DM Sans',sans-serif; overflow:hidden; background:#08090F;">
+
+  <!-- ═══ SIDEBAR ═══ -->
+  <aside class="no-print" style="width:232px; background:#08090F; display:flex; flex-direction:column; border-right:1px solid rgba(255,255,255,0.045); flex-shrink:0;">
+    <div style="padding:26px 22px 22px; border-bottom:1px solid rgba(255,255,255,0.04); cursor:pointer;" onClick="{{ goHome }}">
+      <div style="display:flex; align-items:center; gap:13px;">
+        <svg width="36" height="36" viewBox="0 0 46 46" fill="none"><circle cx="23" cy="23" r="20" stroke="#C4963A" stroke-width="1.5"/><rect x="11" y="16.5" width="13" height="3.5" rx="1.75" fill="#C4963A"/><rect x="11" y="22.5" width="21" height="3.5" rx="1.75" fill="#C4963A"/><rect x="11" y="28.5" width="16" height="3.5" rx="1.75" fill="#C4963A" opacity="0.6"/></svg>
+        <div>
+          <div style="font-size:16.5px; font-weight:600; letter-spacing:-0.03em; color:#EAEAF5; line-height:1;">OrdoSaaS</div>
+          <div style="font-size:8px; letter-spacing:0.2em; color:#C4963A; font-family:'DM Mono',monospace; margin-top:3px; text-transform:uppercase;">Scheduling</div>
+        </div>
+      </div>
+    </div>
+
+    <nav style="flex:1; padding:16px 10px 8px; overflow-y:auto;">
+      <div style="font-size:7.5px; letter-spacing:0.2em; color:#1E2032; font-family:'DM Mono',monospace; text-transform:uppercase; padding:0 12px; margin-bottom:8px;">Menu</div>
+
+      <div style="{{ navDashStyle }}" onClick="{{ goHome }}">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="9" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="1.5" y="9" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="9" y="9" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/></svg>
+        <span style="font-size:13.5px; letter-spacing:-0.01em;">Tableau de bord</span>
+      </div>
+
+      <div style="{{ navInstStyle }}" onClick="{{ goHome }}">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><path d="M2 5l6-3 6 3-6 3-6-3Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M2 9l6 3 6-3" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M2 12l6 3 6-3" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+        <span style="font-size:13.5px; letter-spacing:-0.01em;">Mes instances</span>
+        <span style="margin-left:auto; background:rgba(196,150,58,0.13); color:#C4963A; font-size:10px; font-family:'DM Mono',monospace; padding:2px 7px; border-radius:10px; flex-shrink:0;">47</span>
+      </div>
+
+      <div style="{{ navResStyle }}" onClick="{{ goResults }}">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><path d="M3 13V7M6.5 13V9M10 13V5M13.5 13V8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        <span style="font-size:13.5px; letter-spacing:-0.01em;">Résultats</span>
+      </div>
+
+      <div style="{{ navGanttStyle }}">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><line x1="2" y1="1.5" x2="2" y2="14.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><rect x="3" y="3" width="8" height="2.5" rx="1.25" fill="currentColor" opacity="0.9"/><rect x="3" y="6.75" width="11" height="2.5" rx="1.25" fill="currentColor" opacity="0.7"/><rect x="3" y="10.5" width="6.5" height="2.5" rx="1.25" fill="currentColor" opacity="0.55"/></svg>
+        <span style="font-size:13.5px; font-weight:500; letter-spacing:-0.01em;">Diagramme de Gantt</span>
+      </div>
+
+      <div style="height:1px; background:rgba(255,255,255,0.04); margin:10px 12px;"></div>
+
+      <div style="{{ navSetStyle }}" onClick="{{ goAdmin }}">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+        <span style="font-size:13.5px; letter-spacing:-0.01em;">Paramètres</span>
+      </div>
+    </nav>
+
+    <div style="padding:16px 20px; border-top:1px solid rgba(255,255,255,0.04);">
+      <div style="display:flex; align-items:center; gap:11px;">
+        <div style="width:34px; height:34px; border-radius:50%; background:linear-gradient(140deg,#C4963A,#7A5214); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; color:#0C0D18; flex-shrink:0;">ML</div>
+        <div style="min-width:0; flex:1;">
+          <div style="font-size:13px; font-weight:500; color:#D8D8E5; letter-spacing:-0.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">M. Lefebvre</div>
+          <div style="font-size:9.5px; color:#36384E; font-family:'DM Mono',monospace; margin-top:1px;">Planificateur</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ═══ MAIN ═══ -->
+  <main style="flex:1; background:#F2F1EE; display:flex; flex-direction:column; min-width:0; overflow:hidden;">
+
+    <!-- HEADER -->
+    <div style="padding:22px 28px 0; display:flex; align-items:flex-start; justify-content:space-between; gap:20px; flex-shrink:0; animation:fadeUp 0.4s ease-out both;">
+      <div>
+        <div style="font-size:8.5px; letter-spacing:0.2em; color:#C4963A; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:8px; cursor:pointer;" onClick="{{ goResults }}">Résultats &rsaquo; Diagramme de Gantt</div>
+        <h1 style="font-size:24px; font-weight:500; letter-spacing:-0.035em; color:#0C0D18; line-height:1.1;">Job Shop — Atelier 3</h1>
+        <div style="display:flex; align-items:center; gap:7px; margin-top:8px; flex-wrap:wrap;">
+          <span style="font-size:10.5px; font-family:'DM Mono',monospace; background:rgba(12,13,24,0.07); color:#666677; padding:2px 9px; border-radius:2px; letter-spacing:0.06em;">{{ kpiTotalJobs }} jobs</span>
+          <span style="font-size:10.5px; font-family:'DM Mono',monospace; background:rgba(12,13,24,0.07); color:#666677; padding:2px 9px; border-radius:2px; letter-spacing:0.06em;">10 machines</span>
+          <span style="font-size:10.5px; font-family:'DM Mono',monospace; background:rgba(12,13,24,0.07); color:#666677; padding:2px 9px; border-radius:2px; letter-spacing:0.06em;">Horizon 400 u.t.</span>
+          <span style="font-size:10.5px; font-family:'DM Mono',monospace; background:rgba(42,122,91,0.1); color:#2A7A5B; padding:2px 9px; border-radius:2px; letter-spacing:0.06em;">Optimisé · LNS</span>
+          <span style="font-size:10.5px; color:#C0BFB8; font-family:'DM Mono',monospace; letter-spacing:0.04em;">22 juin 2026, 10h46</span>
+        </div>
+      </div>
+      <div class="no-print" style="display:flex; gap:9px; flex-shrink:0; margin-top:2px;">
+        <button onClick="{{ onRedispatch }}" style="display:flex; align-items:center; gap:7px; background:#FFFFFF; border:1px solid #DDDBD6; padding:9px 16px; border-radius:3px; font-size:11.5px; font-family:'DM Sans',sans-serif; color:#444455; cursor:pointer; transition:all 0.15s; letter-spacing:0.03em;" style-hover="border-color:#0C0D18; color:#0C0D18;">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M1.5 6a4.5 4.5 0 0 1 7.5-3.3L10.5 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.5 1.5v2.5h-2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.5 6a4.5 4.5 0 0 1-7.5 3.3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+          Re-dispatcher
+        </button>
+        <button onClick="{{ onExportPdf }}" style="display:flex; align-items:center; gap:7px; background:#0C0D18; border:none; padding:9px 18px; border-radius:3px; font-size:11.5px; font-family:'DM Sans',sans-serif; color:#F2F1EE; cursor:pointer; letter-spacing:0.08em; font-weight:500; text-transform:uppercase; transition:background 0.2s;" style-hover="background:#1C1E30;">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v7M3.5 5.5l2.5 3 2.5-3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M1.5 9.5v1h9v-1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+          Exporter PDF
+        </button>
+      </div>
+    </div>
+
+    <!-- KPI BAR -->
+    <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:10px; padding:12px 28px 0; flex-shrink:0; animation:fadeUp 0.4s 0.06s ease-out both;">
+
+      <div style="background:#FFFFFF; border-radius:4px; padding:13px 16px 11px; border:1px solid rgba(0,0,0,0.055);">
+        <div style="font-size:8px; letter-spacing:0.16em; color:#C0BFC8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:9px;">Retard pondéré</div>
+        <div style="font-size:26px; font-weight:300; color:#0C0D18; letter-spacing:-0.05em; line-height:1; font-variant-numeric:tabular-nums;">{{ kpiLateness }}</div>
+        <div style="font-size:9.5px; color:#AAAAB8; margin-top:4px; font-family:'DM Mono',monospace;">min pondérées</div>
+      </div>
+
+      <div style="background:#FFFFFF; border-radius:4px; padding:13px 16px 11px; border:1px solid rgba(0,0,0,0.055);">
+        <div style="font-size:8px; letter-spacing:0.16em; color:#C0BFC8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:9px;">Jobs en retard</div>
+        <div style="display:flex; align-items:baseline; gap:4px; line-height:1;">
+          <span style="font-size:26px; font-weight:300; color:#C84848; letter-spacing:-0.05em; font-variant-numeric:tabular-nums;">{{ kpiLateCount }}</span>
+          <span style="font-size:14px; color:#CCCCDA;">/</span>
+          <span style="font-size:18px; font-weight:300; color:#9A9AAA; letter-spacing:-0.03em;">{{ kpiTotalJobs }}</span>
+        </div>
+        <div style="margin-top:6px; height:3px; background:#F0EEE9; border-radius:2px; overflow:hidden;"><div style="{{ lateBarStyle }}"></div></div>
+      </div>
+
+      <div style="background:#FFFFFF; border-radius:4px; padding:13px 16px 11px; border:1px solid rgba(0,0,0,0.055);">
+        <div style="font-size:8px; letter-spacing:0.16em; color:#C0BFC8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:9px;">Taux de service</div>
+        <div style="font-size:26px; font-weight:300; color:#2A7A5B; letter-spacing:-0.05em; line-height:1;">{{ kpiServiceRate }}<span style="font-size:16px;">%</span></div>
+        <div style="margin-top:6px; height:3px; background:#F0EEE9; border-radius:2px; overflow:hidden;"><div style="{{ serviceBarStyle }}"></div></div>
+      </div>
+
+      <div style="background:#FFFFFF; border-radius:4px; padding:13px 16px 11px; border:1px solid rgba(0,0,0,0.055);">
+        <div style="font-size:8px; letter-spacing:0.16em; color:#C0BFC8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:9px;">Temps de résolution</div>
+        <div style="font-size:26px; font-weight:300; color:#0C0D18; letter-spacing:-0.05em; line-height:1;">2<span style="font-size:15px; letter-spacing:-0.02em;">m 22s</span></div>
+        <div style="font-size:9.5px; color:#AAAAB8; margin-top:4px; font-family:'DM Mono',monospace;">LNS récursif</div>
+      </div>
+
+      <div style="background:#FFFFFF; border-radius:4px; padding:13px 16px 11px; border:1px solid rgba(0,0,0,0.055);">
+        <div style="font-size:8px; letter-spacing:0.16em; color:#C0BFC8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:9px;">Amélioration vs ATCS</div>
+        <div style="font-size:26px; font-weight:300; color:#2A7A5B; letter-spacing:-0.05em; line-height:1;">−56<span style="font-size:16px;">%</span></div>
+        <div style="font-size:9.5px; color:#9BBFAC; margin-top:4px; font-family:'DM Mono',monospace;">2 850 → {{ kpiLateness }}</div>
+      </div>
+
+    </div>
+
+    <!-- TOOLBAR -->
+    <div class="no-print" style="padding:9px 28px 0; display:flex; align-items:center; gap:7px; flex-shrink:0; flex-wrap:wrap; animation:fadeUp 0.4s 0.1s ease-out both;">
+
+      <!-- Zoom group -->
+      <div style="display:flex; align-items:center; border:1px solid #DDDBD6; border-radius:3px; overflow:hidden; flex-shrink:0;">
+        <button onClick="{{ zoomOut }}" style="width:30px; height:28px; background:none; border:none; cursor:pointer; font-size:17px; color:#666677; display:flex; align-items:center; justify-content:center; transition:background 0.12s;" style-hover="background:#F5F3EF; color:#0C0D18;">−</button>
+        <div style="padding:0 10px; font-size:10.5px; font-family:'DM Mono',monospace; color:#444455; letter-spacing:0.04em; border-left:1px solid #DDDBD6; border-right:1px solid #DDDBD6; height:28px; display:flex; align-items:center; min-width:46px; justify-content:center;">{{ zoomLabel }}</div>
+        <button onClick="{{ zoomIn }}" style="width:30px; height:28px; background:none; border:none; cursor:pointer; font-size:17px; color:#666677; display:flex; align-items:center; justify-content:center; transition:background 0.12s;" style-hover="background:#F5F3EF; color:#0C0D18;">+</button>
+      </div>
+
+      <div style="width:1px; height:18px; background:#DDDBD6; flex-shrink:0;"></div>
+
+      <!-- Machine chips -->
+      <div style="display:flex; align-items:center; gap:3px; flex-wrap:wrap;">
+        <sc-for list="{{ machineChips }}" as="chip" hint-placeholder-count="11">
+          <button style="{{ chip.style }}" onClick="{{ chip.onClick }}">{{ chip.label }}</button>
+        </sc-for>
+      </div>
+
+      <div style="width:1px; height:18px; background:#DDDBD6; flex-shrink:0;"></div>
+
+      <!-- Late filter -->
+      <button onClick="{{ toggleLate }}" style="{{ filterLateStyle }}">⬤ Retard seul.</button>
+
+      <div style="width:1px; height:18px; background:#DDDBD6; flex-shrink:0;"></div>
+
+      <!-- Window chips -->
+      <div style="display:flex; align-items:center; gap:3px; flex-wrap:wrap;">
+        <sc-for list="{{ windowChips }}" as="wc" hint-placeholder-count="6">
+          <button style="{{ wc.style }}" onClick="{{ wc.onClick }}">{{ wc.label }}</button>
+        </sc-for>
+      </div>
+
+      <div style="width:1px; height:18px; background:#DDDBD6; flex-shrink:0;"></div>
+
+      <!-- Search -->
+      <div style="position:relative; flex-shrink:0;">
+        <input type="text" value="{{ searchQuery }}" onChange="{{ onSearch }}" placeholder="Chercher un job…" style="padding:5px 10px 5px 28px; font-size:10.5px; font-family:'DM Mono',monospace; letter-spacing:0.04em; border:1px solid #DDDBD6; border-radius:3px; background:#FFFFFF; color:#0C0D18; outline:none; width:152px; transition:border-color 0.15s;" style-focus="border-color:#C4963A; box-shadow:0 0 0 3px rgba(196,150,58,0.1);" />
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" style="position:absolute; left:9px; top:50%; transform:translateY(-50%); pointer-events:none; color:#AAAAB8;"><circle cx="5" cy="5" r="3.5" stroke="currentColor" stroke-width="1.2"/><path d="M8 8l2.5 2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+      </div>
+
+      <!-- Reset filters -->
+      <sc-if value="{{ hasFilters }}" hint-placeholder-val="{{ false }}">
+        <button onClick="{{ resetFilters }}" style="display:flex; align-items:center; gap:5px; padding:5px 10px; font-size:10px; font-family:'DM Mono',monospace; letter-spacing:0.06em; border:1px solid rgba(200,72,72,0.28); border-radius:3px; background:rgba(200,72,72,0.05); color:#C84848; cursor:pointer; transition:all 0.15s; flex-shrink:0;" style-hover="background:rgba(200,72,72,0.1);">× Réinitialiser</button>
+      </sc-if>
+
+    </div>
+
+    <!-- ═══ GANTT AREA ═══ -->
+    <div style="flex:1; display:flex; gap:12px; padding:9px 28px 18px; min-height:0; overflow:hidden; animation:fadeUp 0.4s 0.14s ease-out both;">
+
+      <!-- GANTT CARD -->
+      <div style="flex:1; background:#FFFFFF; border-radius:4px; border:1px solid rgba(0,0,0,0.055); display:flex; flex-direction:column; min-width:0; overflow:hidden;">
+
+        <!-- Legend strip -->
+        <div style="padding:9px 16px; border-bottom:1px solid #F0EEE9; display:flex; align-items:center; gap:11px; flex-shrink:0; flex-wrap:wrap;">
+          <span style="font-size:8px; letter-spacing:0.14em; color:#C8C6C0; font-family:'DM Mono',monospace; text-transform:uppercase; flex-shrink:0;">Famille</span>
+          <sc-for list="{{ famLegend }}" as="f" hint-placeholder-count="6">
+            <div style="display:flex; align-items:center; gap:4px;">
+              <div style="{{ f.dotStyle }}"></div>
+              <span style="font-size:10px; color:#9A9AAA; font-family:'DM Mono',monospace; letter-spacing:0.04em;">{{ f.label }}</span>
+            </div>
+          </sc-for>
+          <div style="width:1px; height:12px; background:#ECEAE4; flex-shrink:0;"></div>
+          <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
+            <div style="width:18px; height:7px; border-radius:2px; background:#C84848; opacity:0.75;"></div>
+            <span style="font-size:10px; color:#C0BFC8; font-family:'DM Mono',monospace;">En retard</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
+            <div style="width:18px; height:7px; border-radius:2px; background:repeating-linear-gradient(45deg,#AAA8A0 0,#AAA8A0 1px,transparent 0,transparent 4px); border:1px solid rgba(0,0,0,0.12);"></div>
+            <span style="font-size:10px; color:#C0BFC8; font-family:'DM Mono',monospace;">Setup</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
+            <div style="width:18px; height:7px; border-radius:2px; border:1px dashed #AAAABC; background:rgba(100,100,140,0.06);"></div>
+            <span style="font-size:10px; color:#C0BFC8; font-family:'DM Mono',monospace;">Fenêtre opt.</span>
+          </div>
+          <div style="margin-left:auto; font-size:10px; color:#AAAAB8; font-family:'DM Mono',monospace; flex-shrink:0;">
+            Util. machines : <span style="color:#2A7A5B; font-weight:500;">{{ kpiUtil }}%</span>
+          </div>
+        </div>
+
+        <!-- GANTT BODY: labels + scroll -->
+        <div style="flex:1; display:flex; min-height:0; overflow:hidden;">
+
+          <!-- Machine labels (fixed left) -->
+          <div style="width:72px; flex-shrink:0; border-right:1px solid #ECEAE4; background:#FDFCFB; display:flex; flex-direction:column;">
+            <div style="height:54px; flex-shrink:0; border-bottom:1px solid #ECEAE4; display:flex; align-items:flex-end; justify-content:flex-end; padding:0 12px 9px;">
+              <span style="font-size:8px; font-family:'DM Mono',monospace; color:#CCCCDA; letter-spacing:0.08em;">u.t.</span>
+            </div>
+            <sc-for list="{{ machineRows }}" as="mr" hint-placeholder-count="10">
+              <div style="{{ mr.rowStyle }}" onClick="{{ mr.onClick }}">
+                <span style="{{ mr.labelStyle }}">{{ mr.label }}</span>
+              </div>
+            </sc-for>
+            <div style="height:16px; flex-shrink:0;"></div>
+          </div>
+
+          <!-- Scrollable SVG area -->
+          <div id="gantt-scroll" style="flex:1; overflow-x:auto; overflow-y:hidden;">
+            {{ ganttSvg }}
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- DETAIL PANEL (280px) -->
+      <div style="width:280px; flex-shrink:0; background:#FFFFFF; border-radius:4px; border:1px solid rgba(0,0,0,0.055); display:flex; flex-direction:column; overflow:hidden; animation:slideIn 0.35s ease-out both;">
+
+        <!-- Empty state -->
+        <sc-if value="{{ noSelectedJob }}" hint-placeholder-val="{{ true }}">
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:28px; text-align:center; gap:14px;">
+            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" opacity="0.25">
+              <rect x="6" y="10" width="22" height="7" rx="3.5" fill="#0C0D18"/>
+              <rect x="10" y="21" width="28" height="7" rx="3.5" fill="#0C0D18"/>
+              <rect x="6" y="32" width="16" height="7" rx="3.5" fill="#0C0D18"/>
+              <line x1="4" y1="6" x2="4" y2="42" stroke="#0C0D18" stroke-width="2.5" stroke-linecap="round"/>
+            </svg>
+            <div>
+              <p style="font-size:13px; color:#0C0D18; font-weight:500; letter-spacing:-0.01em; margin-bottom:5px;">Sélectionnez un job</p>
+              <p style="font-size:12px; color:#C0BFC8; font-weight:300; line-height:1.6; text-wrap:pretty;">Cliquez sur un bloc du diagramme pour afficher ses détails, opérations et setups.</p>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- Job detail -->
+        <sc-if value="{{ hasSelectedJob }}" hint-placeholder-val="{{ false }}">
+          <!-- Panel header -->
+          <div style="flex-shrink:0; padding:14px 16px 12px; border-bottom:1px solid #F0EEE9; display:flex; align-items:flex-start; justify-content:space-between; gap:10px;">
+            <div style="min-width:0;">
+              <div style="font-size:8px; letter-spacing:0.18em; color:#C4963A; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:6px;">Détail du job</div>
+              <div style="font-size:22px; font-weight:500; letter-spacing:-0.03em; color:#0C0D18; line-height:1;">{{ selectedJob.id }}</div>
+              <div style="display:flex; align-items:center; gap:6px; margin-top:6px; flex-wrap:wrap;">
+                <span style="font-size:9.5px; font-family:'DM Mono',monospace; background:{{ sjFamBg }}; color:{{ sjFamColor }}; padding:2px 8px; border-radius:2px; letter-spacing:0.06em; font-weight:500;">{{ selectedJob.family }}</span>
+                <span style="font-size:13px; color:#C4963A; letter-spacing:0.05em;">{{ weightStars }}</span>
+              </div>
+            </div>
+            <button onClick="{{ clearSelection }}" style="width:26px; height:26px; border:1px solid #ECEAE4; border-radius:3px; background:none; cursor:pointer; display:flex; align-items:center; justify-content:center; color:#AAAAB8; flex-shrink:0; transition:all 0.15s;" style-hover="border-color:#0C0D18; color:#0C0D18;">
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1 1l8 8M9 1L1 9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+
+          <!-- Panel body -->
+          <div class="detail-body" style="flex:1; overflow-y:auto; padding:14px 16px 20px;">
+
+            <!-- Status badge -->
+            <div style="display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:3px; background:{{ sjStatusBg }}; margin-bottom:14px;">
+              <div style="width:6px; height:6px; border-radius:50%; background:{{ sjStatusDot }}; flex-shrink:0;"></div>
+              <span style="font-size:12px; color:{{ sjStatusColor }}; font-weight:500; letter-spacing:-0.01em;">{{ sjStatusLabel }}</span>
+            </div>
+
+            <!-- Planification section -->
+            <div style="font-size:8px; letter-spacing:0.18em; color:#C0BFC8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:10px;">Planification</div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; row-gap:0; margin-bottom:14px; border:1px solid #F0EEE9; border-radius:3px; overflow:hidden;">
+              <div style="font-size:11px; color:#9A9AAA; font-weight:300; padding:7px 10px; border-bottom:1px solid #F8F7F4; background:#FDFCFB;">Machine</div>
+              <div style="font-size:11.5px; color:#0C0D18; font-family:'DM Mono',monospace; padding:7px 10px; border-bottom:1px solid #F8F7F4; font-weight:500;">{{ selectedJob.machLabel }}</div>
+              <div style="font-size:11px; color:#9A9AAA; font-weight:300; padding:7px 10px; border-bottom:1px solid #F8F7F4; background:#FDFCFB;">Début</div>
+              <div style="font-size:11.5px; color:#0C0D18; font-family:'DM Mono',monospace; padding:7px 10px; border-bottom:1px solid #F8F7F4;">{{ selectedJob.start }} u.t.</div>
+              <div style="font-size:11px; color:#9A9AAA; font-weight:300; padding:7px 10px; border-bottom:1px solid #F8F7F4; background:#FDFCFB;">Fin</div>
+              <div style="font-size:11.5px; color:#0C0D18; font-family:'DM Mono',monospace; padding:7px 10px; border-bottom:1px solid #F8F7F4;">{{ selectedJob.end }} u.t.</div>
+              <div style="font-size:11px; color:#9A9AAA; font-weight:300; padding:7px 10px; border-bottom:1px solid #F8F7F4; background:#FDFCFB;">Durée</div>
+              <div style="font-size:11.5px; color:#0C0D18; font-family:'DM Mono',monospace; padding:7px 10px; border-bottom:1px solid #F8F7F4;">{{ selectedJob.dur }} u.t.</div>
+              <div style="font-size:11px; color:#9A9AAA; font-weight:300; padding:7px 10px; border-bottom:1px solid #F8F7F4; background:#FDFCFB;">Deadline</div>
+              <div style="font-size:11.5px; color:#0C0D18; font-family:'DM Mono',monospace; padding:7px 10px; border-bottom:1px solid #F8F7F4;">{{ selectedJob.deadline }} u.t.</div>
+              <div style="font-size:11px; color:#9A9AAA; font-weight:300; padding:7px 10px; border-bottom:1px solid #F8F7F4; background:#FDFCFB;">Retard</div>
+              <div style="font-size:11.5px; font-family:'DM Mono',monospace; padding:7px 10px; border-bottom:1px solid #F8F7F4; color:{{ sjLatenessColor }}; font-weight:500;">{{ selectedJob.latenessLabel }}</div>
+              <div style="font-size:11px; color:#9A9AAA; font-weight:300; padding:7px 10px; background:#FDFCFB;">Poids</div>
+              <div style="font-size:11.5px; color:#0C0D18; font-family:'DM Mono',monospace; padding:7px 10px;">{{ selectedJob.weight }}</div>
+            </div>
+
+            <!-- Operations sequence -->
+            <div style="font-size:8px; letter-spacing:0.18em; color:#C0BFC8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:8px;">Séquence des opérations</div>
+
+            <sc-for list="{{ sjOps }}" as="op" hint-placeholder-count="3">
+              <div style="{{ op.rowStyle }}">
+                <div style="{{ op.numStyle }}">{{ op.seqStr }}</div>
+                <span style="{{ op.machStyle }}">{{ op.machine }}</span>
+                <span style="{{ op.timeStyle }}">{{ op.timeStr }}</span>
+                <span style="{{ op.durStyle }}">{{ op.durStr }}</span>
+              </div>
+            </sc-for>
+
+            <!-- Setups section -->
+            <div style="font-size:8px; letter-spacing:0.18em; color:#C0BFC8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:8px; margin-top:14px;">Setups associés</div>
+
+            <div style="display:flex; flex-direction:column; gap:5px; margin-bottom:14px;">
+              <div style="padding:9px 11px; border-radius:3px; background:rgba(0,0,0,0.025); display:flex; flex-direction:column; gap:2px;">
+                <div style="font-size:9px; color:#AAAAB8; font-family:'DM Mono',monospace; letter-spacing:0.06em; text-transform:uppercase;">← Avant</div>
+                <div style="font-size:11.5px; color:#444455; font-family:'DM Mono',monospace; margin-top:2px;">{{ sjSetupBeforeLabel }}</div>
+                <sc-if value="{{ hasSjSetupBefore }}" hint-placeholder-val="{{ false }}">
+                  <div style="font-size:11px; color:#C4963A; font-family:'DM Mono',monospace; font-weight:500;">{{ sjSetupBeforeDur }}</div>
+                </sc-if>
+              </div>
+              <div style="padding:9px 11px; border-radius:3px; background:rgba(0,0,0,0.025); display:flex; flex-direction:column; gap:2px;">
+                <div style="font-size:9px; color:#AAAAB8; font-family:'DM Mono',monospace; letter-spacing:0.06em; text-transform:uppercase;">→ Après</div>
+                <div style="font-size:11.5px; color:#444455; font-family:'DM Mono',monospace; margin-top:2px;">{{ sjSetupAfterLabel }}</div>
+                <sc-if value="{{ hasSjSetupAfter }}" hint-placeholder-val="{{ false }}">
+                  <div style="font-size:11px; color:#C4963A; font-family:'DM Mono',monospace; font-weight:500;">{{ sjSetupAfterDur }}</div>
+                </sc-if>
+              </div>
+            </div>
+
+            <!-- Locate button -->
+            <button onClick="{{ locateJob }}" style="width:100%; padding:10px; background:#0C0D18; color:#F2F1EE; border:none; border-radius:3px; font-size:10.5px; font-family:'DM Sans',sans-serif; font-weight:500; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:7px; transition:background 0.2s;" style-hover="background:#1C1E30;">
+              <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="3.5" stroke="currentColor" stroke-width="1.3"/><circle cx="6" cy="6" r="1" fill="currentColor"/><path d="M6 1v2M6 9v2M1 6h2M9 6h2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+              Localiser sur le Gantt
+            </button>
+
+          </div>
+        </sc-if>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- TOOLTIP -->
+  <sc-if value="{{ showTooltip }}" hint-placeholder-val="{{ false }}">
+    <div style="{{ tooltipStyle }}">
+      <div style="font-size:12px; font-weight:500; color:#EAEAF5; margin-bottom:5px; letter-spacing:-0.01em; font-family:'DM Mono',monospace;">{{ tooltipId }}</div>
+      <div style="font-size:10.5px; color:#8A8AAA; line-height:1.85; font-family:'DM Mono',monospace;">
+        <div>{{ tooltipMach }} · Famille {{ tooltipFamily }}</div>
+        <div>{{ tooltipStart }} → {{ tooltipEnd }} u.t.</div>
+        <div style="color:{{ tooltipStatusColor }};">{{ tooltipStatus }}</div>
+        <div>{{ tooltipWeightLabel }}</div>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+
+class Component extends DCLogic {
+  state = {
+    jobs: [], setups: [],
+    zoom: 1.2,
+    selectedJob: null,
+    hoveredBar: null, tooltipX: 0, tooltipY: 0,
+    filterMachine: null,
+    filterLate: false,
+    filterWindow: null,
+    searchQuery: '',
+  };
+
+  componentDidMount() {
+    const { jobs, setups } = this.generateSchedule();
+    this.setState({ jobs, setups });
+  }
+
+  generateSchedule() {
+    let seed = 7919;
+    const rng = () => {
+      seed = (Math.imul(1664525, seed) + 1013904223) | 0;
+      return (seed >>> 0) / 0xFFFFFFFF;
+    };
+    const FAMILIES = ['FA','FB','FC','FD','FE','FF'];
+    const FAM_COLORS = ['#C4963A','#2A7A5B','#3A5A8A','#8A4A8A','#7A3A3A','#2A7A8A'];
+    const DEADLINES = [80,120,160,200,240,280,320,360,400];
+    const jobs = [], setups = [];
+    let jId = 1, sId = 1;
+
+    for (let m = 0; m < 10; m++) {
+      let t = Math.round(rng() * 12);
+      let prev = null;
+      let machCount = 0;
+
+      while (t < 390 && machCount < 18) {
+        if (prev) {
+          const sDur = Math.round(rng() * 6 + 2);
+          setups.push({
+            id: `S${sId++}`, machine: m,
+            start: prev.end, dur: sDur, end: prev.end + sDur,
+            window: Math.min(4, Math.floor(prev.end / 80)),
+            fromJob: prev.id, toJob: `J${String(jId).padStart(3,'0')}`,
+          });
+          t = prev.end + sDur;
+        }
+        const dur = Math.round(rng() * 22 + 8);
+        if (t + dur > 400) break;
+
+        const fam = Math.floor(rng() * 6);
+        const wt = Math.round(rng() * 4 + 1);
+        const ddl = DEADLINES[Math.floor(rng() * DEADLINES.length)];
+        const end = t + dur;
+        const lateness = Math.max(0, end - ddl);
+        const wIdx = Math.min(4, Math.floor(t / 80));
+
+        // Generate 2–3 ops for detail panel
+        const ops = [];
+        const nOps = 2 + Math.round(rng() * 0.6);
+        let opT = t;
+        for (let op = 0; op < nOps; op++) {
+          const opM = op === 0 ? m : Math.floor(rng() * 10);
+          const opDur = op === nOps - 1
+            ? Math.max(3, end - opT)
+            : Math.round((dur / nOps) * (0.7 + rng() * 0.6));
+          const safeEnd = Math.min(end, Math.round(opT + opDur));
+          ops.push({
+            seq: op + 1, machine: `M${opM + 1}`,
+            start: Math.round(opT), end: safeEnd,
+            dur: Math.max(1, Math.round(opDur)),
+            isCurrent: op === 0,
+          });
+          opT = safeEnd;
+        }
+
+        const job = {
+          id: `J${String(jId).padStart(3,'0')}`,
+          machine: m, machLabel: `M${m+1}`,
+          start: t, dur, end, deadline: ddl, lateness,
+          latenessLabel: lateness === 0 ? "À l'heure" : `+${lateness} u.t.`,
+          weight: wt, fam,
+          family: FAMILIES[fam], color: FAM_COLORS[fam],
+          isLate: lateness > 0, windowIdx: wIdx, ops,
+        };
+        jobs.push(job);
+        prev = job; jId++; machCount++;
+        t = end;
+      }
+    }
+    return { jobs, setups };
+  }
+
+  buildGanttSvg(jobs, setups, zoom, filterMachine, filterLate, filterWindow, searchQuery, selectedJob, hoveredBar) {
+    const TOP = 54, ROW_H = 30, ROW_G = 8, RT = ROW_H + ROW_G;
+    const PPU = 3 * zoom;
+    const SVG_W = Math.round(400 * PPU + 24);
+    const SVG_H = TOP + 10 * RT + 16;
+    const tx = t => t * PPU;
+    const ty = m => TOP + m * RT;
+    const ce = React.createElement;
+    const WINDOWS = [[0,80],[80,160],[160,240],[240,320],[320,400]];
+    const WIN_FILLS = ['rgba(196,150,58,0.06)','rgba(42,122,91,0.045)','rgba(58,90,138,0.055)','rgba(138,74,138,0.045)','rgba(42,122,138,0.055)'];
+    const WIN_STROKES = ['rgba(196,150,58,0.3)','rgba(42,122,91,0.22)','rgba(58,90,138,0.24)','rgba(138,74,138,0.22)','rgba(42,122,138,0.24)'];
+    const elems = [];
+    const patId = `hp${Math.round(zoom * 100)}`;
+
+    elems.push(ce('defs', {key:'defs'},
+      ce('pattern', {id:patId, patternUnits:'userSpaceOnUse', width:5, height:5, patternTransform:'rotate(45 0 0)'},
+        ce('line', {x1:0, y1:0, x2:0, y2:5, stroke:'rgba(90,90,110,0.3)', strokeWidth:2.5})
+      )
+    ));
+    elems.push(ce('rect', {key:'bg', x:0, y:0, width:SVG_W, height:SVG_H, fill:'#FFFFFF'}));
+
+    // Window bands + labels + borders
+    WINDOWS.forEach(([ws,we], i) => {
+      const isActive = filterWindow === null || filterWindow === i;
+      const wx = tx(ws), ww = tx(we - ws);
+      elems.push(ce('rect', {key:`wf${i}`, x:wx, y:0, width:ww, height:SVG_H,
+        fill: isActive ? WIN_FILLS[i] : 'rgba(0,0,0,0.006)'}));
+      elems.push(ce('line', {key:`wb${i}`, x1:wx, y1:14, x2:wx, y2:SVG_H - 14,
+        stroke:WIN_STROKES[i], strokeWidth:filterWindow===i ? 1.5 : 0.5, strokeDasharray:'5,5'}));
+      elems.push(ce('text', {key:`wl${i}`, x:wx + ww/2, y:12, fontSize:7.5,
+        fontFamily:'DM Mono,monospace', fill:isActive ? WIN_STROKES[i] : '#D4D4DC',
+        textAnchor:'middle', fontWeight:'600', letterSpacing:'0.14em'}, `FENÊTRE ${i+1}`));
+    });
+    elems.push(ce('line', {key:'wend', x1:tx(400), y1:14, x2:tx(400), y2:SVG_H - 14,
+      stroke:WIN_STROKES[4], strokeWidth:0.5, strokeDasharray:'5,5'}));
+
+    // Row backgrounds (alternating)
+    for (let m = 0; m < 10; m++) {
+      if (m % 2 === 0) {
+        elems.push(ce('rect', {key:`rb${m}`, x:0, y:ty(m), width:SVG_W, height:ROW_H, fill:'rgba(0,0,0,0.013)'}));
+      }
+    }
+    // Row separator lines
+    for (let m = 1; m < 10; m++) {
+      elems.push(ce('line', {key:`rl${m}`, x1:0, y1:ty(m), x2:SVG_W, y2:ty(m),
+        stroke:'rgba(0,0,0,0.04)', strokeWidth:0.5}));
+    }
+
+    // Vertical grid
+    for (let t = 0; t <= 400; t += 50) {
+      const gx = tx(t);
+      const isMaj = t % 100 === 0;
+      elems.push(ce('line', {key:`vg${t}`, x1:gx, y1:TOP - 4, x2:gx, y2:SVG_H - 14,
+        stroke:isMaj ? '#E0DED8' : '#ECEAE6', strokeWidth:isMaj ? 1 : 0.5}));
+      elems.push(ce('text', {key:`vt${t}`, x:gx, y:TOP - 9, fontSize:isMaj ? 11 : 9,
+        fontFamily:'DM Mono,monospace', fill:isMaj ? '#8A8A9E' : '#BCBCC8',
+        textAnchor:'middle', fontWeight:isMaj ? '500' : '400'}, `${t}`));
+    }
+
+    // "T actuel" marker
+    const nowX = tx(45);
+    elems.push(ce('line', {key:'now', x1:nowX, y1:TOP-4, x2:nowX, y2:SVG_H-14,
+      stroke:'#E05050', strokeWidth:1.5, opacity:0.6}));
+    elems.push(ce('polygon', {key:'nowtri', points:`${nowX-4},${TOP-4} ${nowX+4},${TOP-4} ${nowX},${TOP+2}`,
+      fill:'#E05050', opacity:0.6}));
+    elems.push(ce('text', {key:'nowlbl', x:nowX+5, y:TOP-7, fontSize:7.5,
+      fontFamily:'DM Mono,monospace', fill:'#E05050', fontWeight:'600', letterSpacing:'0.08em'}, 'T=45'));
+
+    // Setups
+    setups.forEach(s => {
+      const activeM = filterMachine === null || filterMachine === s.machine;
+      const activeW = filterWindow === null || filterWindow === s.window;
+      const op = activeM && activeW ? 0.65 : activeM || activeW ? 0.18 : 0.04;
+      const x = tx(s.start);
+      const w = Math.max(2.5, tx(s.dur) - 0.5);
+      const y = ty(s.machine) + 4;
+      const h = ROW_H - 8;
+      elems.push(ce('g', {key:`sg${s.id}`, opacity:op},
+        ce('rect', {x, y, width:w, height:h, rx:1.5, fill:`url(#${patId})`}),
+        ce('rect', {x, y, width:w, height:h, rx:1.5, fill:'transparent',
+          stroke:'rgba(90,90,110,0.2)', strokeWidth:0.75})
+      ));
+    });
+
+    // Jobs
+    jobs.forEach(j => {
+      const sqMatch = searchQuery === '' || j.id.toLowerCase().includes(searchQuery.toLowerCase());
+      const activeM = filterMachine === null || filterMachine === j.machine;
+      const activeL = !filterLate || j.isLate;
+      const activeW = filterWindow === null || filterWindow === j.windowIdx;
+      const isActive = sqMatch && activeM && activeL && activeW;
+
+      const isSel = selectedJob && selectedJob.id === j.id;
+      const isHov = hoveredBar && hoveredBar.id === j.id;
+
+      let op;
+      if (!isActive) op = 0.05;
+      else if (selectedJob) op = isSel ? 1 : 0.14;
+      else if (hoveredBar) op = isHov ? 1 : 0.32;
+      else op = j.isLate ? 0.82 : 0.78;
+
+      const col = j.isLate ? '#C84848' : j.color;
+      const x = tx(j.start) + 0.5;
+      const y = ty(j.machine) + 1.5;
+      const w = Math.max(4, tx(j.dur) - 2);
+      const h = ROW_H - 3;
+
+      elems.push(ce('rect', {
+        key:`j${j.id}`, x, y, width:w, height:h, rx:2.5,
+        fill:col, opacity:op,
+        stroke: isSel ? col : 'none', strokeWidth: isSel ? 2.5 : 0,
+        style: {
+          cursor:'pointer', transition:'opacity 0.1s',
+          filter: isSel ? `drop-shadow(0 2px 8px ${col}55)` : 'none',
+        },
+        onClick: (e) => { e.stopPropagation(); this.setState({selectedJob: j}); },
+        onMouseEnter: (e) => this.setState({hoveredBar:j, tooltipX:e.clientX+14, tooltipY:e.clientY-10}),
+        onMouseLeave: () => this.setState({hoveredBar:null}),
+      }));
+
+      // Late stripe on right edge
+      if (j.isLate && isActive && !isSel) {
+        const ex = x + w;
+        elems.push(ce('polygon', {
+          key:`lti${j.id}`, opacity:op,
+          points:`${ex-5},${y} ${ex},${y} ${ex},${y+5}`,
+          fill:'#FF4040', style:{pointerEvents:'none'},
+        }));
+      }
+
+      // ID label
+      if (w > 28) {
+        elems.push(ce('text', {
+          key:`jt${j.id}`, x:x+5, y:y+h/2+3.5,
+          fontSize:Math.min(8.5, Math.max(7, w/5)),
+          fontFamily:'DM Mono,monospace', fill:'rgba(255,255,255,0.92)',
+          opacity:op, style:{cursor:'pointer', pointerEvents:'none', userSelect:'none'},
+        }, j.id));
+      }
+    });
+
+    // Bottom axis line
+    elems.push(ce('line', {key:'bot', x1:0, y1:SVG_H-14, x2:SVG_W, y2:SVG_H-14,
+      stroke:'#E8E6DF', strokeWidth:1}));
+    elems.push(ce('text', {key:'unit', x:SVG_W-6, y:SVG_H-3, fontSize:8,
+      fontFamily:'DM Mono,monospace', fill:'#C4C2BA', textAnchor:'end'}, 'unités de temps →'));
+
+    return ce('svg', {
+      key:'gantt',
+      style:{display:'block', width:`${SVG_W}px`, height:`${SVG_H}px`, cursor:'default'},
+      onClick: () => this.setState({selectedJob:null}),
+    }, ...elems);
+  }
+
+  navStyle(id) {
+    const active = id === 'gantt';
+    return {display:'flex',alignItems:'center',gap:'10px',padding:'9px 12px',borderRadius:'4px',
+      cursor:'pointer',marginBottom:'2px',color:active?'#E8E8F2':'#3E4058',
+      background:active?'rgba(196,150,58,0.1)':'transparent',transition:'all 0.15s'};
+  }
+
+  renderVals() {
+    const {jobs,setups,zoom,selectedJob,hoveredBar,tooltipX,tooltipY,
+      filterMachine,filterLate,filterWindow,searchQuery} = this.state;
+
+    const lateJobs = jobs.filter(j => j.isLate);
+    const onTimeJobs = jobs.filter(j => !j.isLate);
+    const totalWL = jobs.reduce((a,j) => a + j.lateness * j.weight, 0);
+    const totalDur = jobs.reduce((a,j) => a + j.dur, 0);
+    const util = jobs.length > 0 ? (totalDur / (10 * 400) * 100).toFixed(1) : '—';
+
+    const ganttSvg = jobs.length > 0
+      ? this.buildGanttSvg(jobs,setups,zoom,filterMachine,filterLate,filterWindow,searchQuery,selectedJob,hoveredBar)
+      : null;
+
+    // Machine rows (fixed labels column)
+    const machineRows = Array.from({length:10}, (_,m) => {
+      const isSolo = filterMachine === m;
+      const dim = filterMachine !== null && !isSolo;
+      return {
+        label: `M${m+1}`,
+        onClick: () => this.setState({filterMachine: isSolo ? null : m}),
+        rowStyle: {
+          height:'38px', display:'flex', alignItems:'center', justifyContent:'flex-end',
+          padding:'0 12px', borderBottom:'1px solid rgba(0,0,0,0.035)', flexShrink:0,
+          cursor:'pointer', background:isSolo?'rgba(196,150,58,0.07)':'transparent', transition:'background 0.15s',
+        },
+        labelStyle: {
+          fontSize:'11px', fontFamily:"'DM Mono',monospace",
+          fontWeight: isSolo ? '600' : '500', letterSpacing:'0.04em',
+          color: dim ? '#C8C8D8' : '#5A5A7A', transition:'color 0.15s',
+        },
+      };
+    });
+
+    const chipBase = {padding:'4px 9px',fontSize:'10px',fontFamily:"'DM Mono',monospace",
+      letterSpacing:'0.05em',borderRadius:'3px',cursor:'pointer',transition:'all 0.15s',flexShrink:0};
+
+    const machineChips = [
+      {label:'Toutes', value:null},
+      ...Array.from({length:10},(_,i)=>({label:`M${i+1}`,value:i})),
+    ].map(c => {
+      const isActive = filterMachine === c.value;
+      return {
+        ...c,
+        style:{...chipBase,border:`1px solid ${isActive?'#C4963A':'rgba(0,0,0,0.12)'}`,
+          background:isActive?'rgba(196,150,58,0.09)':'transparent',
+          color:isActive?'#B07820':'#888899', fontWeight:isActive?'500':'400'},
+        onClick:()=>this.setState({filterMachine:(filterMachine===c.value&&c.value!==null)?null:c.value}),
+      };
+    });
+
+    const WIN_C = ['#C4963A','#2A7A5B','#3A5A8A','#8A4A8A','#2A7A8A'];
+    const windowChips = [
+      {label:'Toutes',value:null,col:'#888899'},
+      ...Array.from({length:5},(_,i)=>({label:`F${i+1}`,value:i,col:WIN_C[i]})),
+    ].map(c => {
+      const isActive = filterWindow === c.value;
+      return {
+        ...c,
+        style:{...chipBase,border:`1px solid ${isActive?c.col:'rgba(0,0,0,0.12)'}`,
+          background:isActive?`${c.col}18`:'transparent',
+          color:isActive?c.col:'#888899', fontWeight:isActive?'500':'400'},
+        onClick:()=>this.setState({filterWindow:(filterWindow===c.value&&c.value!==null)?null:c.value}),
+      };
+    });
+
+    const FAM_COLORS = ['#C4963A','#2A7A5B','#3A5A8A','#8A4A8A','#7A3A3A','#2A7A8A'];
+    const famLegend = ['FA','FB','FC','FD','FE','FF'].map((fam,i)=>({
+      label:fam,
+      dotStyle:{width:'18px',height:'7px',borderRadius:'2px',background:FAM_COLORS[i],opacity:0.85,flexShrink:0},
+    }));
+
+    const hasFilters = filterMachine!==null || filterLate || filterWindow!==null || searchQuery!=='';
+
+    // Detail panel
+    const sj = selectedJob;
+    const SJ_FAM_BG = ['rgba(196,150,58,0.1)','rgba(42,122,91,0.1)','rgba(58,90,138,0.1)','rgba(138,74,138,0.1)','rgba(122,58,58,0.1)','rgba(42,122,138,0.1)'];
+    const SJ_FAM_C  = ['#B07820','#2A7A5B','#3A5A8A','#8A4A8A','#7A3A3A','#2A7A8A'];
+
+    const sjSetupBefore = sj ? setups.find(s=>s.toJob===sj.id)   : null;
+    const sjSetupAfter  = sj ? setups.find(s=>s.fromJob===sj.id) : null;
+
+    const sjOps = sj ? sj.ops.map(op => {
+      const act = op.isCurrent;
+      return {
+        ...op,
+        seqStr:`${op.seq}`, timeStr:`t=${op.start}→${op.end}`, durStr:`${op.dur} u.t.`,
+        rowStyle:{display:'flex',alignItems:'center',gap:'8px',padding:'6px 10px',borderRadius:'3px',
+          marginBottom:'2px',background:act?'rgba(196,150,58,0.07)':'rgba(0,0,0,0.02)',
+          border:`1px solid ${act?'rgba(196,150,58,0.18)':'transparent'}`},
+        numStyle:{width:'17px',height:'17px',borderRadius:'50%',flexShrink:0,
+          background:act?'#C4963A':'rgba(0,0,0,0.07)',display:'flex',alignItems:'center',
+          justifyContent:'center',fontSize:'8.5px',fontFamily:"'DM Mono',monospace",
+          fontWeight:'600',color:act?'#FFF':'#8A8A9E'},
+        machStyle:{fontSize:'11.5px',fontFamily:"'DM Mono',monospace",
+          color:act?'#B07820':'#444455',fontWeight:act?'600':'400',flex:1},
+        timeStyle:{fontSize:'10px',fontFamily:"'DM Mono',monospace",color:'#AAAABB'},
+        durStyle:{fontSize:'9.5px',fontFamily:"'DM Mono',monospace",
+          color:act?'#C4963A':'#C8C8D6',background:'rgba(0,0,0,0.04)',padding:'1px 5px',borderRadius:'2px'},
+      };
+    }) : [];
+
+    const wStars = sj ? '★'.repeat(sj.weight)+'☆'.repeat(5-sj.weight) : '';
+    const td = hoveredBar || {id:'',machLabel:'',family:'',start:0,end:0,latenessLabel:'',weight:0};
+
+    return {
+      // KPIs
+      kpiLateness: totalWL.toLocaleString('fr-FR'),
+      kpiLateCount: lateJobs.length,
+      kpiTotalJobs: jobs.length,
+      kpiServiceRate: jobs.length>0 ? ((onTimeJobs.length/jobs.length)*100).toFixed(0) : 0,
+      kpiUtil: util,
+      lateBarStyle:{height:'100%',width:`${jobs.length>0?(lateJobs.length/jobs.length*100).toFixed(1):0}%`,background:'#C84848',borderRadius:'2px',transition:'width 0.5s'},
+      serviceBarStyle:{height:'100%',width:`${jobs.length>0?(onTimeJobs.length/jobs.length*100).toFixed(1):0}%`,background:'#2A7A5B',borderRadius:'2px',transition:'width 0.5s'},
+
+      // Gantt
+      ganttSvg, machineRows,
+      zoomLabel:`${(zoom*100).toFixed(0)}%`,
+      zoomIn:()=>this.setState(s=>({zoom:Math.min(4,parseFloat((s.zoom+0.25).toFixed(2)))})),
+      zoomOut:()=>this.setState(s=>({zoom:Math.max(0.5,parseFloat((s.zoom-0.25).toFixed(2)))})),
+
+      // Filters
+      filterLate, hasFilters,
+      filterLateStyle:{display:'flex',alignItems:'center',gap:'6px',padding:'5px 11px',fontSize:'10px',
+        fontFamily:"'DM Mono',monospace",letterSpacing:'0.05em',borderRadius:'3px',cursor:'pointer',flexShrink:0,
+        border:`1px solid ${filterLate?'#C84848':'rgba(0,0,0,0.12)'}`,
+        background:filterLate?'rgba(200,72,72,0.08)':'transparent',
+        color:filterLate?'#C84848':'#888899',fontWeight:filterLate?'500':'400',transition:'all 0.15s'},
+      toggleLate:()=>this.setState(s=>({filterLate:!s.filterLate})),
+      machineChips, windowChips, famLegend,
+      resetFilters:()=>this.setState({filterMachine:null,filterLate:false,filterWindow:null,searchQuery:'',selectedJob:null}),
+      searchQuery,
+      onSearch:(e)=>this.setState({searchQuery:e.target.value}),
+
+      // Detail panel
+      hasSelectedJob:!!sj, noSelectedJob:!sj,
+      selectedJob:sj||{id:'',machLabel:'',start:0,end:0,dur:0,deadline:0,latenessLabel:'',weight:0,family:'',fam:0},
+      sjFamBg:sj?SJ_FAM_BG[sj.fam]:'transparent',
+      sjFamColor:sj?SJ_FAM_C[sj.fam]:'#888',
+      sjLatenessColor:sj?(sj.isLate?'#C84848':'#2A7A5B'):'#2A7A5B',
+      sjStatusBg:sj?(sj.isLate?'rgba(200,72,72,0.06)':'rgba(42,122,91,0.06)'):'transparent',
+      sjStatusDot:sj?(sj.isLate?'#C84848':'#2A7A5B'):'#2A7A5B',
+      sjStatusColor:sj?(sj.isLate?'#C84848':'#2A7A5B'):'#2A7A5B',
+      sjStatusLabel:sj?(sj.isLate?'En retard':"À l'heure"):'',
+      weightStars:wStars,
+      sjOps,
+      hasSjSetupBefore:!!sjSetupBefore, hasSjSetupAfter:!!sjSetupAfter,
+      sjSetupBeforeLabel:sjSetupBefore?`${sjSetupBefore.fromJob} → ${sjSetupBefore.toJob}`:'Aucun setup',
+      sjSetupBeforeDur:sjSetupBefore?`${sjSetupBefore.dur} u.t.`:'',
+      sjSetupAfterLabel:sjSetupAfter?`${sjSetupAfter.fromJob} → ${sjSetupAfter.toJob}`:'Aucun setup',
+      sjSetupAfterDur:sjSetupAfter?`${sjSetupAfter.dur} u.t.`:'',
+      clearSelection:()=>this.setState({selectedJob:null}),
+      locateJob:()=>{
+        if (!sj) return;
+        const el = document.getElementById('gantt-scroll');
+        if (el) { const PPU = 3*this.state.zoom; el.scrollLeft = Math.max(0, sj.start*PPU - el.clientWidth/2); }
+      },
+
+      // Tooltip
+      showTooltip:!!hoveredBar,
+      tooltipStyle:{position:'fixed',top:`${tooltipY}px`,left:`${tooltipX}px`,
+        background:'#0C0D18',borderRadius:'4px',padding:'10px 14px',
+        zIndex:9999,pointerEvents:'none',minWidth:'180px',
+        boxShadow:'0 4px 20px rgba(0,0,0,0.3)',border:'1px solid rgba(255,255,255,0.08)'},
+      tooltipId:td.id, tooltipMach:td.machLabel||'', tooltipFamily:td.family||'',
+      tooltipStart:td.start||0, tooltipEnd:td.end||0,
+      tooltipStatus:td.latenessLabel||'',
+      tooltipStatusColor:hoveredBar?(hoveredBar.isLate?'#E86060':'#4BC090'):'#8A8AAA',
+      tooltipWeightLabel:td.weight?`Poids : ${td.weight}`:'',
+
+      // Nav
+      navDashStyle:this.navStyle('dashboard'),
+      navInstStyle:this.navStyle('instances'),
+      navResStyle:this.navStyle('results'),
+      navGanttStyle:this.navStyle('gantt'),
+      navSetStyle:this.navStyle('settings'),
+      goHome:()=>{window.location.href='Dashboard.dc.html';},
+      goResults:()=>{window.location.href='Resultats.dc.html';},
+      goAdmin:()=>{window.location.href='Admin.dc.html';},
+      onRedispatch:()=>{window.location.href='Solving.dc.html';},
+      onExportPdf:()=>window.print(),
+    };
+  }
+}
+
+</script>
+</body>
+</html>

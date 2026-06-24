@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+
+<helmet>
+  <title>OrdoSaaS — Comparaison de solutions</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+    html, body { height:100%; overflow:hidden; }
+    @keyframes fadeUp { from{transform:translateY(8px);opacity:0} to{transform:translateY(0);opacity:1} }
+    .scroll-x::-webkit-scrollbar { height:5px; }
+    .scroll-x::-webkit-scrollbar-track { background:#F5F3EF; border-radius:3px; }
+    .scroll-x::-webkit-scrollbar-thumb { background:#DDDBD4; border-radius:3px; }
+    .scroll-y::-webkit-scrollbar { width:5px; }
+    .scroll-y::-webkit-scrollbar-thumb { background:#E0DED8; border-radius:3px; }
+    select { -webkit-appearance:none; appearance:none; background-image:url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888899' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 10px center; }
+    .kpi-row:hover { background: rgba(0,0,0,0.015) !important; }
+    .job-row:hover { background: rgba(0,0,0,0.015) !important; }
+  </style>
+</helmet>
+
+<div style="display:flex; height:100vh; font-family:'DM Sans',sans-serif; overflow:hidden; background:#08090F;">
+
+  <!-- ══ SIDEBAR ══ -->
+  <aside style="width:232px; background:#08090F; display:flex; flex-direction:column; border-right:1px solid rgba(255,255,255,0.045); flex-shrink:0;">
+    <div style="padding:26px 22px 22px; border-bottom:1px solid rgba(255,255,255,0.04); cursor:pointer;" onClick="{{ goHome }}">
+      <div style="display:flex; align-items:center; gap:13px;">
+        <svg width="36" height="36" viewBox="0 0 46 46" fill="none"><circle cx="23" cy="23" r="20" stroke="#C4963A" stroke-width="1.5"/><rect x="11" y="16.5" width="13" height="3.5" rx="1.75" fill="#C4963A"/><rect x="11" y="22.5" width="21" height="3.5" rx="1.75" fill="#C4963A"/><rect x="11" y="28.5" width="16" height="3.5" rx="1.75" fill="#C4963A" opacity="0.6"/></svg>
+        <div>
+          <div style="font-size:16.5px; font-weight:600; letter-spacing:-0.03em; color:#EAEAF5; line-height:1;">OrdoSaaS</div>
+          <div style="font-size:8px; letter-spacing:0.2em; color:#C4963A; font-family:'DM Mono',monospace; margin-top:3px; text-transform:uppercase;">Scheduling</div>
+        </div>
+      </div>
+    </div>
+    <nav style="flex:1; padding:16px 10px 8px; overflow-y:auto;">
+      <div style="font-size:7.5px; letter-spacing:0.2em; color:#1E2032; font-family:'DM Mono',monospace; text-transform:uppercase; padding:0 12px; margin-bottom:8px;">Menu</div>
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:4px;cursor:pointer;color:#3E4058;margin-bottom:2px;transition:all 0.15s;" style-hover="color:#9090A4;" onClick="{{ goHome }}">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="9" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="1.5" y="9" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="9" y="9" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/></svg>
+        <span style="font-size:13.5px;">Tableau de bord</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:4px;cursor:pointer;color:#3E4058;margin-bottom:2px;transition:all 0.15s;" style-hover="color:#9090A4;" onClick="{{ goHome }}">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><path d="M2 5l6-3 6 3-6 3-6-3Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M2 9l6 3 6-3" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M2 12l6 3 6-3" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+        <span style="font-size:13.5px;">Mes instances</span>
+        <span style="margin-left:auto;background:rgba(196,150,58,0.13);color:#C4963A;font-size:10px;font-family:'DM Mono',monospace;padding:2px 7px;border-radius:10px;">47</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:4px;cursor:pointer;color:#3E4058;margin-bottom:2px;transition:all 0.15s;" style-hover="color:#9090A4;" onClick="{{ goResults }}">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><path d="M3 13V7M6.5 13V9M10 13V5M13.5 13V8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        <span style="font-size:13.5px;">Résultats</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:4px;cursor:pointer;color:#3E4058;margin-bottom:2px;transition:all 0.15s;" style-hover="color:#9090A4;" onClick="{{ goGantt }}">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><line x1="2" y1="1.5" x2="2" y2="14.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><rect x="3" y="3" width="8" height="2.5" rx="1.25" fill="currentColor" opacity="0.9"/><rect x="3" y="6.75" width="11" height="2.5" rx="1.25" fill="currentColor" opacity="0.7"/><rect x="3" y="10.5" width="6.5" height="2.5" rx="1.25" fill="currentColor" opacity="0.55"/></svg>
+        <span style="font-size:13.5px;">Diagramme de Gantt</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:4px;cursor:pointer;background:rgba(196,150,58,0.1);color:#E8E8F2;margin-bottom:2px;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><rect x="1.5" y="3.5" width="5" height="9" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="9.5" y="3.5" width="5" height="9" rx="1" stroke="currentColor" stroke-width="1.2"/><line x1="7.5" y1="8" x2="9.5" y2="8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><line x1="8.5" y1="6.5" x2="8.5" y2="9.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+        <span style="font-size:13.5px; font-weight:500;">Comparaison</span>
+      </div>
+      <div style="height:1px; background:rgba(255,255,255,0.04); margin:10px 12px;"></div>
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:4px;cursor:pointer;color:#3E4058;transition:all 0.15s;" style-hover="color:#9090A4;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+        <span style="font-size:13.5px;">Paramètres</span>
+      </div>
+    </nav>
+    <div style="padding:16px 20px; border-top:1px solid rgba(255,255,255,0.04);">
+      <div style="display:flex;align-items:center;gap:11px;">
+        <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(140deg,#C4963A,#7A5214);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#0C0D18;flex-shrink:0;">ML</div>
+        <div>
+          <div style="font-size:13px;font-weight:500;color:#D8D8E5;letter-spacing:-0.01em;">M. Lefebvre</div>
+          <div style="font-size:9.5px;color:#36384E;font-family:'DM Mono',monospace;margin-top:1px;">Planificateur</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ══ MAIN ══ -->
+  <main style="flex:1; background:#F2F1EE; display:flex; flex-direction:column; min-width:0; overflow:hidden;">
+
+    <!-- HEADER -->
+    <div style="padding:18px 28px 14px; border-bottom:1px solid rgba(0,0,0,0.055); display:flex; align-items:center; justify-content:space-between; gap:20px; flex-shrink:0; animation:fadeUp 0.35s ease-out both;">
+      <div>
+        <div style="font-size:8.5px;letter-spacing:0.2em;color:#C4963A;font-family:'DM Mono',monospace;text-transform:uppercase;margin-bottom:7px;cursor:pointer;" onClick="{{ goResults }}">Résultats &rsaquo; Comparaison</div>
+        <h1 style="font-size:22px;font-weight:500;letter-spacing:-0.035em;color:#0C0D18;line-height:1.1;">Comparer deux solutions</h1>
+      </div>
+
+      <!-- Verdict + actions -->
+      <div style="display:flex; align-items:center; gap:10px; flex-shrink:0;">
+        <!-- Verdict badge -->
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 16px;background:rgba(42,122,91,0.08);border:1px solid rgba(42,122,91,0.22);border-radius:4px;">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#2A7A5B" stroke-width="1.2"/><path d="M4.5 7l2 2 3-3" stroke="#2A7A5B" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span style="font-size:12px;color:#2A7A5B;font-weight:500;letter-spacing:-0.01em;">{{ verdict }}</span>
+        </div>
+        <!-- 3 action buttons -->
+        <button onClick="{{ keepA }}" style="{{ keepAStyle }}">Garder A</button>
+        <button onClick="{{ keepB }}" style="{{ keepBStyle }}">
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M2 5.5l2.5 2.5L9 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Choisir B
+        </button>
+        <button onClick="{{ keepBoth }}" style="display:flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid #DDDBD6;border-radius:3px;background:#FFF;font-size:11.5px;font-family:'DM Sans',sans-serif;color:#666677;cursor:pointer;letter-spacing:0.03em;transition:all 0.15s;" style-hover="border-color:#0C0D18;color:#0C0D18;">Garder les deux</button>
+      </div>
+    </div>
+
+    <!-- SOLUTION SELECTORS -->
+    <div style="padding:10px 28px 10px; border-bottom:1px solid rgba(0,0,0,0.05); display:flex; align-items:center; gap:12px; flex-shrink:0; background:#FDFCFA;">
+      <!-- A selector -->
+      <div style="display:flex;align-items:center;gap:10px; flex:1; max-width:340px;">
+        <div style="width:26px;height:26px;border-radius:3px;background:#3A5A8A;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#FFF;flex-shrink:0;letter-spacing:0.05em;">A</div>
+        <div style="flex:1; position:relative;">
+          <select value="{{ solA }}" onChange="{{ onSolAChange }}" style="width:100%;padding:7px 30px 7px 11px;font-size:12px;font-family:'DM Mono',monospace;border:1px solid #DDDBD6;border-radius:3px;color:#0C0D18;outline:none;cursor:pointer;letter-spacing:0.03em;background:#FFF;" style-focus="border-color:#3A5A8A;">
+            <sc-for list="{{ solutionOptions }}" as="so" hint-placeholder-count="4">
+              <option value="{{ so.val }}">{{ so.label }}</option>
+            </sc-for>
+          </select>
+        </div>
+        <div style="font-size:9.5px;font-family:'DM Mono',monospace;color:#8A8A9E;flex-shrink:0;">{{ solADate }}</div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+        <div style="width:1px;height:20px;background:#DDDBD6;"></div>
+        <svg width="22" height="14" viewBox="0 0 22 14" fill="none"><path d="M1 7h20M15 2l5 5-5 5" stroke="#CCCCDA" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <div style="width:1px;height:20px;background:#DDDBD6;"></div>
+      </div>
+
+      <!-- B selector -->
+      <div style="display:flex;align-items:center;gap:10px; flex:1; max-width:340px;">
+        <div style="width:26px;height:26px;border-radius:3px;background:#C4963A;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#FFF;flex-shrink:0;letter-spacing:0.05em;">B</div>
+        <div style="flex:1; position:relative;">
+          <select value="{{ solB }}" onChange="{{ onSolBChange }}" style="width:100%;padding:7px 30px 7px 11px;font-size:12px;font-family:'DM Mono',monospace;border:1px solid rgba(196,150,58,0.4);border-radius:3px;color:#0C0D18;outline:none;cursor:pointer;letter-spacing:0.03em;background:#FFF;" style-focus="border-color:#C4963A;">
+            <sc-for list="{{ solutionOptions }}" as="so" hint-placeholder-count="4">
+              <option value="{{ so.val }}">{{ so.label }}</option>
+            </sc-for>
+          </select>
+        </div>
+        <div style="font-size:9.5px;font-family:'DM Mono',monospace;color:#8A8A9E;flex-shrink:0;">{{ solBDate }}</div>
+      </div>
+
+      <div style="margin-left:auto;font-size:10.5px;color:#AAAAB8;font-family:'DM Mono',monospace;flex-shrink:0;">{{ changedJobsCount }} jobs modifiés</div>
+    </div>
+
+    <!-- BODY -->
+    <div style="flex:1; display:grid; grid-template-columns:340px 1fr; gap:0; min-height:0; overflow:hidden;">
+
+      <!-- ══ LEFT: KPI table + changed jobs ══ -->
+      <div class="scroll-y" style="border-right:1px solid rgba(0,0,0,0.055); display:flex; flex-direction:column; overflow-y:auto; min-height:0;">
+
+        <!-- KPI TABLE -->
+        <div style="flex-shrink:0;">
+          <div style="padding:14px 20px 10px; border-bottom:1px solid #F0EEE9;">
+            <div style="font-size:8px;letter-spacing:0.18em;color:#C0BFC8;font-family:'DM Mono',monospace;text-transform:uppercase;">KPIs comparatifs</div>
+          </div>
+
+          <!-- Column headers -->
+          <div style="display:grid;grid-template-columns:1fr 80px 80px 88px;padding:7px 20px;border-bottom:1px solid #F0EEE9;">
+            <div style="font-size:8px;letter-spacing:0.1em;color:#C8C6C0;font-family:'DM Mono',monospace;text-transform:uppercase;">Métrique</div>
+            <div style="font-size:8px;letter-spacing:0.1em;color:#3A5A8A;font-family:'DM Mono',monospace;text-transform:uppercase;text-align:right;">Sol. A</div>
+            <div style="font-size:8px;letter-spacing:0.1em;color:#C4963A;font-family:'DM Mono',monospace;text-transform:uppercase;text-align:right;">Sol. B</div>
+            <div style="font-size:8px;letter-spacing:0.1em;color:#C0BFC8;font-family:'DM Mono',monospace;text-transform:uppercase;text-align:right;">Δ</div>
+          </div>
+
+          <!-- KPI rows -->
+          <sc-for list="{{ kpiRows }}" as="row" hint-placeholder-count="6">
+            <div class="kpi-row" style="{{ row.rowStyle }}">
+              <div style="display:flex;flex-direction:column;gap:1px;">
+                <span style="font-size:12px;font-weight:500;color:#0C0D18;letter-spacing:-0.01em;">{{ row.label }}</span>
+                <span style="font-size:9.5px;color:#C0BFC8;font-family:'DM Mono',monospace;letter-spacing:0.04em;">{{ row.unit }}</span>
+              </div>
+              <div style="text-align:right;">
+                <span style="font-size:13.5px;font-family:'DM Mono',monospace;font-weight:400;color:#3A5A8A;letter-spacing:-0.02em;">{{ row.valA }}</span>
+              </div>
+              <div style="text-align:right;">
+                <span style="font-size:13.5px;font-family:'DM Mono',monospace;font-weight:400;color:#C4963A;letter-spacing:-0.02em;">{{ row.valB }}</span>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
+                <div style="display:flex;align-items:center;gap:4px;">
+                  <div style="{{ row.indicatorStyle }}"></div>
+                  <span style="font-size:12px;font-family:'DM Mono',monospace;font-weight:500;color:{{ row.deltaColor }};">{{ row.delta }}</span>
+                </div>
+                <div style="width:56px;height:3px;background:#F0EEE9;border-radius:2px;overflow:hidden;">
+                  <div style="{{ row.barStyle }}"></div>
+                </div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+
+        <!-- CHANGED JOBS TABLE -->
+        <div style="flex:1; min-height:0; display:flex; flex-direction:column;">
+          <div style="padding:14px 20px 10px; border-bottom:1px solid #F0EEE9; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; border-top:2px solid #ECEAE4; margin-top:4px;">
+            <div style="font-size:8px;letter-spacing:0.18em;color:#C0BFC8;font-family:'DM Mono',monospace;text-transform:uppercase;">Jobs dont la situation a changé</div>
+            <div style="display:flex;gap:4px;">
+              <button onClick="{{ setFilterAll }}" style="{{ filterAllStyle }}">Tous</button>
+              <button onClick="{{ setFilterImproved }}" style="{{ filterImpStyle }}">↑ Améliorés</button>
+              <button onClick="{{ setFilterDegraded }}" style="{{ filterDegStyle }}">↓ Dégradés</button>
+            </div>
+          </div>
+
+          <!-- Jobs column headers -->
+          <div style="display:grid;grid-template-columns:56px 42px 1fr 1fr 72px;padding:6px 20px;border-bottom:1px solid #F0EEE9;flex-shrink:0;">
+            <div style="font-size:8px;letter-spacing:0.1em;color:#C8C6C0;font-family:'DM Mono',monospace;text-transform:uppercase;">Job</div>
+            <div style="font-size:8px;letter-spacing:0.1em;color:#C8C6C0;font-family:'DM Mono',monospace;text-transform:uppercase;">Mach.</div>
+            <div style="font-size:8px;letter-spacing:0.1em;color:#3A5A8A;font-family:'DM Mono',monospace;text-transform:uppercase;">Retard A</div>
+            <div style="font-size:8px;letter-spacing:0.1em;color:#C4963A;font-family:'DM Mono',monospace;text-transform:uppercase;">Retard B</div>
+            <div style="font-size:8px;letter-spacing:0.1em;color:#C8C6C0;font-family:'DM Mono',monospace;text-transform:uppercase;text-align:right;">Δ Retard</div>
+          </div>
+
+          <div class="scroll-y" style="flex:1; overflow-y:auto;">
+            <sc-for list="{{ filteredJobs }}" as="jb" hint-placeholder-count="10">
+              <div class="job-row" style="display:grid;grid-template-columns:56px 42px 1fr 1fr 72px;padding:8px 20px;border-bottom:1px solid #F8F7F4;cursor:default;transition:background 0.1s;">
+                <div style="font-size:11.5px;font-family:'DM Mono',monospace;font-weight:500;color:#0C0D18;letter-spacing:0.02em;">{{ jb.id }}</div>
+                <div style="font-size:11px;font-family:'DM Mono',monospace;color:#8A8A9E;">{{ jb.machine }}</div>
+                <div style="display:flex;align-items:center;gap:4px;">
+                  <div style="{{ jb.dotAStyle }}"></div>
+                  <span style="font-size:11px;font-family:'DM Mono',monospace;color:#3A5A8A;">{{ jb.latenessA }}</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:4px;">
+                  <div style="{{ jb.dotBStyle }}"></div>
+                  <span style="font-size:11px;font-family:'DM Mono',monospace;color:#C4963A;">{{ jb.latenessB }}</span>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:flex-end;gap:4px;">
+                  <span style="{{ jb.deltaArrowStyle }}">{{ jb.deltaArrow }}</span>
+                  <span style="font-size:11.5px;font-family:'DM Mono',monospace;font-weight:600;color:{{ jb.deltaColor }};">{{ jb.deltaLabel }}</span>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ══ RIGHT: stacked mini-Gantts ══ -->
+      <div style="display:flex; flex-direction:column; min-height:0; overflow:hidden;">
+
+        <!-- Gantt A -->
+        <div style="flex:1; min-height:0; display:flex; flex-direction:column; border-bottom:2px solid #DDDBD4; overflow:hidden;">
+          <div style="padding:9px 16px 8px; border-bottom:1px solid #ECEAE4; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; background:#FDFCFB;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="width:20px;height:20px;border-radius:3px;background:#3A5A8A;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#FFF;letter-spacing:0.05em;">A</div>
+              <span style="font-size:12px;font-weight:500;color:#0C0D18;letter-spacing:-0.01em;">{{ solAName }}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div style="display:flex;align-items:center;gap:4px;">
+                <div style="width:10px;height:10px;border-radius:1.5px;background:#C84848;opacity:0.8;"></div>
+                <span style="font-size:9.5px;color:#AAAAB8;font-family:'DM Mono',monospace;">{{ aLateCount }} en retard</span>
+              </div>
+              <span style="font-size:10px;color:#CCCCDA;font-family:'DM Mono',monospace;letter-spacing:0.04em;">Retard pondéré : <span style="color:#3A5A8A;font-weight:500;">{{ aWeightedLateness }}</span></span>
+            </div>
+          </div>
+          <!-- Gantt A body: labels + scroll -->
+          <div style="flex:1; display:flex; min-height:0; overflow:hidden; background:#FDFCFB;">
+            <div style="width:44px;flex-shrink:0;border-right:1px solid #ECEAE4;display:flex;flex-direction:column;padding-top:26px;">
+              <sc-for list="{{ ganttMachLabels }}" as="lbl" hint-placeholder-count="10">
+                <div style="{{ lbl.style }}">{{ lbl.label }}</div>
+              </sc-for>
+            </div>
+            <div class="scroll-x" id="gantt-a-scroll" style="flex:1;overflow-x:auto;overflow-y:hidden;">
+              {{ ganttSvgA }}
+            </div>
+          </div>
+        </div>
+
+        <!-- Gantt B -->
+        <div style="flex:1; min-height:0; display:flex; flex-direction:column; overflow:hidden;">
+          <div style="padding:9px 16px 8px; border-bottom:1px solid #ECEAE4; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; background:#FFFDF8;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="width:20px;height:20px;border-radius:3px;background:#C4963A;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#FFF;letter-spacing:0.05em;">B</div>
+              <span style="font-size:12px;font-weight:500;color:#0C0D18;letter-spacing:-0.01em;">{{ solBName }}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div style="display:flex;align-items:center;gap:4px;">
+                <div style="width:10px;height:10px;border-radius:1.5px;background:#C84848;opacity:0.8;"></div>
+                <span style="font-size:9.5px;color:#AAAAB8;font-family:'DM Mono',monospace;">{{ bLateCount }} en retard</span>
+              </div>
+              <span style="font-size:10px;color:#CCCCDA;font-family:'DM Mono',monospace;letter-spacing:0.04em;">Retard pondéré : <span style="color:#C4963A;font-weight:500;">{{ bWeightedLateness }}</span></span>
+            </div>
+          </div>
+          <!-- Gantt B body -->
+          <div style="flex:1; display:flex; min-height:0; overflow:hidden; background:#FFFDF8;">
+            <div style="width:44px;flex-shrink:0;border-right:1px solid #ECEAE4;display:flex;flex-direction:column;padding-top:26px;">
+              <sc-for list="{{ ganttMachLabels }}" as="lbl" hint-placeholder-count="10">
+                <div style="{{ lbl.style }}">{{ lbl.label }}</div>
+              </sc-for>
+            </div>
+            <div class="scroll-x" id="gantt-b-scroll" style="flex:1;overflow-x:auto;overflow-y:hidden;">
+              {{ ganttSvgB }}
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+
+class Component extends DCLogic {
+  state = {
+    solA: 'lns_v1',
+    solB: 'lns_v2',
+    jobFilter: 'all',
+  };
+
+  componentDidMount() {
+    // Sync scrollbars between A and B Gantt
+    setTimeout(() => {
+      const a = document.getElementById('gantt-a-scroll');
+      const b = document.getElementById('gantt-b-scroll');
+      if (a && b) {
+        let syncing = false;
+        a.addEventListener('scroll', () => { if (!syncing) { syncing = true; b.scrollLeft = a.scrollLeft; syncing = false; } });
+        b.addEventListener('scroll', () => { if (!syncing) { syncing = true; a.scrollLeft = b.scrollLeft; syncing = false; } });
+      }
+    }, 300);
+  }
+
+  // Seeded PRNG
+  rng(seed) {
+    let s = seed;
+    return () => {
+      s = (Math.imul(1664525, s) + 1013904223) | 0;
+      return (s >>> 0) / 0xFFFFFFFF;
+    };
+  }
+
+  generateSchedule(seed) {
+    const r = this.rng(seed);
+    const FAM_COLORS = ['#C4963A','#2A7A5B','#3A5A8A','#8A4A8A','#7A3A3A','#2A7A8A'];
+    const DDLS = [80,100,120,140,160,180,200,240,280,320,360,400];
+    const jobs = [];
+    for (let m = 0; m < 10; m++) {
+      let t = Math.round(r() * 10);
+      while (t < 390) {
+        const dur = Math.round(r() * 22 + 8);
+        if (t + dur > 400) break;
+        const ddl = DDLS[Math.floor(r() * DDLS.length)];
+        const end = t + dur;
+        const fam = Math.floor(r() * 6);
+        jobs.push({
+          id: `J${String(jobs.length + 1).padStart(3,'0')}`,
+          machine: m, start: t, dur, end,
+          deadline: ddl, lateness: Math.max(0, end - ddl),
+          weight: Math.round(r() * 4) + 1,
+          fam, color: FAM_COLORS[fam],
+          isLate: end > ddl,
+        });
+        t = end + Math.round(r() * 5 + 2);
+        if (jobs.length >= 180) break;
+      }
+      if (jobs.length >= 180) break;
+    }
+    return jobs;
+  }
+
+  buildMiniSvg(jobs, color) {
+    const ce = React.createElement;
+    const PPU = 1.65;
+    const ROW_H = 18, ROW_G = 5, RT = ROW_H + ROW_G;
+    const TOP = 26;
+    const W = Math.round(400 * PPU + 16);
+    const H = TOP + 10 * RT + 10;
+    const tx = t => t * PPU;
+    const elems = [];
+
+    // bg
+    elems.push(ce('rect', {key:'bg', x:0, y:0, width:W, height:H, fill:'transparent'}));
+
+    // row alternating bg
+    for (let m = 0; m < 10; m++) {
+      if (m % 2 === 0) elems.push(ce('rect', {key:`rb${m}`, x:0, y:TOP+m*RT, width:W, height:ROW_H, fill:'rgba(0,0,0,0.018)'}));
+    }
+
+    // tick marks + labels
+    for (let t = 0; t <= 400; t += 50) {
+      const x = tx(t);
+      elems.push(ce('line', {key:`tl${t}`, x1:x, y1:TOP-4, x2:x, y2:H-8, stroke:'#E8E6DF', strokeWidth:0.5}));
+      elems.push(ce('text', {key:`tt${t}`, x:x, y:14, fontSize:8, fontFamily:'DM Mono,monospace', fill:'#BBBBCA', textAnchor:'middle', fontWeight: t%100===0?'500':'300'}, `${t}`));
+    }
+
+    // jobs
+    jobs.forEach(j => {
+      const x = tx(j.start) + 0.5;
+      const y = TOP + j.machine * RT + 1;
+      const w = Math.max(3, tx(j.dur) - 1);
+      const h = ROW_H - 2;
+      const col = j.isLate ? '#C84848' : j.color;
+      elems.push(ce('rect', {key:`j${j.id}`, x, y, width:w, height:h, rx:1.5, fill:col,
+        opacity: j.isLate ? 0.72 : 0.65}));
+    });
+
+    // bottom line
+    elems.push(ce('line', {key:'botl', x1:0, y1:H-8, x2:W, y2:H-8, stroke:'#ECEAE4', strokeWidth:0.75}));
+
+    return ce('svg', {key:`g${color}`, style:{display:'block', width:`${W}px`, height:`${H}px`}}, ...elems);
+  }
+
+  kpiRow(label, unit, valA, valB, lowerIsBetter) {
+    const a = parseFloat(String(valA).replace(/\s/g,''));
+    const b = parseFloat(String(valB).replace(/\s/g,''));
+    const pct = a !== 0 ? ((b - a) / Math.abs(a) * 100) : 0;
+    const improved = lowerIsBetter ? b < a : b > a;
+    const degraded = lowerIsBetter ? b > a : b < a;
+    const deltaNum = b - a;
+    const sign = deltaNum > 0 ? '+' : '';
+    const deltaStr = Number.isInteger(a) && Number.isInteger(b)
+      ? `${sign}${deltaNum}`
+      : `${sign}${pct.toFixed(1)}%`;
+    const deltaColor = improved ? '#2A7A5B' : degraded ? '#C84848' : '#9A9AAA';
+    const barPct = Math.min(100, Math.abs(pct));
+    return {
+      label, unit,
+      valA: typeof valA === 'number' ? valA.toLocaleString('fr-FR') : valA,
+      valB: typeof valB === 'number' ? valB.toLocaleString('fr-FR') : valB,
+      delta: deltaStr, deltaColor,
+      indicatorStyle: {
+        width:'7px', height:'7px', borderRadius:'50%', flexShrink:0,
+        background: improved ? '#2A7A5B' : degraded ? '#C84848' : '#CCCCDA',
+      },
+      barStyle: {
+        height:'100%', width:`${barPct}%`,
+        background: improved ? '#2A7A5B' : degraded ? '#C84848' : '#CCCCDA',
+        borderRadius:'2px', transition:'width 0.5s',
+      },
+      rowStyle: {
+        display:'grid', gridTemplateColumns:'1fr 80px 80px 88px',
+        padding:'10px 20px', borderBottom:'1px solid #F8F7F4', transition:'background 0.1s',
+      },
+    };
+  }
+
+  get filterBtnBase() {
+    return { padding:'3px 9px', fontSize:'9.5px', fontFamily:"'DM Mono',monospace",
+      letterSpacing:'0.05em', borderRadius:'2px', cursor:'pointer', transition:'all 0.15s', border:'none' };
+  }
+  filterBtnStyle(active, color) {
+    return { ...this.filterBtnBase,
+      background: active ? `${color}18` : 'transparent',
+      color: active ? color : '#AAAAB8',
+      fontWeight: active ? '600' : '400',
+      border: `1px solid ${active ? color+'44' : 'transparent'}`,
+    };
+  }
+
+  renderVals() {
+    const { solA, solB, jobFilter } = this.state;
+    const SOLUTIONS = {
+      lns_v1:  { name:'LNS initial — 22 juin 10h46',  date:'22/06 10h46', seed:7919,  wl:1248, late:38, util:83.4, setup:312, time:'2m22s', makespan:382 },
+      lns_v2:  { name:'Re-dispatch — 22 juin 14h03',  date:'22/06 14h03', seed:1337,  wl:847,  late:27, util:85.1, setup:264, time:'1m08s', makespan:367 },
+      atcs_v1: { name:'ATCS baseline — 21 juin 09h30', date:'21/06 09h30', seed:31337, wl:2850, late:61, util:78.2, setup:398, time:'0m04s', makespan:399 },
+      lns_v3:  { name:'Re-dispatch v2 — 22 juin 17h22', date:'22/06 17h22', seed:4242, wl:731,  late:22, util:86.8, setup:248, time:'2m45s', makespan:358 },
+    };
+    const sA = SOLUTIONS[solA] || SOLUTIONS.lns_v1;
+    const sB = SOLUTIONS[solB] || SOLUTIONS.lns_v2;
+    const solutionOptions = Object.entries(SOLUTIONS).map(([val, s]) => ({ val, label: s.name }));
+
+    // Schedules
+    const jobsA = this.generateSchedule(sA.seed);
+    const jobsB = this.generateSchedule(sB.seed);
+
+    // KPI rows
+    const kpiRows = [
+      this.kpiRow('Retard pondéré total', 'min pondérées', sA.wl, sB.wl, true),
+      this.kpiRow('Jobs en retard', 'jobs', sA.late, sB.late, true),
+      this.kpiRow('Retard maximum', 'u.t.', sA.wl > 0 ? Math.round(sA.wl / sA.late) * 2 : 0, sB.wl > 0 ? Math.round(sB.wl / sB.late) * 2 : 0, true),
+      this.kpiRow('Utilisation machines', '%', sA.util, sB.util, false),
+      this.kpiRow('Temps de setup total', 'u.t.', sA.setup, sB.setup, true),
+      this.kpiRow('Makespan', 'u.t.', sA.makespan, sB.makespan, true),
+      this.kpiRow('Temps de résolution', 'h:m:s', sA.time, sB.time, true),
+    ];
+
+    // Verdict
+    const improvements = kpiRows.filter(r => r.deltaColor === '#2A7A5B').length;
+    const degradations = kpiRows.filter(r => r.deltaColor === '#C84848').length;
+    let verdict;
+    if (improvements > degradations + 1) verdict = `Solution B supérieure (${improvements}/${kpiRows.length} métriques)`;
+    else if (degradations > improvements + 1) verdict = `Solution A supérieure (${degradations}/${kpiRows.length} métriques)`;
+    else verdict = `Résultats comparables — ${improvements} améliorations`;
+
+    // Changed jobs
+    const r2 = this.rng(sB.seed * 3 + 17);
+    const changedJobsRaw = [];
+    for (let i = 0; i < 38; i++) {
+      const lA = Math.round(r2() * 80 + 5);
+      const delta = Math.round((r2() - 0.5) * 60);
+      const lB = Math.max(0, lA + delta);
+      const m = `M${Math.floor(r2() * 10) + 1}`;
+      changedJobsRaw.push({
+        id: `J${String(Math.floor(r2() * 180) + 1).padStart(3,'0')}`,
+        machine: m, latenessA: lA, latenessB: lB, delta: lB - lA,
+      });
+    }
+    // Sort by |delta| desc
+    changedJobsRaw.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+
+    const filtered = changedJobsRaw.filter(j => {
+      if (jobFilter === 'improved') return j.delta < 0;
+      if (jobFilter === 'degraded') return j.delta > 0;
+      return true;
+    });
+
+    const filteredJobs = filtered.map(j => {
+      const improved = j.delta < 0;
+      const degraded = j.delta > 0;
+      return {
+        ...j,
+        latenessA: j.latenessA === 0 ? '—' : `+${j.latenessA}`,
+        latenessB: j.latenessB === 0 ? '—' : `+${j.latenessB}`,
+        deltaLabel: j.delta === 0 ? '±0' : `${j.delta > 0 ? '+' : ''}${j.delta}`,
+        deltaColor: improved ? '#2A7A5B' : degraded ? '#C84848' : '#9A9AAA',
+        deltaArrow: improved ? '↓' : degraded ? '↑' : '→',
+        deltaArrowStyle: { fontSize:'12px', color: improved ? '#2A7A5B' : degraded ? '#C84848' : '#9A9AAA', fontWeight:'600' },
+        dotAStyle: { width:'6px', height:'6px', borderRadius:'50%', background:'#3A5A8A', opacity:0.7, flexShrink:0 },
+        dotBStyle: { width:'6px', height:'6px', borderRadius:'50%', background: improved ? '#2A7A5B' : degraded ? '#C84848' : '#C4963A', flexShrink:0 },
+      };
+    });
+
+    // Mini-Gantt SVGs
+    const ganttSvgA = this.buildMiniSvg(jobsA, '#3A5A8A');
+    const ganttSvgB = this.buildMiniSvg(jobsB, '#C4963A');
+
+    // Machine labels for both gantts
+    const ganttMachLabels = Array.from({length:10}, (_,m) => ({
+      label: `M${m+1}`,
+      style: { height:'23px', display:'flex', alignItems:'center', justifyContent:'flex-end', paddingRight:'8px',
+        fontSize:'9.5px', fontFamily:"'DM Mono',monospace", color:'#8A8A9E', letterSpacing:'0.04em', flexShrink:0 },
+    }));
+
+    // Btn styles
+    const btnBase = { display:'flex', alignItems:'center', justifyContent:'center', gap:'6px',
+      padding:'8px 15px', borderRadius:'3px', fontSize:'11.5px', fontFamily:"'DM Sans',sans-serif",
+      fontWeight:'500', letterSpacing:'0.04em', cursor:'pointer', transition:'all 0.15s', border:'none' };
+
+    return {
+      goHome:    () => { window.location.href='Dashboard.dc.html'; },
+      goResults: () => { window.location.href='Resultats.dc.html'; },
+      goGantt:   () => { window.location.href='Gantt.dc.html'; },
+
+      solA, solB, solutionOptions,
+      solADate: sA.date, solBDate: sB.date,
+      solAName: sA.name.split(' — ')[0],
+      solBName: sB.name.split(' — ')[0],
+      onSolAChange: (e) => this.setState({ solA: e.target.value }),
+      onSolBChange: (e) => this.setState({ solB: e.target.value }),
+
+      verdict,
+      kpiRows,
+      changedJobsCount: changedJobsRaw.length,
+      filteredJobs,
+
+      aLateCount: sA.late,
+      bLateCount: sB.late,
+      aWeightedLateness: sA.wl.toLocaleString('fr-FR'),
+      bWeightedLateness: sB.wl.toLocaleString('fr-FR'),
+
+      ganttSvgA, ganttSvgB, ganttMachLabels,
+
+      // Job filter
+      setFilterAll:      () => this.setState({ jobFilter:'all' }),
+      setFilterImproved: () => this.setState({ jobFilter:'improved' }),
+      setFilterDegraded: () => this.setState({ jobFilter:'degraded' }),
+      filterAllStyle:  this.filterBtnStyle(jobFilter==='all',      '#0C0D18'),
+      filterImpStyle:  this.filterBtnStyle(jobFilter==='improved', '#2A7A5B'),
+      filterDegStyle:  this.filterBtnStyle(jobFilter==='degraded', '#C84848'),
+
+      // Action buttons
+      keepA:  () => { alert('Solution A conservée comme référence.'); },
+      keepB:  () => { window.location.href='Gantt.dc.html'; },
+      keepBoth: () => { alert('Les deux solutions sont enregistrées dans l\'historique.'); },
+      keepAStyle: { ...btnBase, background:'rgba(58,90,138,0.08)', color:'#3A5A8A', border:'1px solid rgba(58,90,138,0.28)' },
+      keepBStyle: { ...btnBase, background:'#C4963A', color:'#0C0D18', border:'none', fontWeight:'600', letterSpacing:'0.06em' },
+    };
+  }
+}
+
+</script>
+</body>
+</html>

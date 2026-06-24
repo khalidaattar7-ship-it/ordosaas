@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+
+<helmet>
+  <title>OrdoSaaS — États spéciaux</title>
+  <meta name="design_doc_mode" content="canvas" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+  </style>
+</helmet>
+
+<!-- ══════════════════════════════════════════
+     FRAME 1 — Premier usage · Dashboard vide
+════════════════════════════════════════════ -->
+<div style="position:absolute; left:80px; top:80px; width:1100px;">
+  <div data-drags-parent="1" style="display:flex;align-items:center;gap:8px;margin-bottom:10px;cursor:grab;">
+    <div style="width:8px;height:8px;border-radius:2px;background:#2A7A5B;flex-shrink:0;"></div>
+    <span style="font-size:10px;font-family:'DM Mono',monospace;letter-spacing:0.13em;color:#5A5A72;text-transform:uppercase;font-weight:500;">État 1 — Premier usage · Dashboard vide</span>
+  </div>
+  <div style="width:1100px;height:740px;display:flex;overflow:hidden;border-radius:5px;box-shadow:0 4px 32px rgba(0,0,0,0.18);">
+
+    <!-- Sidebar -->
+    <div style="width:230px;background:#08090F;display:flex;flex-direction:column;border-right:1px solid rgba(255,255,255,0.045);flex-shrink:0;">
+      <div style="padding:22px 20px 18px;border-bottom:1px solid rgba(255,255,255,0.04);">
+        <div style="display:flex;align-items:center;gap:11px;">
+          <svg width="32" height="32" viewBox="0 0 46 46" fill="none"><circle cx="23" cy="23" r="20" stroke="#C4963A" stroke-width="1.5"/><rect x="11" y="16.5" width="13" height="3.5" rx="1.75" fill="#C4963A"/><rect x="11" y="22.5" width="21" height="3.5" rx="1.75" fill="#C4963A"/><rect x="11" y="28.5" width="16" height="3.5" rx="1.75" fill="#C4963A" opacity="0.6"/></svg>
+          <div>
+            <div style="font-size:15px;font-weight:600;letter-spacing:-0.03em;color:#EAEAF5;line-height:1;">OrdoSaaS</div>
+            <div style="font-size:7.5px;letter-spacing:0.2em;color:#C4963A;font-family:'DM Mono',monospace;margin-top:2px;text-transform:uppercase;">Scheduling</div>
+          </div>
+        </div>
+      </div>
+      <nav style="flex:1;padding:14px 8px 0;">
+        <div style="display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:4px;background:rgba(196,150,58,0.1);color:#E8E8F2;margin-bottom:2px;">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="9" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="1.5" y="9" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="9" y="9" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/></svg>
+          <span style="font-size:13px;font-weight:500;">Tableau de bord</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:4px;color:#3E4058;margin-bottom:2px;">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><path d="M2 5l6-3 6 3-6 3-6-3Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M2 9l6 3 6-3M2 12l6 3 6-3" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+          <span style="font-size:13px;">Mes instances</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:4px;color:#3E4058;margin-bottom:2px;">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><path d="M3 13V7M6.5 13V9M10 13V5M13.5 13V8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+          <span style="font-size:13px;">Résultats</span>
+        </div>
+      </nav>
+      <div style="padding:14px 16px;border-top:1px solid rgba(255,255,255,0.04);">
+        <div style="display:flex;align-items:center;gap:9px;">
+          <div style="width:30px;height:30px;border-radius:50%;background:linear-gradient(140deg,#3A6AC4,#1A3A8A);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#FFF;flex-shrink:0;">TM</div>
+          <div>
+            <div style="font-size:12.5px;font-weight:500;color:#D8D8E5;letter-spacing:-0.01em;">Thomas Martin</div>
+            <div style="font-size:9px;color:#36384E;font-family:'DM Mono',monospace;margin-top:1px;">Planificateur · 1ère connexion</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main -->
+    <div style="flex:1;background:#F2F1EE;display:flex;flex-direction:column;overflow:hidden;min-width:0;">
+
+      <!-- Header -->
+      <div style="padding:26px 30px 0;flex-shrink:0;">
+        <div style="font-size:8px;letter-spacing:0.2em;color:#C0BFC8;font-family:'DM Mono',monospace;text-transform:uppercase;margin-bottom:8px;">Tableau de bord</div>
+        <h1 style="font-size:23px;font-weight:500;letter-spacing:-0.04em;color:#0C0D18;line-height:1.1;">Bienvenue, Thomas.</h1>
+        <p style="margin-top:7px;font-size:13px;color:#8A8A9E;font-weight:300;line-height:1.5;">Votre espace de planification est vide pour l'instant. Voici comment démarrer.</p>
+      </div>
+
+      <!-- 3 étapes -->
+      <div style="padding:16px 30px 0;display:flex;align-items:stretch;gap:0;flex-shrink:0;">
+
+        <div style="flex:1;background:#FFFFFF;border-radius:4px;border:1px solid rgba(0,0,0,0.055);padding:15px;">
+          <div style="display:flex;align-items:center;gap:9px;margin-bottom:9px;">
+            <div style="width:20px;height:20px;border-radius:50%;background:#0C0D18;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><span style="font-size:8.5px;font-family:'DM Mono',monospace;font-weight:600;color:#F2F1EE;">01</span></div>
+            <svg width="17" height="17" viewBox="0 0 18 18" fill="none"><rect x="2.5" y="4.5" width="13" height="9" rx="1.5" stroke="#C4963A" stroke-width="1.3"/><path d="M6 4.5V3M9 4.5V3M12 4.5V3" stroke="#C4963A" stroke-width="1.2" stroke-linecap="round"/><path d="M5 8.5h8M5 11.5h5" stroke="#C4963A" stroke-width="1.2" stroke-linecap="round"/></svg>
+          </div>
+          <div style="font-size:12.5px;font-weight:500;color:#0C0D18;margin-bottom:3px;letter-spacing:-0.01em;">Importer les données</div>
+          <div style="font-size:11px;color:#9A9AAA;line-height:1.6;font-weight:300;">Chargez votre CSV de jobs, machines et contraintes de setup.</div>
+        </div>
+
+        <div style="display:flex;align-items:center;padding:0 9px;flex-shrink:0;">
+          <svg width="18" height="10" viewBox="0 0 18 10" fill="none"><path d="M1 5h14M11 1.5l3.5 3.5-3.5 3.5" stroke="#CCCCDA" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+
+        <div style="flex:1;background:#FFFFFF;border-radius:4px;border:1px solid rgba(0,0,0,0.055);padding:15px;">
+          <div style="display:flex;align-items:center;gap:9px;margin-bottom:9px;">
+            <div style="width:20px;height:20px;border-radius:50%;background:#0C0D18;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><span style="font-size:8.5px;font-family:'DM Mono',monospace;font-weight:600;color:#F2F1EE;">02</span></div>
+            <svg width="17" height="17" viewBox="0 0 18 18" fill="none"><polygon points="9,2.5 4.5,8.5 7.5,8.5 7.5,15.5 10.5,15.5 10.5,8.5 13.5,8.5" stroke="#C4963A" stroke-width="1.3" stroke-linejoin="round" fill="none"/></svg>
+          </div>
+          <div style="font-size:12.5px;font-weight:500;color:#0C0D18;margin-bottom:3px;letter-spacing:-0.01em;">Lancer l'optimisation</div>
+          <div style="font-size:11px;color:#9A9AAA;line-height:1.6;font-weight:300;">L'algorithme LNS trouve le planning optimal en quelques secondes.</div>
+        </div>
+
+        <div style="display:flex;align-items:center;padding:0 9px;flex-shrink:0;">
+          <svg width="18" height="10" viewBox="0 0 18 10" fill="none"><path d="M1 5h14M11 1.5l3.5 3.5-3.5 3.5" stroke="#CCCCDA" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+
+        <div style="flex:1;background:#FFFFFF;border-radius:4px;border:1px solid rgba(0,0,0,0.055);padding:15px;">
+          <div style="display:flex;align-items:center;gap:9px;margin-bottom:9px;">
+            <div style="width:20px;height:20px;border-radius:50%;background:#0C0D18;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><span style="font-size:8.5px;font-family:'DM Mono',monospace;font-weight:600;color:#F2F1EE;">03</span></div>
+            <svg width="17" height="17" viewBox="0 0 18 18" fill="none"><line x1="3" y1="3" x2="3" y2="15" stroke="#C4963A" stroke-width="1.3" stroke-linecap="round"/><rect x="4.5" y="5" width="8" height="2.5" rx="1.25" fill="#C4963A" opacity="0.85"/><rect x="4.5" y="9" width="11" height="2.5" rx="1.25" fill="#C4963A" opacity="0.7"/><rect x="4.5" y="13" width="6" height="2.5" rx="1.25" fill="#C4963A" opacity="0.5"/></svg>
+          </div>
+          <div style="font-size:12.5px;font-weight:500;color:#0C0D18;margin-bottom:3px;letter-spacing:-0.01em;">Analyser les résultats</div>
+          <div style="font-size:11px;color:#9A9AAA;line-height:1.6;font-weight:300;">Visualisez le Gantt, identifiez les retards et ajustez si besoin.</div>
+        </div>
+
+      </div>
+
+      <!-- Empty instances area -->
+      <div style="flex:1;margin:14px 30px 24px;background:#FFFFFF;border-radius:4px;border:1.5px dashed #DDDBD4;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:36px 40px;text-align:center;gap:20px;">
+
+        <!-- Empty Gantt SVG -->
+        <svg width="500" height="120" viewBox="0 0 500 120" fill="none" style="opacity:0.3;">
+          <rect x="52" y="0" width="448" height="11" fill="#F0EEE9"/>
+          <rect x="52" y="22" width="448" height="11" fill="#F0EEE9"/>
+          <rect x="52" y="44" width="448" height="11" fill="#F0EEE9"/>
+          <rect x="52" y="66" width="448" height="11" fill="#F0EEE9"/>
+          <rect x="52" y="88" width="448" height="11" fill="#F0EEE9"/>
+          <text x="46" y="10" font-size="8" font-family="DM Mono,monospace" fill="#BBBBCC" text-anchor="end">M1</text>
+          <text x="46" y="32" font-size="8" font-family="DM Mono,monospace" fill="#BBBBCC" text-anchor="end">M2</text>
+          <text x="46" y="54" font-size="8" font-family="DM Mono,monospace" fill="#BBBBCC" text-anchor="end">M3</text>
+          <text x="46" y="76" font-size="8" font-family="DM Mono,monospace" fill="#BBBBCC" text-anchor="end">M4</text>
+          <text x="46" y="98" font-size="8" font-family="DM Mono,monospace" fill="#BBBBCC" text-anchor="end">M5</text>
+          <line x1="52" y1="0" x2="52" y2="99" stroke="#E4E2DC" stroke-width="1"/>
+          <line x1="164" y1="0" x2="164" y2="99" stroke="#E4E2DC" stroke-width="0.5"/>
+          <line x1="276" y1="0" x2="276" y2="99" stroke="#E4E2DC" stroke-width="0.5"/>
+          <line x1="388" y1="0" x2="388" y2="99" stroke="#E4E2DC" stroke-width="0.5"/>
+          <line x1="500" y1="0" x2="500" y2="99" stroke="#E4E2DC" stroke-width="0.5"/>
+          <text x="52" y="112" font-size="8" font-family="DM Mono,monospace" fill="#CCCCDA" text-anchor="middle">0</text>
+          <text x="164" y="112" font-size="8" font-family="DM Mono,monospace" fill="#CCCCDA" text-anchor="middle">100</text>
+          <text x="276" y="112" font-size="8" font-family="DM Mono,monospace" fill="#CCCCDA" text-anchor="middle">200</text>
+          <text x="388" y="112" font-size="8" font-family="DM Mono,monospace" fill="#CCCCDA" text-anchor="middle">300</text>
+          <text x="500" y="112" font-size="8" font-family="DM Mono,monospace" fill="#CCCCDA" text-anchor="middle">400</text>
+        </svg>
+
+        <div>
+          <p style="font-size:15px;font-weight:500;color:#0C0D18;letter-spacing:-0.02em;margin-bottom:6px;">Aucune instance créée</p>
+          <p style="font-size:12.5px;color:#AAAAB8;font-weight:300;line-height:1.7;max-width:380px;text-wrap:pretty;">Importez vos données de production pour générer votre premier planning optimisé, ou explorez l'application avec un jeu de données de démonstration.</p>
+        </div>
+
+        <div style="display:flex;gap:10px;align-items:center;">
+          <button style="display:flex;align-items:center;gap:7px;padding:11px 22px;background:#0C0D18;color:#F2F1EE;border:none;border-radius:3px;font-size:11.5px;font-family:'DM Sans',sans-serif;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 1v8M1 5h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            Créer ma première instance
+          </button>
+          <span style="font-size:10.5px;color:#C8C8D8;font-family:'DM Mono',monospace;">ou</span>
+          <button style="padding:11px 18px;background:transparent;color:#8A8A9E;border:1px solid #DDDBD6;border-radius:3px;font-size:11.5px;font-family:'DM Sans',sans-serif;cursor:pointer;letter-spacing:0.02em;">Essayer la démo →</button>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     FRAME 2 — Erreur de résolution · Partielle
+════════════════════════════════════════════ -->
+<div style="position:absolute; left:1260px; top:80px; width:1100px;">
+  <div data-drags-parent="1" style="display:flex;align-items:center;gap:8px;margin-bottom:10px;cursor:grab;">
+    <div style="width:8px;height:8px;border-radius:2px;background:#C84848;flex-shrink:0;"></div>
+    <span style="font-size:10px;font-family:'DM Mono',monospace;letter-spacing:0.13em;color:#5A5A72;text-transform:uppercase;font-weight:500;">État 2 — Erreur de résolution · Partielle</span>
+  </div>
+  <div style="width:1100px;height:740px;display:flex;overflow:hidden;border-radius:5px;box-shadow:0 4px 32px rgba(0,0,0,0.18);">
+
+    <!-- Sidebar -->
+    <div style="width:230px;background:#08090F;display:flex;flex-direction:column;border-right:1px solid rgba(255,255,255,0.045);flex-shrink:0;">
+      <div style="padding:22px 20px 18px;border-bottom:1px solid rgba(255,255,255,0.04);">
+        <div style="display:flex;align-items:center;gap:11px;">
+          <svg width="32" height="32" viewBox="0 0 46 46" fill="none"><circle cx="23" cy="23" r="20" stroke="#C4963A" stroke-width="1.5"/><rect x="11" y="16.5" width="13" height="3.5" rx="1.75" fill="#C4963A"/><rect x="11" y="22.5" width="21" height="3.5" rx="1.75" fill="#C4963A"/><rect x="11" y="28.5" width="16" height="3.5" rx="1.75" fill="#C4963A" opacity="0.6"/></svg>
+          <div>
+            <div style="font-size:15px;font-weight:600;letter-spacing:-0.03em;color:#EAEAF5;line-height:1;">OrdoSaaS</div>
+            <div style="font-size:7.5px;letter-spacing:0.2em;color:#C4963A;font-family:'DM Mono',monospace;margin-top:2px;text-transform:uppercase;">Scheduling</div>
+          </div>
+        </div>
+      </div>
+      <nav style="flex:1;padding:14px 8px 0;">
+        <div style="display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:4px;color:#3E4058;margin-bottom:2px;">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="9" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="1.5" y="9" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="9" y="9" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/></svg>
+          <span style="font-size:13px;">Tableau de bord</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:4px;background:rgba(196,150,58,0.1);color:#E8E8F2;margin-bottom:2px;">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><path d="M2 5l6-3 6 3-6 3-6-3Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M2 9l6 3 6-3M2 12l6 3 6-3" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+          <span style="font-size:13px;font-weight:500;">Mes instances</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:4px;color:#3E4058;margin-bottom:2px;">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><path d="M3 13V7M6.5 13V9M10 13V5M13.5 13V8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+          <span style="font-size:13px;">Résultats</span>
+        </div>
+      </nav>
+      <div style="padding:14px 16px;border-top:1px solid rgba(255,255,255,0.04);">
+        <div style="display:flex;align-items:center;gap:9px;">
+          <div style="width:30px;height:30px;border-radius:50%;background:linear-gradient(140deg,#C4963A,#7A5214);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#0C0D18;flex-shrink:0;">ML</div>
+          <div>
+            <div style="font-size:12.5px;font-weight:500;color:#D8D8E5;letter-spacing:-0.01em;">M. Lefebvre</div>
+            <div style="font-size:9px;color:#36384E;font-family:'DM Mono',monospace;margin-top:1px;">Planificateur</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main -->
+    <div style="flex:1;background:#F2F1EE;display:flex;flex-direction:column;overflow:hidden;min-width:0;">
+
+      <!-- Header -->
+      <div style="padding:22px 28px 0;flex-shrink:0;">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+          <span style="font-size:8.5px;letter-spacing:0.2em;color:#AAAAB8;font-family:'DM Mono',monospace;text-transform:uppercase;">Job Shop — Atelier 3</span>
+          <svg width="7" height="7" viewBox="0 0 7 7" fill="none"><path d="M2 1.5l3 2-3 2" stroke="#C4963A" stroke-width="1.2" stroke-linecap="round"/></svg>
+          <span style="font-size:8.5px;letter-spacing:0.2em;color:#C84848;font-family:'DM Mono',monospace;text-transform:uppercase;">Résolution interrompue</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <h1 style="font-size:22px;font-weight:500;letter-spacing:-0.04em;color:#0C0D18;line-height:1.1;">Résolution partielle</h1>
+          <span style="font-size:10px;font-family:'DM Mono',monospace;background:rgba(200,72,72,0.1);color:#C84848;padding:3px 10px;border-radius:2px;letter-spacing:0.06em;font-weight:500;">4/5 fenêtres</span>
+        </div>
+        <p style="margin-top:6px;font-size:13px;color:#8A8A9E;font-weight:300;">4 fenêtres ont été optimisées. La fenêtre 3 n'a pas pu être résolue dans le délai imparti.</p>
+      </div>
+
+      <!-- Window status row -->
+      <div style="padding:13px 28px 0;display:flex;gap:8px;flex-shrink:0;">
+
+        <!-- W1 -->
+        <div style="flex:1;background:#FFFFFF;border-radius:4px;border:1px solid rgba(42,122,91,0.2);padding:12px 13px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;">
+            <span style="font-size:8px;font-family:'DM Mono',monospace;letter-spacing:0.14em;color:#2A7A5B;text-transform:uppercase;font-weight:600;">F1</span>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" fill="rgba(42,122,91,0.1)"/><path d="M4.5 7l2 2 3-3" stroke="#2A7A5B" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div style="font-size:10px;font-family:'DM Mono',monospace;color:#888899;margin-bottom:2px;">0 – 80 u.t.</div>
+          <div style="font-size:10.5px;color:#2A7A5B;font-weight:500;">Optimisé · 18s</div>
+        </div>
+
+        <!-- W2 -->
+        <div style="flex:1;background:#FFFFFF;border-radius:4px;border:1px solid rgba(42,122,91,0.2);padding:12px 13px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;">
+            <span style="font-size:8px;font-family:'DM Mono',monospace;letter-spacing:0.14em;color:#2A7A5B;text-transform:uppercase;font-weight:600;">F2</span>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" fill="rgba(42,122,91,0.1)"/><path d="M4.5 7l2 2 3-3" stroke="#2A7A5B" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div style="font-size:10px;font-family:'DM Mono',monospace;color:#888899;margin-bottom:2px;">80 – 160 u.t.</div>
+          <div style="font-size:10.5px;color:#2A7A5B;font-weight:500;">Optimisé · 22s</div>
+        </div>
+
+        <!-- W3 — ERROR -->
+        <div style="flex:1;background:rgba(200,72,72,0.05);border-radius:4px;border:1.5px solid rgba(200,72,72,0.35);padding:12px 13px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;">
+            <span style="font-size:8px;font-family:'DM Mono',monospace;letter-spacing:0.14em;color:#C84848;text-transform:uppercase;font-weight:600;">F3 ✗</span>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" fill="rgba(200,72,72,0.12)"/><path d="M4.5 4.5l5 5M9.5 4.5l-5 5" stroke="#C84848" stroke-width="1.3" stroke-linecap="round"/></svg>
+          </div>
+          <div style="font-size:10px;font-family:'DM Mono',monospace;color:#888899;margin-bottom:2px;">160 – 240 u.t.</div>
+          <div style="font-size:10.5px;color:#C84848;font-weight:500;">Timeout · 60s</div>
+        </div>
+
+        <!-- W4 -->
+        <div style="flex:1;background:#FFFFFF;border-radius:4px;border:1px solid rgba(42,122,91,0.2);padding:12px 13px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;">
+            <span style="font-size:8px;font-family:'DM Mono',monospace;letter-spacing:0.14em;color:#2A7A5B;text-transform:uppercase;font-weight:600;">F4</span>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" fill="rgba(42,122,91,0.1)"/><path d="M4.5 7l2 2 3-3" stroke="#2A7A5B" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div style="font-size:10px;font-family:'DM Mono',monospace;color:#888899;margin-bottom:2px;">240 – 320 u.t.</div>
+          <div style="font-size:10.5px;color:#2A7A5B;font-weight:500;">Optimisé · 19s</div>
+        </div>
+
+        <!-- W5 -->
+        <div style="flex:1;background:#FFFFFF;border-radius:4px;border:1px solid rgba(42,122,91,0.2);padding:12px 13px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;">
+            <span style="font-size:8px;font-family:'DM Mono',monospace;letter-spacing:0.14em;color:#2A7A5B;text-transform:uppercase;font-weight:600;">F5</span>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" fill="rgba(42,122,91,0.1)"/><path d="M4.5 7l2 2 3-3" stroke="#2A7A5B" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div style="font-size:10px;font-family:'DM Mono',monospace;color:#888899;margin-bottom:2px;">320 – 400 u.t.</div>
+          <div style="font-size:10.5px;color:#2A7A5B;font-weight:500;">Optimisé · 24s</div>
+        </div>
+
+      </div>
+
+      <!-- Error detail card -->
+      <div style="margin:12px 28px 0;background:#FFFFFF;border-radius:4px;border:1px solid rgba(0,0,0,0.055);border-left:3px solid #C84848;padding:16px 20px;flex-shrink:0;">
+        <div style="display:flex;align-items:flex-start;gap:14px;">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style="flex-shrink:0;margin-top:1px;"><circle cx="10" cy="10" r="9" stroke="#C84848" stroke-width="1.3"/><path d="M10 6v5M10 13v1" stroke="#C84848" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:center;gap:9px;margin-bottom:6px;">
+              <span style="font-size:13.5px;font-weight:500;color:#0C0D18;letter-spacing:-0.01em;">Fenêtre 3 — Timeout atteint</span>
+              <span style="font-size:9px;font-family:'DM Mono',monospace;background:rgba(200,72,72,0.1);color:#C84848;padding:2px 8px;border-radius:2px;letter-spacing:0.08em;font-weight:600;">SOLVER_TIMEOUT</span>
+            </div>
+            <p style="font-size:12px;color:#5A5A72;line-height:1.7;font-weight:300;text-wrap:pretty;">L'algorithme n'a pas trouvé de solution optimale dans le délai imparti (60 s). La fenêtre <span style="font-family:'DM Mono',monospace;font-size:11px;color:#0C0D18;">[160–240 u.t.]</span> contient 42 jobs avec des contraintes de setup complexes entre familles.</p>
+            <div style="margin-top:10px;padding:8px 12px;background:#FAFAF8;border-radius:3px;border:1px solid #F0EEE9;display:flex;gap:16px;">
+              <span style="font-size:10px;font-family:'DM Mono',monospace;color:#AAAAB8;">Jobs concernés : <span style="color:#444455;">42</span></span>
+              <span style="font-size:10px;font-family:'DM Mono',monospace;color:#AAAAB8;">WR : <span style="color:#444455;">3</span></span>
+              <span style="font-size:10px;font-family:'DM Mono',monospace;color:#AAAAB8;">Durée : <span style="color:#444455;">60 s</span></span>
+              <span style="font-size:10px;font-family:'DM Mono',monospace;color:#AAAAB8;">Itérations : <span style="color:#444455;">500/500</span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Partial KPIs + CTAs -->
+      <div style="flex:1;display:flex;gap:12px;margin:12px 28px 24px;min-height:0;">
+
+        <!-- KPIs partial -->
+        <div style="flex:1;background:#FFFFFF;border-radius:4px;border:1px solid rgba(0,0,0,0.055);padding:18px;display:flex;flex-direction:column;gap:12px;">
+          <div>
+            <div style="font-size:8px;letter-spacing:0.18em;color:#C0BFC8;font-family:'DM Mono',monospace;text-transform:uppercase;margin-bottom:2px;">Résultat partiel</div>
+            <div style="font-size:10px;color:#AAAAB8;font-family:'DM Mono',monospace;margin-top:3px;">Basé sur les 4 fenêtres résolues · F3 exclue</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:0;border:1px solid #F0EEE9;border-radius:3px;overflow:hidden;">
+            <div style="display:grid;grid-template-columns:1fr auto;padding:9px 12px;border-bottom:1px solid #F8F7F4;">
+              <span style="font-size:11.5px;color:#8A8A9E;">Retard pondéré (partiel)</span>
+              <span style="font-size:13px;font-family:'DM Mono',monospace;font-weight:500;color:#0C0D18;">892</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr auto;padding:9px 12px;border-bottom:1px solid #F8F7F4;">
+              <span style="font-size:11.5px;color:#8A8A9E;">Jobs planifiés</span>
+              <div style="display:flex;align-items:baseline;gap:3px;">
+                <span style="font-size:13px;font-family:'DM Mono',monospace;font-weight:500;color:#0C0D18;">138</span>
+                <span style="font-size:11px;color:#CCCCDA;">/180</span>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr auto;padding:9px 12px;">
+              <span style="font-size:11.5px;color:#8A8A9E;">Fenêtres résolues</span>
+              <div style="display:flex;align-items:baseline;gap:3px;">
+                <span style="font-size:13px;font-family:'DM Mono',monospace;font-weight:500;color:#2A7A5B;">4</span>
+                <span style="font-size:11px;color:#CCCCDA;">/5</span>
+              </div>
+            </div>
+          </div>
+          <div style="font-size:10px;color:#C0BFC8;font-family:'DM Mono',monospace;line-height:1.55;">Les jobs de la fenêtre 3 (160–240 u.t.) conservent le placement de la solution ATCS initiale.</div>
+        </div>
+
+        <!-- Actions -->
+        <div style="width:280px;flex-shrink:0;background:#FFFFFF;border-radius:4px;border:1px solid rgba(0,0,0,0.055);padding:18px;display:flex;flex-direction:column;justify-content:space-between;">
+          <div>
+            <div style="font-size:8px;letter-spacing:0.18em;color:#C0BFC8;font-family:'DM Mono',monospace;text-transform:uppercase;margin-bottom:14px;">Que faire ?</div>
+
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              <button style="display:flex;align-items:center;gap:9px;width:100%;padding:12px 16px;background:#0C0D18;color:#F2F1EE;border:none;border-radius:3px;font-size:12px;font-family:'DM Sans',sans-serif;font-weight:500;letter-spacing:0.07em;text-transform:uppercase;cursor:pointer;text-align:left;">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l2.5 2.5L10 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Voir le résultat partiel
+              </button>
+
+              <button style="display:flex;align-items:center;gap:9px;width:100%;padding:12px 16px;background:transparent;color:#3A5A8A;border:1px solid rgba(58,90,138,0.35);border-radius:3px;font-size:12px;font-family:'DM Sans',sans-serif;font-weight:500;letter-spacing:0.04em;cursor:pointer;text-align:left;">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M1.5 6a4.5 4.5 0 0 1 7.5-3.3L10.5 4M1.5 3.5V6H4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.5 6a4.5 4.5 0 0 1-7.5 3.3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+                Relancer · Timeout 120 s
+              </button>
+            </div>
+          </div>
+
+          <div style="padding-top:12px;border-top:1px solid #F0EEE9;">
+            <div style="font-size:10px;color:#AAAAB8;font-family:'DM Mono',monospace;line-height:1.55;margin-bottom:6px;">Augmenter le timeout peut améliorer la qualité mais rallonge le temps de calcul.</div>
+            <span style="font-size:10.5px;color:#C4963A;font-family:'DM Mono',monospace;text-decoration:underline;text-underline-offset:2px;cursor:pointer;letter-spacing:0.04em;">Modifier les paramètres du solveur →</span>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     FRAME 3 — Page introuvable · 404
+════════════════════════════════════════════ -->
+<div style="position:absolute; left:2440px; top:80px; width:820px;">
+  <div data-drags-parent="1" style="display:flex;align-items:center;gap:8px;margin-bottom:10px;cursor:grab;">
+    <div style="width:8px;height:8px;border-radius:2px;background:#C4963A;flex-shrink:0;"></div>
+    <span style="font-size:10px;font-family:'DM Mono',monospace;letter-spacing:0.13em;color:#5A5A72;text-transform:uppercase;font-weight:500;">État 3 — Page introuvable · 404</span>
+  </div>
+  <div style="width:820px;height:740px;background:#F2F1EE;border-radius:5px;box-shadow:0 4px 32px rgba(0,0,0,0.18);display:flex;flex-direction:column;overflow:hidden;">
+
+    <!-- Mini top bar -->
+    <div style="padding:16px 28px;border-bottom:1px solid rgba(0,0,0,0.06);display:flex;align-items:center;gap:10px;background:#FDFCFA;flex-shrink:0;">
+      <svg width="22" height="22" viewBox="0 0 46 46" fill="none"><circle cx="23" cy="23" r="20" stroke="#C4963A" stroke-width="1.5"/><rect x="11" y="16.5" width="13" height="3.5" rx="1.75" fill="#C4963A"/><rect x="11" y="22.5" width="21" height="3.5" rx="1.75" fill="#C4963A"/><rect x="11" y="28.5" width="16" height="3.5" rx="1.75" fill="#C4963A" opacity="0.6"/></svg>
+      <span style="font-size:14px;font-weight:600;letter-spacing:-0.02em;color:#0C0D18;">OrdoSaaS</span>
+      <span style="font-size:9px;letter-spacing:0.18em;color:#C4963A;font-family:'DM Mono',monospace;text-transform:uppercase;margin-top:1px;">Scheduling</span>
+    </div>
+
+    <!-- Centered 404 content -->
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;text-align:center;">
+
+      <!-- Decorative faint Gantt -->
+      <div style="position:relative;margin-bottom:32px;">
+        <svg width="360" height="80" viewBox="0 0 360 80" fill="none" style="opacity:0.18;display:block;">
+          <!-- Machine rows -->
+          <rect x="42" y="0" width="318" height="10" fill="#C4963A" rx="2"/>
+          <rect x="42" y="18" width="318" height="10" fill="#3A5A8A" rx="2"/>
+          <rect x="42" y="36" width="318" height="10" fill="#2A7A5B" rx="2"/>
+          <rect x="42" y="54" width="318" height="10" fill="#C4963A" rx="2"/>
+          <!-- Gap on row 2 — the "missing" job, the 404 metaphor -->
+          <rect x="130" y="18" width="75" height="10" fill="#F2F1EE" rx="0"/>
+          <!-- M labels -->
+          <text x="36" y="9" font-size="7" font-family="DM Mono,monospace" fill="#AAAABC" text-anchor="end">M1</text>
+          <text x="36" y="27" font-size="7" font-family="DM Mono,monospace" fill="#AAAABC" text-anchor="end">M2</text>
+          <text x="36" y="45" font-size="7" font-family="DM Mono,monospace" fill="#AAAABC" text-anchor="end">M3</text>
+          <text x="36" y="63" font-size="7" font-family="DM Mono,monospace" fill="#AAAABC" text-anchor="end">M4</text>
+        </svg>
+        <!-- Gap marker on the Gantt -->
+        <div style="position:absolute;left:calc(42px + (130/360)*318px);top:18px;width:calc((75/360)*318px);height:10px;border:1.5px dashed rgba(200,72,72,0.5);border-radius:2px;background:rgba(200,72,72,0.04);"></div>
+      </div>
+
+      <!-- 404 number -->
+      <div style="font-size:96px;font-family:'DM Mono',monospace;font-weight:300;letter-spacing:-0.06em;color:#C4963A;line-height:1;margin-bottom:20px;">404</div>
+
+      <!-- Divider -->
+      <div style="width:48px;height:2px;background:#C4963A;border-radius:1px;opacity:0.5;margin-bottom:20px;"></div>
+
+      <!-- Title -->
+      <h1 style="font-size:22px;font-weight:500;letter-spacing:-0.03em;color:#0C0D18;margin-bottom:12px;">Ce job n'est pas au planning.</h1>
+
+      <!-- Sub -->
+      <p style="font-size:13.5px;color:#8A8A9E;font-weight:300;line-height:1.7;max-width:420px;text-wrap:pretty;margin-bottom:32px;">La ressource que vous cherchez n'existe pas ou a été déplacée. Le planificateur ne peut pas ordonnancer ce qui n'est pas là.</p>
+
+      <!-- CTA -->
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button style="display:flex;align-items:center;gap:8px;padding:12px 26px;background:#0C0D18;color:#F2F1EE;border:none;border-radius:3px;font-size:12px;font-family:'DM Sans',sans-serif;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;">
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M7 2L3 5.5 7 9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Retour au tableau de bord
+        </button>
+        <span style="font-size:10.5px;color:#C8C8D4;font-family:'DM Mono',monospace;">ou</span>
+        <a style="font-size:11.5px;color:#8A8A9E;font-family:'DM Mono',monospace;text-decoration:underline;text-underline-offset:3px;cursor:pointer;letter-spacing:0.04em;">Mes instances</a>
+      </div>
+
+      <!-- Error code reference -->
+      <div style="margin-top:28px;font-size:9.5px;font-family:'DM Mono',monospace;color:#C8C8D4;letter-spacing:0.08em;">Référence : HTTP_404_NOT_FOUND · OrdoSaaS v2.4.1</div>
+
+    </div>
+
+  </div>
+</div>
+
+</x-dc>
+</body>
+</html>

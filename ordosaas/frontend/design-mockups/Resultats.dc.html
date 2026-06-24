@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+
+<helmet>
+  <title>OrdoSaaS — Résultats</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+  </style>
+</helmet>
+
+<div style="display:flex; height:100vh; font-family:'DM Sans',sans-serif; overflow:hidden; background:#08090F;">
+
+  <!-- SIDEBAR -->
+  <aside style="width:232px; background:#08090F; display:flex; flex-direction:column; border-right:1px solid rgba(255,255,255,0.045); flex-shrink:0;">
+    <div style="padding:26px 22px 22px; border-bottom:1px solid rgba(255,255,255,0.04);">
+      <div style="display:flex; align-items:center; gap:13px; cursor:pointer;" onClick="{{ goHome }}">
+        <svg width="36" height="36" viewBox="0 0 46 46" fill="none"><circle cx="23" cy="23" r="20" stroke="#C4963A" stroke-width="1.5"/><rect x="11" y="16.5" width="13" height="3.5" rx="1.75" fill="#C4963A"/><rect x="11" y="22.5" width="21" height="3.5" rx="1.75" fill="#C4963A"/><rect x="11" y="28.5" width="16" height="3.5" rx="1.75" fill="#C4963A" opacity="0.6"/></svg>
+        <div>
+          <div style="font-size:16.5px; font-weight:600; letter-spacing:-0.03em; color:#EAEAF5;">OrdoSaaS</div>
+          <div style="font-size:8px; letter-spacing:0.2em; color:#C4963A; font-family:'DM Mono',monospace; margin-top:3px; text-transform:uppercase;">Scheduling</div>
+        </div>
+      </div>
+    </div>
+    <nav style="flex:1; padding:16px 10px 8px;">
+      <div style="font-size:7.5px; letter-spacing:0.2em; color:#1E2032; font-family:'DM Mono',monospace; text-transform:uppercase; padding:0 12px; margin-bottom:8px;">Menu</div>
+      <div style="{{ navDashStyle }}" onClick="{{ goHome }}">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="9" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="1.5" y="9" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="9" y="9" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/></svg>
+        <span style="font-size:13.5px; letter-spacing:-0.01em;">Tableau de bord</span>
+      </div>
+      <div style="{{ navInstStyle }}" onClick="{{ goHome }}">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><path d="M2 5l6-3 6 3-6 3-6-3Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M2 9l6 3 6-3" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M2 12l6 3 6-3" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+        <span style="font-size:13.5px; letter-spacing:-0.01em;">Mes instances</span>
+        <span style="margin-left:auto; background:rgba(196,150,58,0.13); color:#C4963A; font-size:10px; font-family:'DM Mono',monospace; padding:2px 7px; border-radius:10px;">47</span>
+      </div>
+      <div style="{{ navResStyle }}" onClick="{{ goResults }}">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><path d="M3 13V7M6.5 13V9M10 13V5M13.5 13V8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        <span style="font-size:13.5px; letter-spacing:-0.01em;">Résultats</span>
+      </div>
+      <div style="height:1px; background:rgba(255,255,255,0.04); margin:10px 12px;"></div>
+      <div style="{{ navSetStyle }}" onClick="{{ goAdmin }}">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+        <span style="font-size:13.5px; letter-spacing:-0.01em;">Paramètres</span>
+      </div>
+    </nav>
+    <div style="padding:16px 20px; border-top:1px solid rgba(255,255,255,0.04);">
+      <div style="display:flex; align-items:center; gap:11px;">
+        <div style="width:34px; height:34px; border-radius:50%; background:linear-gradient(140deg,#C4963A,#7A5214); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; color:#0C0D18; flex-shrink:0;">ML</div>
+        <div>
+          <div style="font-size:13px; font-weight:500; color:#D8D8E5; letter-spacing:-0.01em;">M. Lefebvre</div>
+          <div style="font-size:9.5px; color:#36384E; font-family:'DM Mono',monospace; margin-top:1px;">Planificateur</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main style="flex:1; background:#F2F1EE; overflow-y:auto; display:flex; flex-direction:column; padding:28px 32px 36px; gap:20px; min-width:0;">
+
+    <!-- Header -->
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:20px; animation:fadeUp 0.4s ease-out both; flex-wrap:wrap;">
+      <div>
+        <div style="font-size:9px; letter-spacing:0.22em; color:#C4963A; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:9px;">Résolution terminée · LNS récursif · 2m 22s</div>
+        <h1 style="font-size:25px; font-weight:500; letter-spacing:-0.035em; color:#0C0D18; line-height:1.1;">Job Shop — Atelier 3</h1>
+        <div style="display:flex; align-items:center; gap:8px; margin-top:9px; flex-wrap:wrap;">
+          <span style="font-size:11px; font-family:'DM Mono',monospace; background:rgba(12,13,24,0.07); color:#666677; padding:3px 10px; border-radius:2px; letter-spacing:0.06em;">180 jobs</span>
+          <span style="font-size:11px; font-family:'DM Mono',monospace; background:rgba(12,13,24,0.07); color:#666677; padding:3px 10px; border-radius:2px; letter-spacing:0.06em;">10 machines</span>
+          <span style="font-size:11px; font-family:'DM Mono',monospace; background:rgba(42,122,91,0.1); color:#2A7A5B; padding:3px 10px; border-radius:2px; letter-spacing:0.06em;">Optimisé</span>
+          <span style="font-size:11px; color:#C0BFB8; font-family:'DM Mono',monospace; letter-spacing:0.04em;">22 juin 2026, 10h46</span>
+        </div>
+      </div>
+      <div style="display:flex; gap:10px; flex-shrink:0; flex-wrap:wrap;">
+        <button style="display:flex; align-items:center; gap:8px; background:#FFFFFF; border:1px solid #DDDBD6; padding:10px 18px; border-radius:3px; font-size:12px; font-family:'DM Sans',sans-serif; color:#444455; cursor:pointer; letter-spacing:0.04em; transition:all 0.15s;" style-hover="border-color:#0C0D18; color:#0C0D18;">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v7M3.5 5.5l2.5 3 2.5-3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M1.5 9.5v1h9v-1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+          Télécharger CSV
+        </button>
+        <button onClick="{{ goImport }}" style="display:flex; align-items:center; gap:8px; background:#0C0D18; border:none; padding:10px 18px; border-radius:3px; font-size:12px; font-family:'DM Sans',sans-serif; color:#F2F1EE; cursor:pointer; letter-spacing:0.08em; font-weight:500; text-transform:uppercase; transition:background 0.2s;" style-hover="background:#1C1E30;">
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><line x1="5.5" y1="1" x2="5.5" y2="10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="1" y1="5.5" x2="10" y2="5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          Nouvelle instance
+        </button>
+      </div>
+    </div>
+
+    <!-- Metrics -->
+    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; animation:fadeUp 0.4s 0.06s ease-out both;">
+      <div style="background:#FFFFFF; border-radius:4px; padding:20px 20px 16px; border:1px solid rgba(0,0,0,0.055);">
+        <div style="font-size:8.5px; letter-spacing:0.16em; color:#C0BFB8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:12px;">Retard pondéré</div>
+        <div style="font-size:36px; font-weight:300; color:#0C0D18; letter-spacing:-0.05em; line-height:1; font-variant-numeric:tabular-nums;">1 240</div>
+        <div style="font-size:10.5px; color:#AAAAB8; margin-top:5px; font-family:'DM Mono',monospace;">min pondérées</div>
+      </div>
+      <div style="background:#FFFFFF; border-radius:4px; padding:20px 20px 16px; border:1px solid rgba(0,0,0,0.055);">
+        <div style="font-size:8.5px; letter-spacing:0.16em; color:#C0BFB8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:12px;">Amélioration</div>
+        <div style="font-size:36px; font-weight:300; color:#2A7A5B; letter-spacing:-0.05em; line-height:1;">−56<span style="font-size:20px;">%</span></div>
+        <div style="font-size:10.5px; color:#9BBFAC; margin-top:5px; font-family:'DM Mono',monospace;">vs ATCS initial (2 850)</div>
+      </div>
+      <div style="background:#FFFFFF; border-radius:4px; padding:20px 20px 16px; border:1px solid rgba(0,0,0,0.055);">
+        <div style="font-size:8.5px; letter-spacing:0.16em; color:#C0BFB8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:12px;">Taux de service</div>
+        <div style="font-size:36px; font-weight:300; color:#2A7A5B; letter-spacing:-0.05em; line-height:1;">87<span style="font-size:20px;">%</span></div>
+        <div style="margin-top:9px;">
+          <div style="height:2px; background:#EDECE8; border-radius:1px; overflow:hidden;"><div style="width:87%; height:100%; background:#2A7A5B; border-radius:1px;"></div></div>
+          <div style="font-size:10.5px; color:#AAAAB8; margin-top:5px; font-family:'DM Mono',monospace;">157 / 180 jobs à l'heure</div>
+        </div>
+      </div>
+      <div style="background:#FFFFFF; border-radius:4px; padding:20px 20px 16px; border:1px solid rgba(0,0,0,0.055);">
+        <div style="font-size:8.5px; letter-spacing:0.16em; color:#C0BFB8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:12px;">Makespan</div>
+        <div style="font-size:36px; font-weight:300; color:#0C0D18; letter-spacing:-0.05em; line-height:1;">465<span style="font-size:20px; letter-spacing:0em;"> min</span></div>
+        <div style="font-size:10.5px; color:#AAAAB8; margin-top:5px; font-family:'DM Mono',monospace;">sur 480 min disponibles</div>
+      </div>
+    </div>
+
+    <!-- Tab bar -->
+    <div style="display:flex; gap:0; border-bottom:1px solid #E4E2DC; animation:fadeUp 0.4s 0.1s ease-out both;">
+      <button onClick="{{ setGanttTab }}" style="{{ tabGanttStyle }}">Diagramme de Gantt</button>
+      <button onClick="{{ setJobsTab }}"  style="{{ tabJobsStyle  }}">Liste des jobs</button>
+      <button onClick="{{ setComparTab }}" style="{{ tabComparStyle }}">Comparer</button>
+    </div>
+
+    <!-- ── GANTT TAB ── -->
+    <sc-if value="{{ isGanttTab }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex; flex-direction:column; gap:12px; animation:fadeUp 0.35s ease-out both;">
+        <!-- Legend -->
+        <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+          <span style="font-size:9px; letter-spacing:0.14em; color:#C0BFB8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-right:4px;">Famille</span>
+          <div style="display:flex; align-items:center; gap:5px;"><div style="width:20px; height:7px; border-radius:2px; background:#C4963A;"></div><span style="font-size:11px; color:#8A8A9E; font-family:'DM Mono',monospace;">FA</span></div>
+          <div style="display:flex; align-items:center; gap:5px;"><div style="width:20px; height:7px; border-radius:2px; background:#2A7A5B;"></div><span style="font-size:11px; color:#8A8A9E; font-family:'DM Mono',monospace;">FB</span></div>
+          <div style="display:flex; align-items:center; gap:5px;"><div style="width:20px; height:7px; border-radius:2px; background:#3A5A8A;"></div><span style="font-size:11px; color:#8A8A9E; font-family:'DM Mono',monospace;">FC</span></div>
+          <div style="display:flex; align-items:center; gap:5px;"><div style="width:20px; height:7px; border-radius:2px; background:#8A4A8A;"></div><span style="font-size:11px; color:#8A8A9E; font-family:'DM Mono',monospace;">FD</span></div>
+          <div style="display:flex; align-items:center; gap:5px;"><div style="width:20px; height:7px; border-radius:2px; background:#7A3A3A;"></div><span style="font-size:11px; color:#8A8A9E; font-family:'DM Mono',monospace;">FE</span></div>
+          <div style="display:flex; align-items:center; gap:5px;"><div style="width:20px; height:7px; border-radius:2px; background:#2A7A8A;"></div><span style="font-size:11px; color:#8A8A9E; font-family:'DM Mono',monospace;">FF</span></div>
+          <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
+            <div style="display:flex; align-items:center; gap:5px;"><div style="width:12px; height:12px; border-radius:2px; background:#E55A5A; opacity:0.6;"></div><span style="font-size:11px; color:#C0BFB8; font-family:'DM Mono',monospace;">Retard</span></div>
+          </div>
+        </div>
+        <!-- Gantt container -->
+        <div style="background:#FFFFFF; border-radius:4px; border:1px solid rgba(0,0,0,0.055); overflow:hidden; position:relative;">
+          {{ ganttEl }}
+          <sc-if value="{{ showTooltip }}" hint-placeholder-val="{{ false }}">
+            <div style="{{ tooltipStyle }}">
+              <div style="font-size:11.5px; font-weight:500; color:#EAEAF5; margin-bottom:4px; letter-spacing:-0.01em;">{{ tooltipData.id }}</div>
+              <div style="font-size:10.5px; color:#8A8AB0; line-height:1.7;">
+                {{ tooltipData.machLabel }} · Famille {{ tooltipData.family }}<br/>
+                Début {{ tooltipData.start }} → Fin {{ tooltipData.end }} min<br/>
+                Statut : {{ tooltipData.latenessStr }}<br/>
+                Poids : {{ tooltipData.weight }}
+              </div>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ── JOBS TAB ── -->
+    <sc-if value="{{ isJobsTab }}" hint-placeholder-val="{{ false }}">
+      <div style="background:#FFFFFF; border-radius:4px; border:1px solid rgba(0,0,0,0.055); overflow:hidden; animation:fadeUp 0.3s ease-out both;">
+        <div style="padding:14px 20px; border-bottom:1px solid #F0EEE9; display:flex; align-items:center; justify-content:space-between;">
+          <div style="font-size:13.5px; font-weight:500; color:#0C0D18; letter-spacing:-0.02em;">Jobs triés par retard décroissant</div>
+          <div style="font-size:11px; color:#C0BFB8; font-family:'DM Mono',monospace;">25 premiers affichés</div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table style="width:100%; border-collapse:collapse; font-size:12.5px; min-width:600px;">
+            <thead>
+              <tr style="background:#FDFCFB;">
+                <th style="text-align:left; padding:10px 20px; font-size:8.5px; letter-spacing:0.14em; color:#C0BFB8; font-family:'DM Mono',monospace; text-transform:uppercase; border-bottom:1px solid #F0EEE9; font-weight:500; white-space:nowrap;">Job ID</th>
+                <th style="text-align:left; padding:10px 14px; font-size:8.5px; letter-spacing:0.14em; color:#C0BFB8; font-family:'DM Mono',monospace; text-transform:uppercase; border-bottom:1px solid #F0EEE9; font-weight:500;">Machine</th>
+                <th style="text-align:left; padding:10px 14px; font-size:8.5px; letter-spacing:0.14em; color:#C0BFB8; font-family:'DM Mono',monospace; text-transform:uppercase; border-bottom:1px solid #F0EEE9; font-weight:500;">Fin</th>
+                <th style="text-align:left; padding:10px 14px; font-size:8.5px; letter-spacing:0.14em; color:#C0BFB8; font-family:'DM Mono',monospace; text-transform:uppercase; border-bottom:1px solid #F0EEE9; font-weight:500;">Deadline</th>
+                <th style="text-align:left; padding:10px 14px; font-size:8.5px; letter-spacing:0.14em; color:#C0BFB8; font-family:'DM Mono',monospace; text-transform:uppercase; border-bottom:1px solid #F0EEE9; font-weight:500;">Retard</th>
+                <th style="text-align:left; padding:10px 14px; font-size:8.5px; letter-spacing:0.14em; color:#C0BFB8; font-family:'DM Mono',monospace; text-transform:uppercase; border-bottom:1px solid #F0EEE9; font-weight:500;">Poids</th>
+                <th style="text-align:left; padding:10px 14px; font-size:8.5px; letter-spacing:0.14em; color:#C0BFB8; font-family:'DM Mono',monospace; text-transform:uppercase; border-bottom:1px solid #F0EEE9; font-weight:500;">Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              <sc-for list="{{ sortedJobs }}" as="j" hint-placeholder-count="8">
+                <tr style="border-bottom:1px solid #F8F7F4; transition:background 0.12s;" style-hover="background:#FDFCFB;">
+                  <td style="padding:10px 20px; font-family:'DM Mono',monospace; color:#3C3E4F; letter-spacing:0.04em; white-space:nowrap;">{{ j.id }}</td>
+                  <td style="padding:10px 14px; font-family:'DM Mono',monospace; color:#8A8A9E;">{{ j.machLabel }}</td>
+                  <td style="padding:10px 14px; font-family:'DM Mono',monospace; color:#3C3E4F;">{{ j.end }} min</td>
+                  <td style="padding:10px 14px; font-family:'DM Mono',monospace; color:#8A8A9E;">{{ j.deadline }} min</td>
+                  <td style="padding:10px 14px; font-family:'DM Mono',monospace; color:{{ j.latenessColor }}; font-weight:500;">{{ j.latenessStr }}</td>
+                  <td style="padding:10px 14px; font-family:'DM Mono',monospace; color:#8A8A9E;">{{ j.weight }}</td>
+                  <td style="padding:10px 14px;">
+                    <span style="font-size:10.5px; font-family:'DM Mono',monospace; background:{{ j.statusBg }}; color:{{ j.statusColor }}; padding:2px 9px; border-radius:2px; letter-spacing:0.06em; white-space:nowrap;">{{ j.statusLabel }}</span>
+                  </td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ── COMPARER TAB ── -->
+    <sc-if value="{{ isComparTab }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex; flex-direction:column; gap:14px; animation:fadeUp 0.3s ease-out both;">
+        <div style="font-size:9px; letter-spacing:0.2em; color:#C4963A; font-family:'DM Mono',monospace; text-transform:uppercase;">Comparaison multi-instances</div>
+        <div style="background:#FFFFFF; border-radius:4px; border:1px solid rgba(0,0,0,0.055); overflow:hidden;">
+          <div style="overflow-x:auto;">
+            <table style="width:100%; border-collapse:collapse; font-size:12.5px; min-width:700px;">
+              <thead>
+                <tr style="background:#FDFCFB;">
+                  <th style="text-align:left; padding:11px 20px; font-size:8.5px; letter-spacing:0.14em; color:#C0BFB8; font-family:'DM Mono',monospace; text-transform:uppercase; border-bottom:1px solid #F0EEE9; font-weight:500;">Instance</th>
+                  <th style="text-align:left; padding:11px 14px; font-size:8.5px; letter-spacing:0.14em; color:#C0BFB8; font-family:'DM Mono',monospace; text-transform:uppercase; border-bottom:1px solid #F0EEE9; font-weight:500;">Jobs</th>
+                  <th style="text-align:left; padding:11px 14px; font-size:8.5px; letter-spacing:0.14em; color:#C0BFB8; font-family:'DM Mono',monospace; text-transform:uppercase; border-bottom:1px solid #F0EEE9; font-weight:500;">Méthode</th>
+                  <th style="text-align:left; padding:11px 14px; font-size:8.5px; letter-spacing:0.14em; color:#C0BFB8; font-family:'DM Mono',monospace; text-transform:uppercase; border-bottom:1px solid #F0EEE9; font-weight:500;">Retard pondéré</th>
+                  <th style="text-align:left; padding:11px 14px; font-size:8.5px; letter-spacing:0.14em; color:#C0BFB8; font-family:'DM Mono',monospace; text-transform:uppercase; border-bottom:1px solid #F0EEE9; font-weight:500;">Amélioration</th>
+                  <th style="text-align:left; padding:11px 14px; font-size:8.5px; letter-spacing:0.14em; color:#C0BFB8; font-family:'DM Mono',monospace; text-transform:uppercase; border-bottom:1px solid #F0EEE9; font-weight:500;">Taux service</th>
+                  <th style="text-align:left; padding:11px 14px; font-size:8.5px; letter-spacing:0.14em; color:#C0BFB8; font-family:'DM Mono',monospace; text-transform:uppercase; border-bottom:1px solid #F0EEE9; font-weight:500;">Durée</th>
+                  <th style="text-align:left; padding:11px 14px; font-size:8.5px; letter-spacing:0.14em; color:#C0BFB8; font-family:'DM Mono',monospace; text-transform:uppercase; border-bottom:1px solid #F0EEE9; font-weight:500;">Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                <sc-for list="{{ comparisons }}" as="c" hint-placeholder-count="5">
+                  <tr style="border-bottom:1px solid #F8F7F4; background:{{ c.rowBg }}; transition:background 0.12s;" style-hover="background:#FDFCFB;">
+                    <td style="padding:12px 20px; letter-spacing:-0.01em; color:#18191F; font-weight:{{ c.rowWeight }}; white-space:nowrap;">
+                      {{ c.name }}
+                    </td>
+                    <td style="padding:12px 14px; font-family:'DM Mono',monospace; color:#666677;">{{ c.jobs }}</td>
+                    <td style="padding:12px 14px;">
+                      <span style="font-size:10px; font-family:'DM Mono',monospace; background:{{ c.methodBg }}; color:{{ c.methodColor }}; padding:2px 9px; border-radius:2px; letter-spacing:0.08em;">{{ c.method }}</span>
+                    </td>
+                    <td style="padding:12px 14px; font-family:'DM Mono',monospace; color:#3C3E4F; font-variant-numeric:tabular-nums;">{{ c.delay }}</td>
+                    <td style="padding:12px 14px; font-family:'DM Mono',monospace; color:{{ c.improvColor }}; font-weight:500;">{{ c.improvement }}</td>
+                    <td style="padding:12px 14px; font-family:'DM Mono',monospace; color:#3C3E4F;">{{ c.onTime }}</td>
+                    <td style="padding:12px 14px; font-family:'DM Mono',monospace; color:#8A8A9E;">{{ c.solveTime }}</td>
+                    <td style="padding:12px 14px; font-family:'DM Mono',monospace; color:#AAAAB8; font-size:11.5px;">{{ c.date }}</td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <!-- Best-of summary -->
+        <div style="background:rgba(42,122,91,0.06); border:1px solid rgba(42,122,91,0.2); border-radius:4px; padding:14px 18px; display:flex; align-items:center; gap:12px;">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8l4 4.5 8-8.5" stroke="#2A7A5B" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <p style="font-size:12.5px; color:#2A7A5B; font-weight:300; line-height:1.55;">
+            <strong style="font-weight:500;">Job Shop — Atelier 3 (LNS, actuel)</strong> obtient le meilleur retard pondéré de l'historique sur cette configuration.
+          </p>
+        </div>
+      </div>
+    </sc-if>
+
+  </main>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+
+class Component extends DCLogic {
+  state = {
+    activeTab: 'gantt',
+    jobs: [],
+    hoveredBar: null,
+    tooltipX: 0,
+    tooltipY: 0,
+  };
+
+  componentDidMount() {
+    this.setState({ jobs: this.generateSchedule() });
+  }
+
+  generateSchedule() {
+    let seed = 42;
+    const rng = () => {
+      seed = Math.imul(1664525, seed) + 1013904223 | 0;
+      return (seed >>> 0) / 0xffffffff;
+    };
+    const COLORS = ['#C4963A','#2A7A5B','#3A5A8A','#8A4A8A','#7A3A3A','#2A7A8A'];
+    const FAMS   = ['FA','FB','FC','FD','FE','FF'];
+    const DDLS   = [120,180,240,300,360,420,480];
+    const jobs = [];
+    for (let m = 0; m < 10; m++) {
+      let t = rng() * 22;
+      let n = 0;
+      while (t < 468 && n < 22) {
+        const dur  = Math.round(rng() * 36 + 10);
+        const fam  = Math.floor(rng() * 6);
+        const ddl  = DDLS[Math.floor(rng() * DDLS.length)];
+        const end  = Math.round(t + dur);
+        const late = Math.max(0, Math.round(end - ddl));
+        jobs.push({
+          id: `J${String(m * 18 + n + 1).padStart(3,'0')}`,
+          machine: m, machLabel: `M${m+1}`,
+          start: Math.round(t), dur, end, deadline: ddl,
+          lateness: late,
+          latenessStr: late === 0 ? "À l'heure" : `+${late} min`,
+          weight: Math.round(rng() * 4 + 1),
+          fam, color: COLORS[fam], family: FAMS[fam],
+          isLate: late > 0,
+        });
+        t += dur + rng() * 6 + 1;
+        n++;
+      }
+    }
+    return jobs;
+  }
+
+  buildGantt(jobs, hoveredBar) {
+    const W = 980, LEFT = 68, TOP = 34, RIGHT = 12;
+    const RH = 18, RG = 8, TM = 480;
+    const CW = W - LEFT - RIGHT;
+    const SC = CW / TM;
+    const H = TOP + 10 * (RH + RG) + 24;
+    const ticks = [0,60,120,180,240,300,360,420,480];
+    const ce = React.createElement;
+    return ce('svg', { viewBox:`0 0 ${W} ${H}`, style:{width:'100%',height:'auto',display:'block'} },
+      ce('rect',{key:'bg',x:0,y:0,width:W,height:H,fill:'#FFFFFF'}),
+      ...ticks.map(t => ce('line',{key:`g${t}`,x1:LEFT+t*SC,y1:TOP-10,x2:LEFT+t*SC,y2:H-18,stroke:'#F0EEE9',strokeWidth:1})),
+      ...ticks.map(t => ce('text',{key:`tl${t}`,x:LEFT+t*SC,y:TOP-13,fontSize:9,fontFamily:'DM Mono,monospace',fill:'#C8C6C0',textAnchor:'middle'},
+        `${String(Math.floor(t/60)).padStart(2,'0')}h${t%60?String(t%60).padStart(2,'0'):''}`)),
+      ...[0,1,2,3,4,5,6,7,8,9].flatMap(m=>[
+        ce('rect',{key:`rb${m}`,x:LEFT,y:TOP+m*(RH+RG),width:CW,height:RH,fill:m%2===0?'rgba(0,0,0,0.015)':'transparent'}),
+        ce('text',{key:`ml${m}`,x:LEFT-8,y:TOP+m*(RH+RG)+RH/2+3.5,fontSize:10,fontFamily:'DM Mono,monospace',fill:'#9A9BAA',textAnchor:'end'},`M${m+1}`),
+      ]),
+      ...jobs.map(j => {
+        const x = LEFT + j.start * SC;
+        const y = TOP + j.machine * (RH + RG);
+        const w = Math.max(3, j.dur * SC - 1);
+        const isH = hoveredBar && hoveredBar.id === j.id;
+        const col = j.isLate ? '#C84848' : j.color;
+        const op  = hoveredBar ? (isH ? 1 : 0.22) : (j.isLate ? 0.7 : 0.85);
+        return ce('rect',{
+          key:j.id, x, y, width:w, height:RH, rx:2, fill:col, opacity:op,
+          style:{cursor:'pointer',transition:'opacity 0.12s'},
+          onMouseEnter:(e)=>this.setState({hoveredBar:j,tooltipX:e.clientX+14,tooltipY:e.clientY-8}),
+          onMouseLeave:()=>this.setState({hoveredBar:null}),
+        });
+      }),
+      ce('line',{key:'axis',x1:LEFT,y1:H-18,x2:LEFT+CW,y2:H-18,stroke:'#ECEAE4',strokeWidth:1}),
+    );
+  }
+
+  navStyle(id) {
+    const active = id === 'results';
+    return {display:'flex',alignItems:'center',gap:'10px',padding:'9px 12px',borderRadius:'4px',cursor:'pointer',marginBottom:'2px',color:active?'#E8E8F2':'#3E4058',background:active?'rgba(196,150,58,0.1)':'transparent',transition:'all 0.15s'};
+  }
+
+  renderVals() {
+    const { jobs, hoveredBar, tooltipX, tooltipY, activeTab } = this.state;
+
+    const sortedJobs = [...jobs].sort((a,b)=>b.lateness-a.lateness).slice(0,25).map(j=>({
+      ...j,
+      statusBg:    j.isLate ? 'rgba(200,72,72,0.09)' : 'rgba(42,122,91,0.09)',
+      statusColor: j.isLate ? '#C84848' : '#2A7A5B',
+      statusLabel: j.isLate ? 'En retard' : "À l'heure",
+      latenessColor: j.isLate ? '#C84848' : '#9BBFAC',
+    }));
+
+    const comparisons = [
+      { name:'Job Shop — Atelier 3 ✦', jobs:180, method:'LNS',    delay:1240, improvement:'−56%', onTime:'87%', solveTime:'2m 22s', date:'22 juin 2026', current:true  },
+      { name:'Job Shop — Atelier 3',    jobs:180, method:'ATCS',   delay:2850, improvement:'—',    onTime:'64%', solveTime:'8 s',    date:'21 juin 2026', current:false },
+      { name:'Flowshop Peinture',        jobs:87,  method:'LNS',    delay:480,  improvement:'−38%', onTime:'91%', solveTime:'1m 45s', date:'20 juin 2026', current:false },
+      { name:'Assemblage Ligne B',       jobs:203, method:'CP-SAT', delay:320,  improvement:'−62%', onTime:'96%', solveTime:'3m 10s', date:'18 juin 2026', current:false },
+      { name:'Forge — Campagne Q2',      jobs:145, method:'LNS',    delay:890,  improvement:'−44%', onTime:'88%', solveTime:'2m 38s', date:'17 juin 2026', current:false },
+    ].map(c=>({
+      ...c,
+      rowBg:      c.current ? 'rgba(196,150,58,0.04)' : 'transparent',
+      rowWeight:  c.current ? '500' : '400',
+      methodBg:   c.method==='CP-SAT' ? 'rgba(42,122,91,0.09)' : c.method==='LNS' ? 'rgba(196,150,58,0.1)' : 'rgba(0,0,0,0.05)',
+      methodColor:c.method==='CP-SAT' ? '#2A7A5B' : c.method==='LNS' ? '#B07820' : '#8A8A9E',
+      improvColor:c.improvement.startsWith('−') ? '#2A7A5B' : '#AAAAB8',
+    }));
+
+    const tabStyle = (id) => ({
+      padding:'10px 20px', fontSize:'13px', fontFamily:"'DM Sans',sans-serif",
+      fontWeight: activeTab===id ? '500' : '400',
+      border:'none', borderBottom: activeTab===id ? '2px solid #0C0D18' : '2px solid transparent',
+      background:'none', cursor:'pointer',
+      color: activeTab===id ? '#0C0D18' : '#AAAAB8',
+      letterSpacing:'-0.01em', transition:'all 0.15s', marginBottom:'-1px',
+    });
+
+    const td = hoveredBar || {id:'',machLabel:'',start:0,end:0,latenessStr:'',family:'',weight:0};
+
+    return {
+      isGanttTab:  activeTab==='gantt',
+      isJobsTab:   activeTab==='jobs',
+      isComparTab: activeTab==='comparer',
+      tabGanttStyle:  tabStyle('gantt'),
+      tabJobsStyle:   tabStyle('jobs'),
+      tabComparStyle: tabStyle('comparer'),
+      setGanttTab:  ()=>this.setState({activeTab:'gantt'}),
+      setJobsTab:   ()=>this.setState({activeTab:'jobs'}),
+      setComparTab: ()=>this.setState({activeTab:'comparer'}),
+      ganttEl: this.buildGantt(jobs, hoveredBar),
+      showTooltip: !!hoveredBar,
+      tooltipStyle: {
+        position:'fixed', top:`${tooltipY}px`, left:`${tooltipX}px`,
+        background:'#0C0D18', borderRadius:'4px', padding:'10px 14px',
+        zIndex:200, pointerEvents:'none', minWidth:'180px',
+        boxShadow:'0 4px 20px rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.08)',
+      },
+      tooltipData: td,
+      sortedJobs,
+      comparisons,
+      navDashStyle: this.navStyle('dashboard'),
+      navInstStyle: this.navStyle('instances'),
+      navResStyle:  this.navStyle('results'),
+      navSetStyle:  this.navStyle('settings'),
+      goHome:    ()=>{ window.location.href='Dashboard.dc.html'; },
+      goResults: ()=>{ window.location.href='Resultats.dc.html'; },
+      goAdmin:   ()=>{ window.location.href='Admin.dc.html'; },
+      goImport:  ()=>{ window.location.href='ImportCSV.dc.html'; },
+    };
+  }
+}
+
+</script>
+</body>
+</html>

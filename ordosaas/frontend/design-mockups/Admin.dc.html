@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+
+<helmet>
+  <title>OrdoSaaS — Administration</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+    html, body { height:100%; overflow:hidden; }
+    @keyframes fadeUp { from{transform:translateY(7px)} to{transform:translateY(0)} }
+    @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+    .rows-scroll::-webkit-scrollbar { width:5px; }
+    .rows-scroll::-webkit-scrollbar-thumb { background:#E0DED8; border-radius:3px; }
+    input[type=range] { -webkit-appearance:none; height:4px; border-radius:2px; background:#E8E6DF; outline:none; cursor:pointer; }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px; border-radius:50%; background:#C4963A; border:2px solid #FFF; box-shadow:0 1px 4px rgba(0,0,0,0.15); }
+    select { -webkit-appearance:none; appearance:none; background-image:url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888899' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 10px center; }
+    .user-row:hover { background:#FDFCFB !important; }
+    .mach-row:hover { background:#FDFCFB !important; }
+    .save-flash { animation:fadeIn 0.3s ease-out both; }
+  </style>
+</helmet>
+
+<div style="display:flex; height:100vh; font-family:'DM Sans',sans-serif; overflow:hidden; background:#08090F;">
+
+  <!-- ══ SIDEBAR ══ -->
+  <aside style="width:232px; background:#08090F; display:flex; flex-direction:column; border-right:1px solid rgba(255,255,255,0.045); flex-shrink:0;">
+    <div style="padding:26px 22px 22px; border-bottom:1px solid rgba(255,255,255,0.04); cursor:pointer;" onClick="{{ goDash }}">
+      <div style="display:flex; align-items:center; gap:13px;">
+        <svg width="36" height="36" viewBox="0 0 46 46" fill="none"><circle cx="23" cy="23" r="20" stroke="#C4963A" stroke-width="1.5"/><rect x="11" y="16.5" width="13" height="3.5" rx="1.75" fill="#C4963A"/><rect x="11" y="22.5" width="21" height="3.5" rx="1.75" fill="#C4963A"/><rect x="11" y="28.5" width="16" height="3.5" rx="1.75" fill="#C4963A" opacity="0.6"/></svg>
+        <div>
+          <div style="font-size:16.5px; font-weight:600; letter-spacing:-0.03em; color:#EAEAF5; line-height:1;">OrdoSaaS</div>
+          <div style="font-size:8px; letter-spacing:0.2em; color:#C4963A; font-family:'DM Mono',monospace; margin-top:3px; text-transform:uppercase;">Scheduling</div>
+        </div>
+      </div>
+    </div>
+    <nav style="flex:1; padding:16px 10px 8px; overflow-y:auto;">
+      <div style="font-size:7.5px; letter-spacing:0.2em; color:#1E2032; font-family:'DM Mono',monospace; text-transform:uppercase; padding:0 12px; margin-bottom:8px;">Menu</div>
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:4px;cursor:pointer;color:#3E4058;margin-bottom:2px;transition:all 0.15s;" style-hover="color:#9090A4;" onClick="{{ goDash }}">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="9" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="1.5" y="9" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="9" y="9" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/></svg>
+        <span style="font-size:13.5px; letter-spacing:-0.01em;">Tableau de bord</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:4px;cursor:pointer;color:#3E4058;margin-bottom:2px;transition:all 0.15s;" style-hover="color:#9090A4;" onClick="{{ goDash }}">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><path d="M2 5l6-3 6 3-6 3-6-3Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M2 9l6 3 6-3" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M2 12l6 3 6-3" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+        <span style="font-size:13.5px; letter-spacing:-0.01em;">Mes instances</span>
+        <span style="margin-left:auto; background:rgba(196,150,58,0.13); color:#C4963A; font-size:10px; font-family:'DM Mono',monospace; padding:2px 7px; border-radius:10px; flex-shrink:0;">47</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:4px;cursor:pointer;color:#3E4058;margin-bottom:2px;transition:all 0.15s;" style-hover="color:#9090A4;" onClick="{{ goResults }}">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><path d="M3 13V7M6.5 13V9M10 13V5M13.5 13V8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        <span style="font-size:13.5px; letter-spacing:-0.01em;">Résultats</span>
+      </div>
+      <div style="height:1px; background:rgba(255,255,255,0.04); margin:10px 12px;"></div>
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:4px;cursor:pointer;background:rgba(196,150,58,0.1);color:#E8E8F2;margin-bottom:2px;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+        <span style="font-size:13.5px; font-weight:500; letter-spacing:-0.01em;">Administration</span>
+      </div>
+    </nav>
+    <div style="padding:16px 20px; border-top:1px solid rgba(255,255,255,0.04);">
+      <div style="display:flex; align-items:center; gap:11px;">
+        <div style="width:34px; height:34px; border-radius:50%; background:linear-gradient(140deg,#C4963A,#7A5214); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; color:#0C0D18; flex-shrink:0;">MP</div>
+        <div style="min-width:0; flex:1;">
+          <div style="font-size:13px; font-weight:500; color:#D8D8E5; letter-spacing:-0.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Marie Petit</div>
+          <div style="font-size:9.5px; color:#C4963A; font-family:'DM Mono',monospace; margin-top:1px; letter-spacing:0.08em; text-transform:uppercase;">Admin</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ══ MAIN ══ -->
+  <main style="flex:1; background:#F2F1EE; display:flex; flex-direction:column; min-width:0; overflow:hidden;">
+
+    <!-- HEADER -->
+    <div style="padding:22px 32px 0; flex-shrink:0; animation:fadeUp 0.35s ease-out both;">
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:20px;">
+        <div>
+          <div style="font-size:8.5px; letter-spacing:0.2em; color:#C4963A; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:8px;">Acier Industrie · Administration</div>
+          <h1 style="font-size:23px; font-weight:500; letter-spacing:-0.035em; color:#0C0D18; line-height:1.1;">Panneau d'administration</h1>
+        </div>
+        <!-- Context-sensitive action button -->
+        <sc-if value="{{ isTabUsers }}" hint-placeholder-val="{{ true }}">
+          <button onClick="{{ openInviteModal }}" style="display:flex;align-items:center;gap:8px;background:#0C0D18;color:#F2F1EE;border:none;padding:10px 20px;border-radius:3px;font-size:11.5px;font-family:'DM Sans',sans-serif;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;transition:background 0.2s;flex-shrink:0;margin-top:4px;" style-hover="background:#1C1E30;">
+            <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><line x1="5.5" y1="1" x2="5.5" y2="10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="1" y1="5.5" x2="10" y2="5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            Inviter un utilisateur
+          </button>
+        </sc-if>
+        <sc-if value="{{ isTabMachines }}" hint-placeholder-val="{{ false }}">
+          <button onClick="{{ addMachine }}" style="display:flex;align-items:center;gap:8px;background:#0C0D18;color:#F2F1EE;border:none;padding:10px 20px;border-radius:3px;font-size:11.5px;font-family:'DM Sans',sans-serif;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;transition:background 0.2s;flex-shrink:0;margin-top:4px;" style-hover="background:#1C1E30;">
+            <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><line x1="5.5" y1="1" x2="5.5" y2="10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="1" y1="5.5" x2="10" y2="5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            Ajouter une machine
+          </button>
+        </sc-if>
+        <sc-if value="{{ isTabSettings }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;gap:8px;margin-top:4px;">
+            <sc-if value="{{ settingsSaved }}" hint-placeholder-val="{{ false }}">
+              <div class="save-flash" style="display:flex;align-items:center;gap:6px;padding:10px 16px;border-radius:3px;background:rgba(42,122,91,0.1);border:1px solid rgba(42,122,91,0.22);">
+                <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><circle cx="5.5" cy="5.5" r="4.5" stroke="#2A7A5B" stroke-width="1.2"/><path d="M3.5 5.5l1.5 1.5 2.5-2.5" stroke="#2A7A5B" stroke-width="1.2" stroke-linecap="round"/></svg>
+                <span style="font-size:11px;color:#2A7A5B;font-family:'DM Mono',monospace;letter-spacing:0.04em;">Enregistré</span>
+              </div>
+            </sc-if>
+            <button onClick="{{ saveSettings }}" style="display:flex;align-items:center;gap:8px;background:#0C0D18;color:#F2F1EE;border:none;padding:10px 20px;border-radius:3px;font-size:11.5px;font-family:'DM Sans',sans-serif;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;transition:background 0.2s;" style-hover="background:#1C1E30;">
+              Enregistrer les paramètres
+            </button>
+          </div>
+        </sc-if>
+      </div>
+
+      <!-- TABS -->
+      <div style="display:flex; gap:0; margin-top:18px; border-bottom:1px solid rgba(0,0,0,0.08);">
+        <button onClick="{{ setTabUsers }}" style="{{ tabUsersStyle }}">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="5" cy="4" r="2.5" stroke="currentColor" stroke-width="1.2"/><path d="M1 11c0-2.2 1.8-4 4-4s4 1.8 4 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M9 5.5c.7.5 1.1 1.3 1.1 2.2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><path d="M10.5 3.5a1.8 1.8 0 0 1 0 3.6" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
+          Utilisateurs
+          <span style="{{ tabUsersBadgeStyle }}">{{ totalUsers }}</span>
+        </button>
+        <button onClick="{{ setTabMachines }}" style="{{ tabMachinesStyle }}">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1.5" y="3.5" width="10" height="6" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M4 3.5v-1.5M6.5 3.5v-1.5M9 3.5v-1.5M4 9.5V11M6.5 9.5V11M9 9.5V11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+          Machines &amp; Setups
+          <span style="{{ tabMachinesBadgeStyle }}">{{ machineCount }}</span>
+        </button>
+        <button onClick="{{ setTabSettings }}" style="{{ tabSettingsStyle }}">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="2" stroke="currentColor" stroke-width="1.2"/><path d="M6.5 1.5v1.5M6.5 10v1.5M1.5 6.5H3M10 6.5h1.5M3.3 3.3l1.1 1.1M8.6 8.6l1.1 1.1M3.3 9.7l1.1-1.1M8.6 4.4l1.1-1.1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+          Paramètres globaux
+        </button>
+      </div>
+    </div>
+
+    <!-- ══ TAB CONTENT ══ -->
+
+    <!-- ─── TAB 1: USERS ─── -->
+    <sc-if value="{{ isTabUsers }}" hint-placeholder-val="{{ true }}">
+      <div style="flex:1; display:flex; flex-direction:column; min-height:0; overflow:hidden; padding:16px 32px 24px; gap:14px; animation:fadeUp 0.3s ease-out both;">
+
+        <!-- Stats row -->
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px; flex-shrink:0;">
+          <div style="background:#FFFFFF; border-radius:4px; padding:14px 18px; border:1px solid rgba(0,0,0,0.055);">
+            <div style="font-size:8px; letter-spacing:0.16em; color:#C0BFB8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:8px;">Utilisateurs</div>
+            <div style="font-size:28px; font-weight:300; color:#0C0D18; letter-spacing:-0.05em; line-height:1; font-variant-numeric:tabular-nums;">{{ totalUsers }}</div>
+            <div style="font-size:10px; color:#AAAAB8; margin-top:4px; font-family:'DM Mono',monospace;">{{ activeCount }} actifs</div>
+          </div>
+          <div style="background:#FFFFFF; border-radius:4px; padding:14px 18px; border:1px solid rgba(0,0,0,0.055);">
+            <div style="font-size:8px; letter-spacing:0.16em; color:#C0BFB8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:8px;">Planificateurs</div>
+            <div style="font-size:28px; font-weight:300; color:#3A6AC4; letter-spacing:-0.05em; line-height:1;">{{ planifCount }}</div>
+            <div style="font-size:10px; color:#AAAAB8; margin-top:4px; font-family:'DM Mono',monospace;">accès complet</div>
+          </div>
+          <div style="background:#FFFFFF; border-radius:4px; padding:14px 18px; border:1px solid rgba(0,0,0,0.055);">
+            <div style="font-size:8px; letter-spacing:0.16em; color:#C0BFB8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:8px;">Lecteurs</div>
+            <div style="font-size:28px; font-weight:300; color:#6A6A8A; letter-spacing:-0.05em; line-height:1;">{{ lecteurCount }}</div>
+            <div style="font-size:10px; color:#AAAAB8; margin-top:4px; font-family:'DM Mono',monospace;">lecture seule</div>
+          </div>
+          <div style="background:#FFFFFF; border-radius:4px; padding:14px 18px; border:1px solid rgba(0,0,0,0.055);">
+            <div style="font-size:8px; letter-spacing:0.16em; color:#C0BFB8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:8px;">En attente</div>
+            <div style="font-size:28px; font-weight:300; color:#C4963A; letter-spacing:-0.05em; line-height:1;">{{ pendingCount }}</div>
+            <div style="font-size:10px; color:#AAAAB8; margin-top:4px; font-family:'DM Mono',monospace;">invitation envoyée</div>
+          </div>
+        </div>
+
+        <!-- User table card -->
+        <div style="background:#FFFFFF; border-radius:4px; border:1px solid rgba(0,0,0,0.055); flex:1; display:flex; flex-direction:column; min-height:0; overflow:hidden;">
+          <!-- Table header -->
+          <div style="padding:13px 22px 11px; border-bottom:1px solid #F0EEE9; display:flex; align-items:center; justify-content:space-between; flex-shrink:0;">
+            <span style="font-size:13px; font-weight:500; color:#0C0D18; letter-spacing:-0.02em;">Membres de l'organisation</span>
+            <div style="display:flex; gap:4px;">
+              <button onClick="{{ filterAll }}"     style="{{ filterAllStyle }}">Tous</button>
+              <button onClick="{{ filterPlanif }}"  style="{{ filterPlanifStyle }}">Planificateur</button>
+              <button onClick="{{ filterLecteur }}" style="{{ filterLecteurStyle }}">Lecteur</button>
+              <button onClick="{{ filterAdmin }}"   style="{{ filterAdminStyle }}">Admin</button>
+            </div>
+          </div>
+          <!-- Col headers -->
+          <div style="display:grid; grid-template-columns:1fr 160px 140px 130px 100px 112px; padding:8px 22px; background:#FDFCFB; border-bottom:1px solid #F4F3F0; flex-shrink:0;">
+            <span style="font-size:8px; letter-spacing:0.14em; color:#C8C6C0; font-family:'DM Mono',monospace; text-transform:uppercase;">Utilisateur</span>
+            <span style="font-size:8px; letter-spacing:0.14em; color:#C8C6C0; font-family:'DM Mono',monospace; text-transform:uppercase;">Rôle</span>
+            <span style="font-size:8px; letter-spacing:0.14em; color:#C8C6C0; font-family:'DM Mono',monospace; text-transform:uppercase;">Statut</span>
+            <span style="font-size:8px; letter-spacing:0.14em; color:#C8C6C0; font-family:'DM Mono',monospace; text-transform:uppercase;">Dernière connexion</span>
+            <span></span>
+            <span style="font-size:8px; letter-spacing:0.14em; color:#C8C6C0; font-family:'DM Mono',monospace; text-transform:uppercase; text-align:right;">Actions</span>
+          </div>
+          <!-- Rows -->
+          <div class="rows-scroll" style="overflow-y:auto; flex:1;">
+            <sc-for list="{{ filteredUsers }}" as="u" hint-placeholder-count="6">
+              <div class="user-row" style="display:grid; grid-template-columns:1fr 160px 140px 130px 100px 112px; padding:12px 22px; border-bottom:1px solid #F7F5F2; align-items:center; transition:background 0.1s; background:{{ u.rowBg }};">
+                <div style="display:flex; align-items:center; gap:11px; min-width:0;">
+                  <div style="width:32px; height:32px; border-radius:50%; background:{{ u.avatarBg }}; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; color:{{ u.avatarColor }}; flex-shrink:0;">{{ u.initials }}</div>
+                  <div style="min-width:0;">
+                    <div style="font-size:13px; color:#18191F; font-weight:{{ u.nameWeight }}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; letter-spacing:-0.01em;">{{ u.name }}</div>
+                    <div style="font-size:10.5px; color:#B0B0BF; font-family:'DM Mono',monospace; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ u.email }}</div>
+                  </div>
+                </div>
+                <div>
+                  <span style="font-size:10px; font-family:'DM Mono',monospace; background:{{ u.roleBg }}; color:{{ u.roleColor }}; padding:3px 9px; border-radius:2px; letter-spacing:0.08em; font-weight:500;">{{ u.roleLabel }}</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <div style="width:6px; height:6px; border-radius:50%; background:{{ u.statusDot }}; flex-shrink:0;"></div>
+                  <span style="font-size:12px; color:{{ u.statusColor }}; letter-spacing:-0.01em;">{{ u.statusLabel }}</span>
+                  <sc-if value="{{ u.isPending }}" hint-placeholder-val="{{ false }}">
+                    <button onClick="{{ u.onResend }}" style="font-size:9.5px;font-family:'DM Mono',monospace;color:#C4963A;background:none;border:1px solid rgba(196,150,58,0.3);border-radius:2px;padding:1px 6px;cursor:pointer;letter-spacing:0.04em;transition:all 0.15s;" style-hover="background:rgba(196,150,58,0.08);">Renvoyer</button>
+                  </sc-if>
+                </div>
+                <span style="font-size:11.5px; color:#B0B0BF; font-family:'DM Mono',monospace; letter-spacing:0.02em;">{{ u.lastLogin }}</span>
+                <div>
+                  <sc-if value="{{ u.isYou }}" hint-placeholder-val="{{ false }}">
+                    <span style="font-size:9px; font-family:'DM Mono',monospace; background:rgba(196,150,58,0.1); color:#A07820; padding:2px 8px; border-radius:2px; letter-spacing:0.1em;">Vous</span>
+                  </sc-if>
+                </div>
+                <div style="display:flex; align-items:center; gap:4px; justify-content:flex-end;">
+                  <button title="Modifier le rôle" onClick="{{ u.onEditRole }}" style="width:28px;height:28px;border:1px solid #ECEAE4;border-radius:3px;background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#AAAAAA;transition:all 0.15s;" style-hover="border-color:#C4963A;color:#C4963A;background:#FFF9F0;">
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5l2 2-6 6H2.5v-2l6-6Z" stroke="currentColor" stroke-width="1.15" stroke-linejoin="round"/></svg>
+                  </button>
+                  <button title="{{ u.toggleTitle }}" onClick="{{ u.onToggle }}" style="width:28px;height:28px;border:1px solid #ECEAE4;border-radius:3px;background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#AAAAAA;transition:all 0.15s;" style-hover="border-color:#6A6A8A;color:#6A6A8A;">
+                    <sc-if value="{{ u.isActive }}" hint-placeholder-val="{{ true }}">
+                      <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><circle cx="5.5" cy="5.5" r="4.5" stroke="currentColor" stroke-width="1.2"/><path d="M3.5 5.5l1.5 1.5L8 3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </sc-if>
+                    <sc-if value="{{ u.notActive }}" hint-placeholder-val="{{ false }}">
+                      <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><circle cx="5.5" cy="5.5" r="4.5" stroke="currentColor" stroke-width="1.2"/><path d="M3.5 7.5l4-4M7.5 7.5l-4-4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+                    </sc-if>
+                  </button>
+                  <button title="Supprimer" onClick="{{ u.onDelete }}" style="width:28px;height:28px;border:1px solid #ECEAE4;border-radius:3px;background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#AAAAAA;transition:all 0.15s;" style-hover="border-color:#D05050;color:#D05050;background:#FFF5F5;">
+                    <svg width="11" height="12" viewBox="0 0 11 13" fill="none"><path d="M1 3h9M3.5 3V1.5h4V3M4 5.5v5M7 5.5v5M1.5 3l.75 8.5h6.5L9.5 3" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ─── TAB 2: MACHINES & SETUPS ─── -->
+    <sc-if value="{{ isTabMachines }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1; display:flex; gap:14px; min-height:0; overflow:hidden; padding:16px 32px 24px; animation:fadeUp 0.3s ease-out both;">
+
+        <!-- Left: Machine list (flex:1) -->
+        <div style="flex:1; background:#FFFFFF; border-radius:4px; border:1px solid rgba(0,0,0,0.055); display:flex; flex-direction:column; min-height:0; overflow:hidden;">
+          <div style="padding:13px 20px 11px; border-bottom:1px solid #F0EEE9; display:flex; align-items:center; justify-content:space-between; flex-shrink:0;">
+            <span style="font-size:13px; font-weight:500; color:#0C0D18; letter-spacing:-0.02em;">Machines de l'atelier</span>
+            <div style="font-size:10px; color:#AAAAB8; font-family:'DM Mono',monospace;">{{ machineCount }} machines configurées</div>
+          </div>
+          <!-- Col headers -->
+          <div style="display:grid; grid-template-columns:70px 1fr 100px 100px 110px 90px; padding:7px 20px; background:#FDFCFB; border-bottom:1px solid #F4F3F0; flex-shrink:0;">
+            <span style="font-size:8px; letter-spacing:0.14em; color:#C8C6C0; font-family:'DM Mono',monospace; text-transform:uppercase;">ID</span>
+            <span style="font-size:8px; letter-spacing:0.14em; color:#C8C6C0; font-family:'DM Mono',monospace; text-transform:uppercase;">Nom</span>
+            <span style="font-size:8px; letter-spacing:0.14em; color:#C8C6C0; font-family:'DM Mono',monospace; text-transform:uppercase;">Type</span>
+            <span style="font-size:8px; letter-spacing:0.14em; color:#C8C6C0; font-family:'DM Mono',monospace; text-transform:uppercase;">Capacité</span>
+            <span style="font-size:8px; letter-spacing:0.14em; color:#C8C6C0; font-family:'DM Mono',monospace; text-transform:uppercase;">Statut</span>
+            <span style="font-size:8px; letter-spacing:0.14em; color:#C8C6C0; font-family:'DM Mono',monospace; text-transform:uppercase; text-align:right;">Actions</span>
+          </div>
+          <div class="rows-scroll" style="flex:1; overflow-y:auto;">
+            <sc-for list="{{ machines }}" as="m" hint-placeholder-count="10">
+              <div class="mach-row" style="display:grid; grid-template-columns:70px 1fr 100px 100px 110px 90px; padding:11px 20px; border-bottom:1px solid #F7F5F2; align-items:center; transition:background 0.1s;">
+                <div style="font-size:12.5px; font-family:'DM Mono',monospace; font-weight:500; color:#3A5A8A; letter-spacing:0.04em;">{{ m.id }}</div>
+                <div>
+                  <div style="font-size:13px; color:#0C0D18; font-weight:400; letter-spacing:-0.01em;">{{ m.name }}</div>
+                  <div style="font-size:10px; color:#CCCCDA; font-family:'DM Mono',monospace; margin-top:1px;">{{ m.location }}</div>
+                </div>
+                <span style="font-size:10.5px; color:#8A8A9E; font-family:'DM Mono',monospace;">{{ m.type }}</span>
+                <span style="font-size:10.5px; font-family:'DM Mono',monospace; color:#0C0D18;">{{ m.capacity }}</span>
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <div style="width:6px; height:6px; border-radius:50%; background:{{ m.statusDot }}; flex-shrink:0;"></div>
+                  <span style="font-size:11.5px; color:{{ m.statusColor }};">{{ m.statusLabel }}</span>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:4px;">
+                  <button onClick="{{ m.onEdit }}" style="width:26px;height:26px;border:1px solid #ECEAE4;border-radius:3px;background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#AAAAAA;transition:all 0.15s;" style-hover="border-color:#C4963A;color:#C4963A;">
+                    <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5l2 2-6 6H2.5v-2l6-6Z" stroke="currentColor" stroke-width="1.15" stroke-linejoin="round"/></svg>
+                  </button>
+                  <button onClick="{{ m.onToggle }}" style="width:26px;height:26px;border:1px solid #ECEAE4;border-radius:3px;background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:{{ m.toggleColor }};transition:all 0.15s;" style-hover="border-color:currentColor;">
+                    <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><circle cx="5.5" cy="5.5" r="4.5" stroke="currentColor" stroke-width="1.2"/><path d="M5.5 3v2.5L7 7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <!-- Right: Setup matrix import (320px) -->
+        <div style="width:320px; flex-shrink:0; display:flex; flex-direction:column; gap:12px;">
+
+          <!-- Setup import card -->
+          <div style="background:#FFFFFF; border-radius:4px; border:1px solid rgba(0,0,0,0.055); padding:20px;">
+            <div style="font-size:8px; letter-spacing:0.18em; color:#C0BFC8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:12px;">Matrice de setups</div>
+            <p style="font-size:12px; color:#8A8A9E; font-weight:300; line-height:1.65; margin-bottom:16px; text-wrap:pretty;">Importez la matrice des temps de transition entre familles de jobs. Format CSV : <span style="font-family:'DM Mono',monospace; font-size:10.5px; color:#444455;">from, to, duration</span></p>
+            <div style="border:1.5px dashed #DDDBD4; border-radius:4px; padding:22px; text-align:center; cursor:pointer; transition:all 0.2s; margin-bottom:14px;" style-hover="border-color:#C4963A; background:rgba(196,150,58,0.03);" onClick="{{ importSetupCSV }}">
+              <svg width="28" height="28" viewBox="0 0 28 28" fill="none" style="display:block;margin:0 auto 10px;opacity:0.4;"><rect x="3" y="5" width="22" height="18" rx="2" stroke="#0C0D18" stroke-width="1.5"/><path d="M9 14h10M14 9v10" stroke="#0C0D18" stroke-width="1.5" stroke-linecap="round"/></svg>
+              <div style="font-size:12px; font-weight:500; color:#0C0D18; margin-bottom:3px;">Glisser-déposer un CSV</div>
+              <div style="font-size:10.5px; color:#AAAAB8; font-family:'DM Mono',monospace;">ou cliquer pour parcourir</div>
+            </div>
+            <!-- Current matrix status -->
+            <div style="background:#FAFAF8; border-radius:3px; border:1px solid #ECEAE4; padding:11px 13px; display:flex; flex-direction:column; gap:6px;">
+              <div style="font-size:8px; letter-spacing:0.14em; color:#C0BFC8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:2px;">Matrice actuelle</div>
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size:11px; color:#8A8A9E;">Familles couvertes</span>
+                <span style="font-size:11.5px; font-family:'DM Mono',monospace; font-weight:500; color:#0C0D18;">6 × 6 = 36</span>
+              </div>
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size:11px; color:#8A8A9E;">Durée moy. setup</span>
+                <span style="font-size:11.5px; font-family:'DM Mono',monospace; font-weight:500; color:#0C0D18;">4.7 u.t.</span>
+              </div>
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size:11px; color:#8A8A9E;">Dernière màj</span>
+                <span style="font-size:11.5px; font-family:'DM Mono',monospace; color:#AAAAB8;">15 juin 2026</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Setup preview mini table -->
+          <div style="background:#FFFFFF; border-radius:4px; border:1px solid rgba(0,0,0,0.055); padding:20px; flex:1;">
+            <div style="font-size:8px; letter-spacing:0.18em; color:#C0BFC8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:12px;">Aperçu — durées de setup (u.t.)</div>
+            {{ setupTableSvg }}
+          </div>
+
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ─── TAB 3: SETTINGS ─── -->
+    <sc-if value="{{ isTabSettings }}" hint-placeholder-val="{{ false }}">
+      <div class="rows-scroll" style="flex:1; overflow-y:auto; padding:16px 32px 32px; animation:fadeUp 0.3s ease-out both;">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; max-width:900px;">
+
+          <!-- Organisation -->
+          <div style="background:#FFFFFF; border-radius:4px; border:1px solid rgba(0,0,0,0.055); padding:22px; display:flex; flex-direction:column; gap:16px;">
+            <div>
+              <div style="font-size:8px; letter-spacing:0.18em; color:#C0BFC8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:2px;">Organisation</div>
+              <div style="height:1px; background:#F0EEE9; margin-top:10px; margin-bottom:16px;"></div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:5px;">
+              <label style="font-size:10.5px; color:#666677; font-weight:500; letter-spacing:0.02em;">Nom de l'organisation</label>
+              <input type="text" value="{{ orgName }}" onChange="{{ onOrgNameChange }}" style="padding:9px 12px; font-size:13px; font-family:'DM Sans',sans-serif; border:1px solid #DDDBD6; border-radius:3px; color:#0C0D18; outline:none; transition:border-color 0.15s;" style-focus="border-color:#C4963A; box-shadow:0 0 0 3px rgba(196,150,58,0.08);" />
+            </div>
+            <div style="display:flex; flex-direction:column; gap:5px;">
+              <label style="font-size:10.5px; color:#666677; font-weight:500; letter-spacing:0.02em;">Identifiant tenant</label>
+              <div style="padding:9px 12px; font-size:12.5px; font-family:'DM Mono',monospace; border:1px solid #ECEAE4; border-radius:3px; color:#AAAAB8; background:#FAFAF8; letter-spacing:0.04em;">acier-industrie</div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:5px;">
+              <label style="font-size:10.5px; color:#666677; font-weight:500; letter-spacing:0.02em;">Fuseau horaire</label>
+              <div style="position:relative;">
+                <select value="{{ timezone }}" onChange="{{ onTimezoneChange }}" style="width:100%; padding:9px 30px 9px 12px; font-size:12.5px; font-family:'DM Mono',monospace; border:1px solid #DDDBD6; border-radius:3px; color:#0C0D18; outline:none; cursor:pointer; letter-spacing:0.03em; transition:border-color 0.15s;" style-focus="border-color:#C4963A;">
+                  <option value="Europe/Paris">Europe/Paris (UTC+2)</option>
+                  <option value="Europe/London">Europe/London (UTC+1)</option>
+                  <option value="America/New_York">America/New_York (UTC-4)</option>
+                  <option value="Asia/Tokyo">Asia/Tokyo (UTC+9)</option>
+                  <option value="UTC">UTC (UTC+0)</option>
+                </select>
+              </div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:5px;">
+              <label style="font-size:10.5px; color:#666677; font-weight:500; letter-spacing:0.02em;">Langue de l'interface</label>
+              <div style="position:relative;">
+                <select style="width:100%; padding:9px 30px 9px 12px; font-size:12.5px; font-family:'DM Mono',monospace; border:1px solid #DDDBD6; border-radius:3px; color:#0C0D18; outline:none; cursor:pointer; letter-spacing:0.03em;">
+                  <option>Français</option>
+                  <option>English</option>
+                  <option>Deutsch</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Solveur defaults -->
+          <div style="background:#FFFFFF; border-radius:4px; border:1px solid rgba(0,0,0,0.055); padding:22px; display:flex; flex-direction:column; gap:16px;">
+            <div>
+              <div style="font-size:8px; letter-spacing:0.18em; color:#C0BFC8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:2px;">Paramètres du solveur</div>
+              <div style="height:1px; background:#F0EEE9; margin-top:10px; margin-bottom:16px;"></div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:5px;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label style="font-size:10.5px; color:#666677; font-weight:500; letter-spacing:0.02em;">WR par défaut (taille voisinage)</label>
+                <span style="font-size:12px; font-family:'DM Mono',monospace; color:#C4963A; font-weight:600;">{{ solverWR }}</span>
+              </div>
+              <input type="range" min="1" max="6" step="1" value="{{ solverWR }}" onChange="{{ onWRChange }}" style="width:100%;" />
+              <div style="display:flex; justify-content:space-between; font-size:9px; color:#CCCCDA; font-family:'DM Mono',monospace;"><span>1 — rapide</span><span>6 — précis</span></div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:5px;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label style="font-size:10.5px; color:#666677; font-weight:500; letter-spacing:0.02em;">Timeout par fenêtre (s)</label>
+                <span style="font-size:12px; font-family:'DM Mono',monospace; color:#C4963A; font-weight:600;">{{ solverTimeout }}</span>
+              </div>
+              <input type="range" min="10" max="300" step="10" value="{{ solverTimeout }}" onChange="{{ onTimeoutChange }}" style="width:100%;" />
+              <div style="display:flex; justify-content:space-between; font-size:9px; color:#CCCCDA; font-family:'DM Mono',monospace;"><span>10s</span><span>300s</span></div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:5px;">
+              <label style="font-size:10.5px; color:#666677; font-weight:500; letter-spacing:0.02em;">Stratégie préférée</label>
+              <div style="display:flex; gap:6px;">
+                <button onClick="{{ setStratLocal }}" style="{{ stratLocalStyle }}">Fenêtres impactées</button>
+                <button onClick="{{ setStratFull }}" style="{{ stratFullStyle }}">Résolution complète</button>
+              </div>
+              <div style="font-size:10px; color:#AAAAB8; font-family:'DM Mono',monospace; margin-top:2px;">Utilisé par défaut sur l'écran Re-dispatch.</div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:5px;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label style="font-size:10.5px; color:#666677; font-weight:500; letter-spacing:0.02em;">Itérations max LNS</label>
+                <span style="font-size:12px; font-family:'DM Mono',monospace; color:#C4963A; font-weight:600;">{{ solverIter }}</span>
+              </div>
+              <input type="range" min="100" max="2000" step="100" value="{{ solverIter }}" onChange="{{ onIterChange }}" style="width:100%;" />
+            </div>
+          </div>
+
+          <!-- Notifications -->
+          <div style="background:#FFFFFF; border-radius:4px; border:1px solid rgba(0,0,0,0.055); padding:22px; display:flex; flex-direction:column; gap:13px;">
+            <div>
+              <div style="font-size:8px; letter-spacing:0.18em; color:#C0BFC8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:2px;">Notifications</div>
+              <div style="height:1px; background:#F0EEE9; margin-top:10px; margin-bottom:4px;"></div>
+            </div>
+            <sc-for list="{{ notifToggles }}" as="nt" hint-placeholder-count="4">
+              <div style="display:flex; align-items:center; justify-content:space-between; padding:6px 0; border-bottom:1px solid #F8F7F4;">
+                <div>
+                  <div style="font-size:12.5px; color:#0C0D18; font-weight:400; letter-spacing:-0.01em;">{{ nt.label }}</div>
+                  <div style="font-size:10px; color:#AAAAB8; font-family:'DM Mono',monospace; margin-top:2px;">{{ nt.desc }}</div>
+                </div>
+                <div onClick="{{ nt.onToggle }}" style="{{ nt.toggleStyle }}">
+                  <div style="{{ nt.knobStyle }}"></div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+
+          <!-- Danger zone -->
+          <div style="background:#FFFFFF; border-radius:4px; border:1px solid rgba(200,72,72,0.2); padding:22px; display:flex; flex-direction:column; gap:13px;">
+            <div>
+              <div style="font-size:8px; letter-spacing:0.18em; color:#C84848; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:2px;">Zone dangereuse</div>
+              <div style="height:1px; background:rgba(200,72,72,0.12); margin-top:10px; margin-bottom:4px;"></div>
+            </div>
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:16px;">
+              <div>
+                <div style="font-size:12.5px; color:#0C0D18; font-weight:500; margin-bottom:3px;">Réinitialiser les données du tenant</div>
+                <div style="font-size:11px; color:#AAAAB8; font-weight:300; line-height:1.5; text-wrap:pretty;">Supprime toutes les instances, solutions et configurations. Cette action est irréversible.</div>
+              </div>
+              <button style="padding:9px 16px; border:1px solid rgba(200,72,72,0.4); border-radius:3px; background:none; font-size:11px; font-family:'DM Sans',sans-serif; font-weight:500; color:#C84848; cursor:pointer; white-space:nowrap; transition:all 0.15s; flex-shrink:0;" style-hover="background:rgba(200,72,72,0.06);">Réinitialiser</button>
+            </div>
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:16px;">
+              <div>
+                <div style="font-size:12.5px; color:#0C0D18; font-weight:500; margin-bottom:3px;">Supprimer le tenant</div>
+                <div style="font-size:11px; color:#AAAAB8; font-weight:300; line-height:1.5;">Ferme définitivement le compte de l'organisation.</div>
+              </div>
+              <button style="padding:9px 16px; border:none; border-radius:3px; background:rgba(200,72,72,0.08); font-size:11px; font-family:'DM Sans',sans-serif; font-weight:500; color:#C84848; cursor:pointer; white-space:nowrap; transition:all 0.15s; flex-shrink:0;" style-hover="background:rgba(200,72,72,0.15);">Supprimer</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </sc-if>
+
+  </main>
+</div>
+
+<!-- ══ MODALS ══ -->
+
+<!-- Invite user modal -->
+<sc-if value="{{ showInviteModal }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeInviteModal }}" style="position:fixed;inset:0;background:rgba(8,9,15,0.75);z-index:200;display:flex;align-items:center;justify-content:center;animation:fadeIn 0.18s ease-out both;">
+    <div onClick="{{ stopProp }}" style="background:#FFFFFF;border-radius:5px;padding:34px;width:420px;max-width:90vw;animation:fadeUp 0.2s ease-out both;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;">
+        <div>
+          <div style="font-size:9px;letter-spacing:0.2em;color:#C4963A;font-family:'DM Mono',monospace;text-transform:uppercase;margin-bottom:9px;">Invitation</div>
+          <h2 style="font-size:21px;font-weight:500;letter-spacing:-0.03em;color:#0C0D18;">Inviter un utilisateur</h2>
+          <p style="margin-top:6px;font-size:13px;color:#AAAAB8;font-weight:300;">Un lien d'activation sera envoyé par e-mail.</p>
+        </div>
+        <button onClick="{{ closeInviteModal }}" style="width:30px;height:30px;border:1px solid #ECEAE4;border-radius:3px;background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#AAAAAA;flex-shrink:0;margin-left:12px;transition:all 0.15s;" style-hover="border-color:#0C0D18;color:#0C0D18;">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1 1l8 8M9 1L1 9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div style="margin-bottom:18px;">
+        <label style="display:block;font-size:9px;letter-spacing:0.16em;color:#AAAAB8;font-family:'DM Mono',monospace;text-transform:uppercase;margin-bottom:8px;">Adresse e-mail</label>
+        <input type="email" value="{{ newEmail }}" onChange="{{ onNewEmailChange }}" placeholder="prenom.nom@entreprise.fr" style="width:100%;padding:11px 13px;font-size:13px;font-family:'DM Sans',sans-serif;border:1px solid #DDDBD6;border-radius:3px;color:#18191F;outline:none;transition:all 0.2s;" style-focus="border-color:#C4963A;box-shadow:0 0 0 3px rgba(196,150,58,0.1);" />
+      </div>
+      <div style="margin-bottom:24px;">
+        <label style="display:block;font-size:9px;letter-spacing:0.16em;color:#AAAAB8;font-family:'DM Mono',monospace;text-transform:uppercase;margin-bottom:10px;">Rôle</label>
+        <div style="display:flex;gap:8px;">
+          <div onClick="{{ selectNewPlanif }}" style="{{ newRolePlanifStyle }}">
+            <div style="font-size:12.5px;font-weight:500;color:#0C0D18;">Planificateur</div>
+            <div style="font-size:11px;color:#AAAAB8;margin-top:2px;font-weight:300;">Accès complet</div>
+          </div>
+          <div onClick="{{ selectNewLecteur }}" style="{{ newRoleLecteurStyle }}">
+            <div style="font-size:12.5px;font-weight:500;color:#0C0D18;">Lecteur</div>
+            <div style="font-size:11px;color:#AAAAB8;margin-top:2px;font-weight:300;">Lecture seule</div>
+          </div>
+          <div onClick="{{ selectNewAdmin }}" style="{{ newRoleAdminStyle }}">
+            <div style="font-size:12.5px;font-weight:500;color:#0C0D18;">Admin</div>
+            <div style="font-size:11px;color:#AAAAB8;margin-top:2px;font-weight:300;">Gestion totale</div>
+          </div>
+        </div>
+      </div>
+      <button onClick="{{ sendInvite }}" style="width:100%;padding:12px;background:#0C0D18;border:none;border-radius:3px;font-size:12px;font-family:'DM Sans',sans-serif;font-weight:500;color:#F2F1EE;cursor:pointer;letter-spacing:0.12em;text-transform:uppercase;transition:background 0.2s;" style-hover="background:#1C1E30;">Envoyer l'invitation</button>
+    </div>
+  </div>
+</sc-if>
+
+<!-- Role edit modal -->
+<sc-if value="{{ showRoleModal }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeRoleModal }}" style="position:fixed;inset:0;background:rgba(8,9,15,0.75);z-index:200;display:flex;align-items:center;justify-content:center;animation:fadeIn 0.18s ease-out both;">
+    <div onClick="{{ stopProp }}" style="background:#FFFFFF;border-radius:5px;padding:32px;width:400px;max-width:90vw;animation:fadeUp 0.2s ease-out both;">
+      <div style="margin-bottom:22px;">
+        <div style="font-size:9px;letter-spacing:0.2em;color:#C4963A;font-family:'DM Mono',monospace;text-transform:uppercase;margin-bottom:9px;">Modification</div>
+        <h2 style="font-size:20px;font-weight:500;letter-spacing:-0.03em;color:#0C0D18;">Changer le rôle</h2>
+        <p style="margin-top:5px;font-size:12.5px;color:#AAAAB8;font-weight:300;">{{ editingUserName }}</p>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:24px;">
+        <div onClick="{{ setRolePlanif }}" style="{{ roleOptPlanifStyle }}">
+          <div style="flex:1;"><div style="font-size:13px;font-weight:500;color:#0C0D18;margin-bottom:2px;">Planificateur</div><div style="font-size:11.5px;color:#AAAAB8;font-weight:300;">Crée, importe, résout et consulte les instances.</div></div>
+          <div style="{{ roleRadioPlanif }}"></div>
+        </div>
+        <div onClick="{{ setRoleLecteur }}" style="{{ roleOptLecteurStyle }}">
+          <div style="flex:1;"><div style="font-size:13px;font-weight:500;color:#0C0D18;margin-bottom:2px;">Lecteur</div><div style="font-size:11.5px;color:#AAAAB8;font-weight:300;">Consulte uniquement les résultats et plannings.</div></div>
+          <div style="{{ roleRadioLecteur }}"></div>
+        </div>
+        <div onClick="{{ setRoleAdmin }}" style="{{ roleOptAdminStyle }}">
+          <div style="flex:1;"><div style="font-size:13px;font-weight:500;color:#0C0D18;margin-bottom:2px;">Admin</div><div style="font-size:11.5px;color:#AAAAB8;font-weight:300;">Accès complet + gestion des utilisateurs et paramètres.</div></div>
+          <div style="{{ roleRadioAdmin }}"></div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button onClick="{{ closeRoleModal }}" style="flex:1;padding:11px;background:none;border:1px solid #D8D6D0;border-radius:3px;font-size:12px;font-family:'DM Sans',sans-serif;color:#888896;cursor:pointer;">Annuler</button>
+        <button onClick="{{ confirmRoleChange }}" style="flex:2;padding:11px;background:#0C0D18;border:none;border-radius:3px;font-size:12px;font-family:'DM Sans',sans-serif;font-weight:500;color:#F2F1EE;cursor:pointer;letter-spacing:0.1em;text-transform:uppercase;">Confirmer</button>
+      </div>
+    </div>
+  </div>
+</sc-if>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+
+class Component extends DCLogic {
+  state = {
+    tab: 'users',
+    filter: 'all',
+    showInviteModal: false,
+    showRoleModal: false,
+    editingUserId: null,
+    editingRole: 'planificateur',
+    newEmail: '',
+    newRole: 'planificateur',
+    settingsSaved: false,
+    // Settings
+    orgName: 'Acier Industrie',
+    timezone: 'Europe/Paris',
+    solverWR: 3,
+    solverTimeout: 60,
+    solverIter: 500,
+    solverStrat: 'local',
+    // Notifications
+    notifSolveComplete: true,
+    notifLateIncrease: true,
+    notifNewUser: false,
+    notifWeeklyReport: true,
+    // Users
+    users: [
+      { id:1, initials:'ML', name:'Marc Lefebvre',    email:'marc.lefebvre@acier.fr',    role:'planificateur', status:'active',   lastLogin:"Aujourd'hui", bg:'linear-gradient(140deg,#3A6AC4,#1A3A8A)', isYou:false },
+      { id:2, initials:'MP', name:'Marie Petit',      email:'marie.petit@acier.fr',      role:'admin',         status:'active',   lastLogin:"Aujourd'hui", bg:'linear-gradient(140deg,#C4963A,#7A5214)', isYou:true  },
+      { id:3, initials:'SM', name:'Sophie Martin',    email:'sophie.martin@acier.fr',    role:'planificateur', status:'active',   lastLogin:'Hier',        bg:'linear-gradient(140deg,#3A6AC4,#1A3A8A)', isYou:false },
+      { id:4, initials:'LM', name:'Lucas Moreau',     email:'lucas.moreau@acier.fr',     role:'planificateur', status:'active',   lastLogin:'21 juin',     bg:'linear-gradient(140deg,#3A6AC4,#1A3A8A)', isYou:false },
+      { id:5, initials:'TD', name:'Thomas Dupont',    email:'thomas.dupont@acier.fr',    role:'lecteur',       status:'active',   lastLogin:'20 juin',     bg:'linear-gradient(140deg,#6A6A8A,#3A3A5A)', isYou:false },
+      { id:6, initials:'JB', name:'Julie Bernard',    email:'julie.bernard@acier.fr',    role:'lecteur',       status:'active',   lastLogin:'18 juin',     bg:'linear-gradient(140deg,#6A6A8A,#3A3A5A)', isYou:false },
+      { id:7, initials:'AR', name:'Antoine Rousseau', email:'a.rousseau@acier.fr',       role:'lecteur',       status:'inactive', lastLogin:'5 juin',      bg:'linear-gradient(140deg,#6A6A8A,#3A3A5A)', isYou:false },
+      { id:8, initials:'EL', name:'Emma Leroy',       email:'emma.leroy@acier.fr',       role:'planificateur', status:'pending',  lastLogin:'—',           bg:'linear-gradient(140deg,#3A6AC4,#1A3A8A)', isYou:false },
+    ],
+    // Machines
+    machines: [
+      { id:'M1', name:'Tour CNC Alpha',    location:'Secteur A',  type:'Usinage',    capacity:'1 job',    status:'active'      },
+      { id:'M2', name:'Fraiseuse Bêta',    location:'Secteur A',  type:'Fraisage',   capacity:'1 job',    status:'active'      },
+      { id:'M3', name:'Presse Gamma',      location:'Secteur B',  type:'Emboutissage', capacity:'2 jobs', status:'active'      },
+      { id:'M4', name:'Perceuse Delta',    location:'Secteur B',  type:'Perçage',    capacity:'1 job',    status:'maintenance' },
+      { id:'M5', name:'Rectifieuse Eps.',  location:'Secteur C',  type:'Rectification','capacity':'1 job',status:'active'      },
+      { id:'M6', name:'Tour CNC Zêta',     location:'Secteur A',  type:'Usinage',    capacity:'1 job',    status:'active'      },
+      { id:'M7', name:'Centre Eta',        location:'Secteur C',  type:'Multi-axes', capacity:'1 job',    status:'active'      },
+      { id:'M8', name:'Robot Thêta',       location:'Secteur D',  type:'Assemblage', capacity:'3 jobs',   status:'inactive'    },
+      { id:'M9', name:'Soudeuse Iota',     location:'Secteur D',  type:'Soudage',    capacity:'1 job',    status:'active'      },
+      { id:'M10', name:'Contrôle Kappa',   location:'Secteur E',  type:'Contrôle',   capacity:'4 jobs',   status:'active'      },
+    ],
+  };
+
+  roleInfo(role) {
+    return ({
+      planificateur: { label:'Planificateur', bg:'rgba(58,106,196,0.1)', color:'#3A6AC4' },
+      lecteur:       { label:'Lecteur',       bg:'rgba(106,106,138,0.1)', color:'#6A6A8A' },
+      admin:         { label:'Admin',         bg:'rgba(196,150,58,0.14)', color:'#A07820' },
+    })[role] || { label:role, bg:'#F4F3F0', color:'#888896' };
+  }
+
+  statusInfo(status) {
+    return ({
+      active:      { label:'Actif',       dot:'#2A7A5B', color:'#5A8A6A' },
+      inactive:    { label:'Inactif',     dot:'#8A8A9E', color:'#9A9AAE' },
+      pending:     { label:'En attente',  dot:'#C4963A', color:'#A07820' },
+      maintenance: { label:'Maintenance', dot:'#C84848', color:'#C84848' },
+    })[status] || { label:status, dot:'#C0BFB8', color:'#AAAAB8' };
+  }
+
+  machStatusInfo(status) {
+    return ({
+      active:      { label:'En service',  dot:'#2A7A5B', color:'#5A8A6A', toggleColor:'#2A7A5B' },
+      maintenance: { label:'Maintenance', dot:'#C84848', color:'#C84848', toggleColor:'#C84848' },
+      inactive:    { label:'Hors service', dot:'#8A8A9E', color:'#9A9AAE', toggleColor:'#8A8A9E' },
+    })[status] || { label:status, dot:'#AAAAB8', color:'#AAAAB8', toggleColor:'#AAAAB8' };
+  }
+
+  filterBtnStyle(id) {
+    const active = this.state.filter === id;
+    return { padding:'5px 11px', fontSize:'10.5px', fontFamily:"'DM Mono',monospace",
+      letterSpacing:'0.05em', border:active ? '1px solid #0C0D18' : '1px solid transparent',
+      borderRadius:'3px', cursor:'pointer',
+      background:active ? '#0C0D18' : 'transparent',
+      color:active ? '#F2F1EE' : '#AAAAB8', transition:'all 0.15s' };
+  }
+
+  tabStyle(id) {
+    const active = this.state.tab === id;
+    return { display:'flex', alignItems:'center', gap:'7px', padding:'10px 18px',
+      fontSize:'12.5px', fontFamily:"'DM Sans',sans-serif", fontWeight: active ? '500' : '400',
+      letterSpacing:'-0.01em', cursor:'pointer', background:'none', border:'none',
+      color: active ? '#0C0D18' : '#8A8A9E',
+      borderBottom: active ? '2px solid #C4963A' : '2px solid transparent',
+      marginBottom:'-1px', transition:'color 0.15s' };
+  }
+
+  tabBadgeStyle(active) {
+    return { fontSize:'9.5px', fontFamily:"'DM Mono',monospace",
+      background: active ? 'rgba(196,150,58,0.12)' : 'rgba(0,0,0,0.06)',
+      color: active ? '#C4963A' : '#AAAAB8',
+      padding:'1px 6px', borderRadius:'10px', transition:'all 0.15s' };
+  }
+
+  roleOptStyle(r) {
+    const sel = this.state.editingRole === r;
+    return { display:'flex', alignItems:'center', justifyContent:'space-between',
+      border: sel ? '1.5px solid #0C0D18' : '1.5px solid #ECEAE4',
+      borderRadius:'3px', padding:'11px 13px', cursor:'pointer', transition:'all 0.18s' };
+  }
+
+  radioStyle(r) {
+    const sel = this.state.editingRole === r;
+    return { width:'15px', height:'15px', borderRadius:'50%', flexShrink:0,
+      border: sel ? '5px solid #C4963A' : '1.5px solid #D8D6D0',
+      background:'#FFFFFF', transition:'border 0.2s' };
+  }
+
+  newRoleStyle(r) {
+    const sel = this.state.newRole === r;
+    return { flex:1, border: sel ? '1.5px solid #C4963A' : '1.5px solid #ECEAE4',
+      borderRadius:'3px', padding:'10px 12px', cursor:'pointer', transition:'all 0.18s',
+      background: sel ? 'rgba(196,150,58,0.04)' : 'transparent' };
+  }
+
+  toggleStyle(on) {
+    return { display:'flex', alignItems:'center', width:'34px', height:'19px',
+      borderRadius:'10px', background: on ? '#2A7A5B' : '#E0DED8',
+      padding:'2px', cursor:'pointer', transition:'background 0.2s', flexShrink:0 };
+  }
+  knobStyle(on) {
+    return { width:'15px', height:'15px', borderRadius:'50%', background:'#FFF',
+      boxShadow:'0 1px 3px rgba(0,0,0,0.18)', transform:on ? 'translateX(15px)' : 'translateX(0)',
+      transition:'transform 0.2s' };
+  }
+
+  buildSetupTableSvg() {
+    const ce = React.createElement;
+    const FAM = ['FA','FB','FC','FD','FE','FF'];
+    const N = FAM.length;
+    const data = [
+      [0,3,5,2,4,3],
+      [3,0,4,3,5,2],
+      [5,4,0,2,3,4],
+      [2,3,2,0,4,3],
+      [4,5,3,4,0,2],
+      [3,2,4,3,2,0],
+    ];
+    const CELL = 34, HEAD = 28, MARGIN = 28;
+    const W = MARGIN + HEAD + N * CELL + 8;
+    const H = MARGIN + HEAD + N * CELL + 8;
+    const maxVal = 5;
+    const elems = [];
+
+    // bg
+    elems.push(ce('rect', {key:'bg', x:0, y:0, width:W, height:H, fill:'#FFFFFF'}));
+
+    // Row / col headers
+    FAM.forEach((f, i) => {
+      elems.push(ce('text', {key:`rh${i}`, x:MARGIN + HEAD + i*CELL + CELL/2, y:MARGIN+18,
+        fontSize:9.5, fontFamily:'DM Mono,monospace', fill:'#8A8A9E', textAnchor:'middle', fontWeight:'500'}, f));
+      elems.push(ce('text', {key:`ch${i}`, x:MARGIN+22, y:MARGIN + HEAD + i*CELL + CELL/2 + 4,
+        fontSize:9.5, fontFamily:'DM Mono,monospace', fill:'#8A8A9E', textAnchor:'middle', fontWeight:'500'}, f));
+    });
+
+    // Corner label
+    elems.push(ce('text', {key:'corner', x:MARGIN+18, y:MARGIN+18, fontSize:8,
+      fontFamily:'DM Mono,monospace', fill:'#C8C8D4', textAnchor:'middle'}, '→'));
+
+    // Cells
+    data.forEach((row, ri) => {
+      row.forEach((val, ci) => {
+        const x = MARGIN + HEAD + ci * CELL;
+        const y = MARGIN + HEAD + ri * CELL;
+        const isDiag = ri === ci;
+        const intensity = isDiag ? 0 : val / maxVal;
+        const r = Math.round(255 - intensity * (255 - 42));
+        const g = Math.round(255 - intensity * (255 - 122));
+        const b = Math.round(255 - intensity * (255 - 91));
+        const fill = isDiag ? '#F4F3F0' : `rgb(${r},${g},${b})`;
+        const textCol = isDiag ? '#C8C8D4' : intensity > 0.5 ? '#FFFFFF' : '#0C0D18';
+        elems.push(ce('rect', {key:`c${ri}${ci}`, x:x+1, y:y+1, width:CELL-2, height:CELL-2, fill, rx:2}));
+        elems.push(ce('text', {key:`v${ri}${ci}`, x:x+CELL/2, y:y+CELL/2+4,
+          fontSize:10, fontFamily:'DM Mono,monospace', fill:textCol, textAnchor:'middle',
+          fontWeight:'500'}, isDiag ? '—' : val));
+      });
+    });
+
+    return ce('svg', {key:'setup', style:{display:'block', width:`${W}px`, height:`${H}px`, overflow:'visible'}}, ...elems);
+  }
+
+  renderVals() {
+    const s = this.state;
+    const editingUser = s.users.find(u => u.id === s.editingUserId);
+
+    // ── Users ──
+    const filteredUsers = s.users
+      .filter(u => s.filter === 'all' || u.role === s.filter)
+      .map(u => {
+        const ri = this.roleInfo(u.role);
+        const si = this.statusInfo(u.status);
+        const isActive = u.status === 'active';
+        return {
+          ...u,
+          roleBg:ri.bg, roleColor:ri.color, roleLabel:ri.label,
+          statusDot:si.dot, statusColor:si.color, statusLabel:si.label,
+          avatarBg:u.bg,
+          avatarColor: u.role === 'lecteur' ? '#DDDDE8' : '#0C0D18',
+          rowBg: u.isYou ? 'rgba(196,150,58,0.025)' : 'transparent',
+          nameWeight: u.isYou ? '500' : '400',
+          isActive, notActive:!isActive,
+          isPending: u.status === 'pending',
+          toggleTitle: isActive ? 'Désactiver' : 'Réactiver',
+          onEditRole: () => this.setState({ showRoleModal:true, editingUserId:u.id, editingRole:u.role }),
+          onToggle:   () => this.setState(st => ({ users:st.users.map(x => x.id===u.id ? {...x, status:x.status==='active'?'inactive':'active'} : x) })),
+          onDelete:   () => this.setState(st => ({ users:st.users.filter(x => x.id!==u.id) })),
+          onResend:   () => alert(`Invitation renvoyée à ${u.email}`),
+        };
+      });
+
+    const totalUsers   = s.users.length;
+    const activeCount  = s.users.filter(u => u.status==='active').length;
+    const planifCount  = s.users.filter(u => u.role==='planificateur').length;
+    const lecteurCount = s.users.filter(u => u.role==='lecteur').length;
+    const pendingCount = s.users.filter(u => u.status==='pending').length;
+
+    // ── Machines ──
+    const machines = s.machines.map(m => {
+      const si = this.machStatusInfo(m.status);
+      return { ...m, statusDot:si.dot, statusColor:si.color, statusLabel:si.label, toggleColor:si.toggleColor,
+        onEdit:   () => {},
+        onToggle: () => this.setState(st => ({
+          machines: st.machines.map(x => x.id===m.id ? {...x, status:x.status==='active'?'maintenance':'active'} : x)
+        })),
+      };
+    });
+
+    // ── Settings notifications ──
+    const makeToggle = (key, label, desc) => ({
+      label, desc,
+      toggleStyle: this.toggleStyle(s[key]),
+      knobStyle:   this.knobStyle(s[key]),
+      onToggle: () => this.setState(st => ({ [key]: !st[key] })),
+    });
+    const notifToggles = [
+      makeToggle('notifSolveComplete', 'Résolution terminée', 'Notifier par e-mail à chaque fin de solving.'),
+      makeToggle('notifLateIncrease',  'Augmentation des retards', 'Alerte si le retard pondéré augmente de plus de 10%.'),
+      makeToggle('notifNewUser',       'Nouvel utilisateur', 'Notifier à chaque invitation acceptée.'),
+      makeToggle('notifWeeklyReport',  'Rapport hebdomadaire', 'Résumé des performances envoyé chaque lundi.'),
+    ];
+
+    // Strategy buttons
+    const stratBtnBase = { padding:'8px 14px', fontSize:'11px', fontFamily:"'DM Mono',monospace",
+      letterSpacing:'0.04em', borderRadius:'3px', cursor:'pointer', transition:'all 0.15s', border:'none' };
+    const stratLocalActive = s.solverStrat === 'local';
+
+    // Tabs
+    const tabU = s.tab === 'users';
+    const tabM = s.tab === 'machines';
+    const tabP = s.tab === 'settings';
+
+    return {
+      // Nav
+      goDash:    () => { window.location.href='Dashboard.dc.html'; },
+      goResults: () => { window.location.href='Resultats.dc.html'; },
+
+      // Tabs
+      isTabUsers:    tabU, isTabMachines: tabM, isTabSettings: tabP,
+      setTabUsers:    () => this.setState({ tab:'users' }),
+      setTabMachines: () => this.setState({ tab:'machines' }),
+      setTabSettings: () => this.setState({ tab:'settings', settingsSaved:false }),
+      tabUsersStyle:    this.tabStyle('users'),
+      tabMachinesStyle: this.tabStyle('machines'),
+      tabSettingsStyle: this.tabStyle('settings'),
+      tabUsersBadgeStyle:    this.tabBadgeStyle(tabU),
+      tabMachinesBadgeStyle: this.tabBadgeStyle(tabM),
+
+      // Users
+      filteredUsers, totalUsers, activeCount, planifCount, lecteurCount, pendingCount,
+      filterAll:    () => this.setState({ filter:'all' }),
+      filterPlanif: () => this.setState({ filter:'planificateur' }),
+      filterLecteur:() => this.setState({ filter:'lecteur' }),
+      filterAdmin:  () => this.setState({ filter:'admin' }),
+      filterAllStyle:     this.filterBtnStyle('all'),
+      filterPlanifStyle:  this.filterBtnStyle('planificateur'),
+      filterLecteurStyle: this.filterBtnStyle('lecteur'),
+      filterAdminStyle:   this.filterBtnStyle('admin'),
+
+      // Invite modal
+      showInviteModal: s.showInviteModal, newEmail: s.newEmail, newRole: s.newRole,
+      openInviteModal:  () => this.setState({ showInviteModal:true, newEmail:'', newRole:'planificateur' }),
+      closeInviteModal: () => this.setState({ showInviteModal:false }),
+      onNewEmailChange: (e) => this.setState({ newEmail:e.target.value }),
+      selectNewPlanif:  () => this.setState({ newRole:'planificateur' }),
+      selectNewLecteur: () => this.setState({ newRole:'lecteur' }),
+      selectNewAdmin:   () => this.setState({ newRole:'admin' }),
+      newRolePlanifStyle: this.newRoleStyle('planificateur'),
+      newRoleLecteurStyle: this.newRoleStyle('lecteur'),
+      newRoleAdminStyle:   this.newRoleStyle('admin'),
+      sendInvite: () => {
+        const email = s.newEmail.trim();
+        if (!email) return;
+        const initials = email.split('@')[0].split('.').map(x=>x[0]?.toUpperCase()||'').join('').slice(0,2);
+        const name = email.split('@')[0].replace(/[._]/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+        this.setState(st => ({
+          showInviteModal:false,
+          users:[...st.users, { id:Date.now(), initials:initials||'NV', name, email,
+            role:st.newRole, status:'pending', lastLogin:'—',
+            bg:'linear-gradient(140deg,#3A6AC4,#1A3A8A)', isYou:false }],
+        }));
+      },
+
+      // Role modal
+      showRoleModal: s.showRoleModal,
+      editingUserName: editingUser ? editingUser.name : '',
+      editingRole: s.editingRole,
+      roleOptPlanifStyle: this.roleOptStyle('planificateur'),
+      roleOptLecteurStyle:this.roleOptStyle('lecteur'),
+      roleOptAdminStyle:  this.roleOptStyle('admin'),
+      roleRadioPlanif:    this.radioStyle('planificateur'),
+      roleRadioLecteur:   this.radioStyle('lecteur'),
+      roleRadioAdmin:     this.radioStyle('admin'),
+      setRolePlanif: () => this.setState({ editingRole:'planificateur' }),
+      setRoleLecteur:() => this.setState({ editingRole:'lecteur' }),
+      setRoleAdmin:  () => this.setState({ editingRole:'admin' }),
+      closeRoleModal:() => this.setState({ showRoleModal:false }),
+      confirmRoleChange: () => this.setState(st => ({
+        showRoleModal:false,
+        users:st.users.map(u => u.id===st.editingUserId ? {...u,role:st.editingRole} : u),
+      })),
+      stopProp: (e) => e.stopPropagation(),
+
+      // Machines
+      machines, machineCount: s.machines.length,
+      addMachine: () => {},
+      importSetupCSV: () => {},
+      setupTableSvg: this.buildSetupTableSvg(),
+
+      // Settings
+      orgName: s.orgName, timezone: s.timezone,
+      solverWR: s.solverWR, solverTimeout: s.solverTimeout, solverIter: s.solverIter,
+      onOrgNameChange:  (e) => this.setState({ orgName:e.target.value, settingsSaved:false }),
+      onTimezoneChange: (e) => this.setState({ timezone:e.target.value, settingsSaved:false }),
+      onWRChange:       (e) => this.setState({ solverWR:Number(e.target.value) }),
+      onTimeoutChange:  (e) => this.setState({ solverTimeout:Number(e.target.value) }),
+      onIterChange:     (e) => this.setState({ solverIter:Number(e.target.value) }),
+      stratLocalStyle:  { ...stratBtnBase, background:stratLocalActive?'#0C0D18':'rgba(0,0,0,0.05)', color:stratLocalActive?'#F2F1EE':'#888899', fontWeight:stratLocalActive?'500':'400' },
+      stratFullStyle:   { ...stratBtnBase, background:!stratLocalActive?'#0C0D18':'rgba(0,0,0,0.05)', color:!stratLocalActive?'#F2F1EE':'#888899', fontWeight:!stratLocalActive?'500':'400' },
+      setStratLocal:  () => this.setState({ solverStrat:'local' }),
+      setStratFull:   () => this.setState({ solverStrat:'full' }),
+      notifToggles,
+      settingsSaved: s.settingsSaved,
+      saveSettings: () => this.setState({ settingsSaved:true }),
+    };
+  }
+}
+
+</script>
+</body>
+</html>

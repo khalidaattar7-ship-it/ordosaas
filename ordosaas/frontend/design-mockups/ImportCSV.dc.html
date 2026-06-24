@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+
+<helmet>
+  <title>OrdoSaaS — Import de données</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    @keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+    @keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
+  </style>
+</helmet>
+
+<div style="display:flex; height:100vh; font-family:'DM Sans',sans-serif; overflow:hidden; background:#08090F;">
+
+  <!-- ══ SIDEBAR ══ -->
+  <aside style="width:232px; background:#08090F; display:flex; flex-direction:column; border-right:1px solid rgba(255,255,255,0.045); flex-shrink:0;">
+    <div style="padding:26px 22px 22px; border-bottom:1px solid rgba(255,255,255,0.04);">
+      <div style="display:flex; align-items:center; gap:13px;">
+        <svg width="36" height="36" viewBox="0 0 46 46" fill="none"><circle cx="23" cy="23" r="20" stroke="#C4963A" stroke-width="1.5"/><rect x="11" y="16.5" width="13" height="3.5" rx="1.75" fill="#C4963A"/><rect x="11" y="22.5" width="21" height="3.5" rx="1.75" fill="#C4963A"/><rect x="11" y="28.5" width="16" height="3.5" rx="1.75" fill="#C4963A" opacity="0.6"/></svg>
+        <div>
+          <div style="font-size:16.5px; font-weight:600; letter-spacing:-0.03em; color:#EAEAF5; line-height:1;">OrdoSaaS</div>
+          <div style="font-size:8px; letter-spacing:0.2em; color:#C4963A; font-family:'DM Mono',monospace; margin-top:3px; text-transform:uppercase;">Scheduling</div>
+        </div>
+      </div>
+    </div>
+    <nav style="flex:1; padding:16px 10px 8px;">
+      <div style="font-size:7.5px; letter-spacing:0.2em; color:#1E2032; font-family:'DM Mono',monospace; text-transform:uppercase; padding:0 12px; margin-bottom:8px;">Menu</div>
+      <div style="{{ navDashStyle }}" onClick="{{ setNavDash }}">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="9" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="1.5" y="9" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="9" y="9" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/></svg>
+        <span style="font-size:13.5px; letter-spacing:-0.01em;">Tableau de bord</span>
+      </div>
+      <div style="{{ navInstStyle }}" onClick="{{ setNavInst }}">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><path d="M2 5l6-3 6 3-6 3-6-3Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M2 9l6 3 6-3" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M2 12l6 3 6-3" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+        <span style="font-size:13.5px; letter-spacing:-0.01em;">Mes instances</span>
+        <span style="margin-left:auto; background:rgba(196,150,58,0.13); color:#C4963A; font-size:10px; font-family:'DM Mono',monospace; padding:2px 7px; border-radius:10px; line-height:1.5; flex-shrink:0;">47</span>
+      </div>
+      <div style="{{ navResStyle }}" onClick="{{ setNavRes }}">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><path d="M3 13V7M6.5 13V9M10 13V5M13.5 13V8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        <span style="font-size:13.5px; letter-spacing:-0.01em;">Résultats</span>
+      </div>
+      <div style="height:1px; background:rgba(255,255,255,0.04); margin:10px 12px;"></div>
+      <div style="{{ navSetStyle }}" onClick="{{ setNavSet }}">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+        <span style="font-size:13.5px; letter-spacing:-0.01em;">Paramètres</span>
+      </div>
+    </nav>
+    <div style="padding:16px 20px; border-top:1px solid rgba(255,255,255,0.04);">
+      <div style="display:flex; align-items:center; gap:11px;">
+        <div style="width:34px; height:34px; border-radius:50%; background:linear-gradient(140deg,#C4963A 0%,#7A5214 100%); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; color:#0C0D18; flex-shrink:0;">ML</div>
+        <div style="min-width:0; flex:1;">
+          <div style="font-size:13px; font-weight:500; color:#D8D8E5; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; letter-spacing:-0.01em;">M. Lefebvre</div>
+          <div style="font-size:9.5px; color:#36384E; font-family:'DM Mono',monospace; letter-spacing:0.05em; margin-top:1px;">Planificateur</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ══ MAIN ══ -->
+  <div style="flex:1; display:flex; overflow:hidden; min-width:0;">
+
+    <!-- Left: content -->
+    <div style="flex:1; background:#F2F1EE; overflow-y:auto; padding:30px 36px 40px; display:flex; flex-direction:column; gap:24px; min-width:0;">
+
+      <!-- Step indicator -->
+      <div style="display:flex; align-items:center; gap:0; animation:fadeUp 0.4s ease-out both;">
+        <div style="display:flex; align-items:center; gap:9px;">
+          <div style="width:24px; height:24px; border-radius:50%; background:#C4963A; color:#0C0D18; font-size:10.5px; font-weight:700; display:flex; align-items:center; justify-content:center; font-family:'DM Mono',monospace;">1</div>
+          <span style="font-size:13px; font-weight:500; color:#0C0D18; letter-spacing:-0.01em;">Import CSV</span>
+        </div>
+        <div style="width:36px; height:1px; background:#DDDBD6; margin:0 12px;"></div>
+        <div style="display:flex; align-items:center; gap:9px;">
+          <div style="width:24px; height:24px; border-radius:50%; border:1.5px solid #D8D6CF; color:#C0BFC8; font-size:10.5px; font-weight:500; display:flex; align-items:center; justify-content:center; font-family:'DM Mono',monospace;">2</div>
+          <span style="font-size:13px; font-weight:400; color:#C0BFC8; letter-spacing:-0.01em;">Configuration</span>
+        </div>
+        <div style="width:36px; height:1px; background:#DDDBD6; margin:0 12px;"></div>
+        <div style="display:flex; align-items:center; gap:9px;">
+          <div style="width:24px; height:24px; border-radius:50%; border:1.5px solid #D8D6CF; color:#C0BFC8; font-size:10.5px; font-weight:500; display:flex; align-items:center; justify-content:center; font-family:'DM Mono',monospace;">3</div>
+          <span style="font-size:13px; font-weight:400; color:#C0BFC8; letter-spacing:-0.01em;">Résolution</span>
+        </div>
+      </div>
+
+      <!-- Page header -->
+      <div style="animation:fadeUp 0.4s 0.05s ease-out both;">
+        <div style="font-size:9px; letter-spacing:0.22em; color:#C4963A; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:9px;">Nouvelle instance</div>
+        <h1 style="font-size:26px; font-weight:500; letter-spacing:-0.035em; color:#0C0D18; line-height:1.1;">Import de données</h1>
+        <p style="margin-top:7px; font-size:13.5px; color:#AAAAB8; font-weight:300;">Chargez vos fichiers CSV pour initialiser l'instance de planification.</p>
+      </div>
+
+      <!-- ── File cards ── -->
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; animation:fadeUp 0.45s 0.1s ease-out both;">
+
+        <!-- jobs.csv -->
+        <div style="{{ jobsCardStyle }}" onDragOver="{{ jobsDragOver }}" onDragEnter="{{ jobsDragEnter }}" onDragLeave="{{ jobsDragLeave }}" onDrop="{{ jobsDrop }}" onClick="{{ clickJobs }}">
+          <input id="in-jobs" type="file" accept=".csv" onChange="{{ handleJobsChange }}" style="display:none;" />
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+            <span style="font-size:10px; letter-spacing:0.16em; color:#C4963A; font-family:'DM Mono',monospace; text-transform:uppercase; font-weight:500;">jobs.csv</span>
+            <span style="font-size:8.5px; background:rgba(12,13,24,0.07); color:#8A8A9E; font-family:'DM Mono',monospace; padding:2px 8px; border-radius:2px; letter-spacing:0.06em;">Requis</span>
+          </div>
+
+          <sc-if value="{{ jobsIsIdle }}" hint-placeholder-val="{{ true }}">
+            <div style="text-align:center; padding:18px 10px 14px;">
+              <svg width="32" height="32" viewBox="0 0 32 32" fill="none" style="margin:0 auto 10px; display:block; opacity:0.35;"><rect x="4" y="4" width="24" height="24" rx="3" stroke="#888" stroke-width="1.3" stroke-dasharray="3,2.5"/><path d="M16 12v8M13 15l3-3 3 3" stroke="#888" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <p style="font-size:12px; color:#B0B0BE; line-height:1.65; font-weight:300;">Glissez ici<br/>ou <span style="color:#C4963A; font-weight:400;">parcourez</span></p>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ jobsIsReading }}" hint-placeholder-val="{{ false }}">
+            <div style="text-align:center; padding:18px 10px 14px;">
+              <div style="width:24px; height:24px; border:2px solid #DDDBD6; border-top-color:#C4963A; border-radius:50%; margin:0 auto 10px; animation:spin 0.8s linear infinite;"></div>
+              <p style="font-size:12px; color:#B0B0BE; font-weight:300;">Analyse en cours…</p>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ jobsIsValid }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:8px 0 12px;">
+              <div style="width:24px; height:24px; border-radius:50%; background:rgba(42,122,91,0.12); display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px;">
+                <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M1.5 5.5l2.8 3 5.2-5.5" stroke="#2A7A5B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <div style="min-width:0;">
+                <div style="font-size:12.5px; font-weight:500; color:#0C0D18; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; letter-spacing:-0.01em;">{{ jobsFileName }}</div>
+                <div style="font-size:11.5px; color:#2A7A5B; margin-top:3px; font-family:'DM Mono',monospace;">{{ jobsRowCount }} jobs détectés</div>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ jobsIsError }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:8px 0 12px;">
+              <div style="width:24px; height:24px; border-radius:50%; background:rgba(200,72,72,0.1); display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px;">
+                <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M5.5 3v3M5.5 8h.01" stroke="#C84848" stroke-width="1.6" stroke-linecap="round"/></svg>
+              </div>
+              <div style="min-width:0;">
+                <div style="font-size:12px; color:#C84848; line-height:1.5; font-weight:300;">{{ jobsFirstError }}</div>
+                <div style="font-size:11px; color:#C0A0A0; margin-top:4px;">Cliquez pour réessayer</div>
+              </div>
+            </div>
+          </sc-if>
+
+          <div style="border-top:1px solid #F0EEE9; padding-top:12px; margin-top:auto;">
+            <div style="display:flex; flex-wrap:wrap; gap:5px;">
+              <span style="font-size:10px; font-family:'DM Mono',monospace; background:#F4F3F0; color:#888896; padding:2px 8px; border-radius:2px; letter-spacing:0.05em;">job_id</span>
+              <span style="font-size:10px; font-family:'DM Mono',monospace; background:#F4F3F0; color:#888896; padding:2px 8px; border-radius:2px; letter-spacing:0.05em;">deadline</span>
+              <span style="font-size:10px; font-family:'DM Mono',monospace; background:#F4F3F0; color:#888896; padding:2px 8px; border-radius:2px; letter-spacing:0.05em;">weight</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- operations.csv -->
+        <div style="{{ opsCardStyle }}" onDragOver="{{ opsDragOver }}" onDragEnter="{{ opsDragEnter }}" onDragLeave="{{ opsDragLeave }}" onDrop="{{ opsDrop }}" onClick="{{ clickOps }}">
+          <input id="in-ops" type="file" accept=".csv" onChange="{{ handleOpsChange }}" style="display:none;" />
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+            <span style="font-size:10px; letter-spacing:0.16em; color:#C4963A; font-family:'DM Mono',monospace; text-transform:uppercase; font-weight:500;">operations.csv</span>
+            <span style="font-size:8.5px; background:rgba(12,13,24,0.07); color:#8A8A9E; font-family:'DM Mono',monospace; padding:2px 8px; border-radius:2px; letter-spacing:0.06em;">Requis</span>
+          </div>
+
+          <sc-if value="{{ opsIsIdle }}" hint-placeholder-val="{{ true }}">
+            <div style="text-align:center; padding:18px 10px 14px;">
+              <svg width="32" height="32" viewBox="0 0 32 32" fill="none" style="margin:0 auto 10px; display:block; opacity:0.35;"><rect x="4" y="4" width="24" height="24" rx="3" stroke="#888" stroke-width="1.3" stroke-dasharray="3,2.5"/><path d="M16 12v8M13 15l3-3 3 3" stroke="#888" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <p style="font-size:12px; color:#B0B0BE; line-height:1.65; font-weight:300;">Glissez ici<br/>ou <span style="color:#C4963A; font-weight:400;">parcourez</span></p>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ opsIsReading }}" hint-placeholder-val="{{ false }}">
+            <div style="text-align:center; padding:18px 10px 14px;">
+              <div style="width:24px; height:24px; border:2px solid #DDDBD6; border-top-color:#C4963A; border-radius:50%; margin:0 auto 10px; animation:spin 0.8s linear infinite;"></div>
+              <p style="font-size:12px; color:#B0B0BE; font-weight:300;">Analyse en cours…</p>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ opsIsValid }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:8px 0 12px;">
+              <div style="width:24px; height:24px; border-radius:50%; background:rgba(42,122,91,0.12); display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px;">
+                <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M1.5 5.5l2.8 3 5.2-5.5" stroke="#2A7A5B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <div style="min-width:0;">
+                <div style="font-size:12.5px; font-weight:500; color:#0C0D18; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; letter-spacing:-0.01em;">{{ opsFileName }}</div>
+                <div style="font-size:11.5px; color:#2A7A5B; margin-top:3px; font-family:'DM Mono',monospace;">{{ opsRowCount }} opérations détectées</div>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ opsIsError }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:8px 0 12px;">
+              <div style="width:24px; height:24px; border-radius:50%; background:rgba(200,72,72,0.1); display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px;">
+                <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M5.5 3v3M5.5 8h.01" stroke="#C84848" stroke-width="1.6" stroke-linecap="round"/></svg>
+              </div>
+              <div style="min-width:0;">
+                <div style="font-size:12px; color:#C84848; line-height:1.5; font-weight:300;">{{ opsFirstError }}</div>
+                <div style="font-size:11px; color:#C0A0A0; margin-top:4px;">Cliquez pour réessayer</div>
+              </div>
+            </div>
+          </sc-if>
+
+          <div style="border-top:1px solid #F0EEE9; padding-top:12px; margin-top:auto;">
+            <div style="display:flex; flex-wrap:wrap; gap:5px;">
+              <span style="font-size:10px; font-family:'DM Mono',monospace; background:#F4F3F0; color:#888896; padding:2px 8px; border-radius:2px; letter-spacing:0.05em;">job_id</span>
+              <span style="font-size:10px; font-family:'DM Mono',monospace; background:#F4F3F0; color:#888896; padding:2px 8px; border-radius:2px; letter-spacing:0.05em;">machine_id</span>
+              <span style="font-size:10px; font-family:'DM Mono',monospace; background:#F4F3F0; color:#888896; padding:2px 8px; border-radius:2px; letter-spacing:0.05em;">duration</span>
+              <span style="font-size:10px; font-family:'DM Mono',monospace; background:#F4F3F0; color:#888896; padding:2px 8px; border-radius:2px; letter-spacing:0.05em;">position</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- setups.csv -->
+        <div style="{{ setupsCardStyle }}" onDragOver="{{ setupsDragOver }}" onDragEnter="{{ setupsDragEnter }}" onDragLeave="{{ setupsDragLeave }}" onDrop="{{ setupsDrop }}" onClick="{{ clickSetups }}">
+          <input id="in-setups" type="file" accept=".csv" onChange="{{ handleSetupsChange }}" style="display:none;" />
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+            <span style="font-size:10px; letter-spacing:0.16em; color:#B0A080; font-family:'DM Mono',monospace; text-transform:uppercase; font-weight:500;">setups.csv</span>
+            <span style="font-size:8.5px; background:rgba(12,13,24,0.05); color:#AAAAB8; font-family:'DM Mono',monospace; padding:2px 8px; border-radius:2px; letter-spacing:0.06em;">Optionnel</span>
+          </div>
+
+          <sc-if value="{{ setupsIsIdle }}" hint-placeholder-val="{{ true }}">
+            <div style="text-align:center; padding:18px 10px 14px;">
+              <svg width="32" height="32" viewBox="0 0 32 32" fill="none" style="margin:0 auto 10px; display:block; opacity:0.22;"><rect x="4" y="4" width="24" height="24" rx="3" stroke="#888" stroke-width="1.3" stroke-dasharray="3,2.5"/><path d="M16 12v8M13 15l3-3 3 3" stroke="#888" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <p style="font-size:12px; color:#C8C8D4; line-height:1.65; font-weight:300;">Glissez ici<br/>ou <span style="color:#C4963A; opacity:0.7; font-weight:400;">parcourez</span></p>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ setupsIsReading }}" hint-placeholder-val="{{ false }}">
+            <div style="text-align:center; padding:18px 10px 14px;">
+              <div style="width:24px; height:24px; border:2px solid #DDDBD6; border-top-color:#C4963A; border-radius:50%; margin:0 auto 10px; animation:spin 0.8s linear infinite;"></div>
+              <p style="font-size:12px; color:#B0B0BE; font-weight:300;">Analyse en cours…</p>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ setupsIsValid }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:8px 0 12px;">
+              <div style="width:24px; height:24px; border-radius:50%; background:rgba(42,122,91,0.12); display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px;">
+                <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M1.5 5.5l2.8 3 5.2-5.5" stroke="#2A7A5B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <div style="min-width:0;">
+                <div style="font-size:12.5px; font-weight:500; color:#0C0D18; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; letter-spacing:-0.01em;">{{ setupsFileName }}</div>
+                <div style="font-size:11.5px; color:#2A7A5B; margin-top:3px; font-family:'DM Mono',monospace;">{{ setupsRowCount }} temps de changement</div>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ setupsIsError }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex; align-items:flex-start; gap:10px; padding:8px 0 12px;">
+              <div style="width:24px; height:24px; border-radius:50%; background:rgba(200,72,72,0.1); display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px;">
+                <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M5.5 3v3M5.5 8h.01" stroke="#C84848" stroke-width="1.6" stroke-linecap="round"/></svg>
+              </div>
+              <div style="min-width:0;">
+                <div style="font-size:12px; color:#C84848; line-height:1.5; font-weight:300;">{{ setupsFirstError }}</div>
+                <div style="font-size:11px; color:#C0A0A0; margin-top:4px;">Cliquez pour réessayer</div>
+              </div>
+            </div>
+          </sc-if>
+
+          <div style="border-top:1px solid #F0EEE9; padding-top:12px; margin-top:auto;">
+            <div style="display:flex; flex-wrap:wrap; gap:5px;">
+              <span style="font-size:10px; font-family:'DM Mono',monospace; background:#F4F3F0; color:#AAAABC; padding:2px 8px; border-radius:2px; letter-spacing:0.05em;">from_job</span>
+              <span style="font-size:10px; font-family:'DM Mono',monospace; background:#F4F3F0; color:#AAAABC; padding:2px 8px; border-radius:2px; letter-spacing:0.05em;">to_job</span>
+              <span style="font-size:10px; font-family:'DM Mono',monospace; background:#F4F3F0; color:#AAAABC; padding:2px 8px; border-radius:2px; letter-spacing:0.05em;">machine_id</span>
+              <span style="font-size:10px; font-family:'DM Mono',monospace; background:#F4F3F0; color:#AAAABC; padding:2px 8px; border-radius:2px; letter-spacing:0.05em;">duration</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ── Validation summary ── -->
+      <sc-if value="{{ anyUploaded }}" hint-placeholder-val="{{ false }}">
+        <div style="background:#FFFFFF; border-radius:4px; border:1px solid rgba(0,0,0,0.055); overflow:hidden; animation:fadeUp 0.35s ease-out both;">
+          <div style="padding:16px 22px 14px; border-bottom:1px solid #F0EEE9; display:flex; align-items:center; justify-content:space-between;">
+            <div style="font-size:13.5px; font-weight:500; color:#0C0D18; letter-spacing:-0.02em;">Analyse des données</div>
+            <div style="font-size:9px; letter-spacing:0.16em; color:#2A7A5B; font-family:'DM Mono',monospace; text-transform:uppercase; background:rgba(42,122,91,0.08); padding:4px 10px; border-radius:2px;">Lecture terminée</div>
+          </div>
+          <div style="display:grid; grid-template-columns:repeat(5,1fr); divide-x:1px solid #F0EEE9;">
+            <div style="padding:18px 22px; border-right:1px solid #F4F3F0;">
+              <div style="font-size:8.5px; letter-spacing:0.16em; color:#C0BFB8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:8px;">Jobs</div>
+              <div style="font-size:28px; font-weight:300; color:#0C0D18; letter-spacing:-0.04em; font-variant-numeric:tabular-nums; line-height:1;">{{ jobsCount }}</div>
+            </div>
+            <div style="padding:18px 22px; border-right:1px solid #F4F3F0;">
+              <div style="font-size:8.5px; letter-spacing:0.16em; color:#C0BFB8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:8px;">Machines</div>
+              <div style="font-size:28px; font-weight:300; color:#0C0D18; letter-spacing:-0.04em; font-variant-numeric:tabular-nums; line-height:1;">{{ machineCount }}</div>
+            </div>
+            <div style="padding:18px 22px; border-right:1px solid #F4F3F0;">
+              <div style="font-size:8.5px; letter-spacing:0.16em; color:#C0BFB8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:8px;">Opérations</div>
+              <div style="font-size:28px; font-weight:300; color:#0C0D18; letter-spacing:-0.04em; font-variant-numeric:tabular-nums; line-height:1;">{{ opsCount }}</div>
+            </div>
+            <div style="padding:18px 22px; border-right:1px solid #F4F3F0;">
+              <div style="font-size:8.5px; letter-spacing:0.16em; color:#C0BFB8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:8px;">Erreurs</div>
+              <div style="font-size:28px; font-weight:300; color:{{ errorsColor }}; letter-spacing:-0.04em; font-variant-numeric:tabular-nums; line-height:1;">{{ totalErrors }}</div>
+            </div>
+            <div style="padding:18px 22px;">
+              <div style="font-size:8.5px; letter-spacing:0.16em; color:#C0BFB8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:8px;">Avertissements</div>
+              <div style="font-size:28px; font-weight:300; color:{{ warningsColor }}; letter-spacing:-0.04em; font-variant-numeric:tabular-nums; line-height:1;">{{ totalWarnings }}</div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ── Data preview ── -->
+      <sc-if value="{{ showPreview }}" hint-placeholder-val="{{ false }}">
+        <div style="background:#FFFFFF; border-radius:4px; border:1px solid rgba(0,0,0,0.055); overflow:hidden; animation:fadeUp 0.35s 0.05s ease-out both;">
+          <div style="padding:14px 22px; border-bottom:1px solid #F0EEE9; display:flex; align-items:center; justify-content:space-between;">
+            <div style="font-size:13.5px; font-weight:500; color:#0C0D18; letter-spacing:-0.02em;">Aperçu des données</div>
+            <div style="display:flex; gap:5px;">
+              <button onClick="{{ setPreviewJobs }}" style="{{ previewTabJobsStyle }}">jobs</button>
+              <button onClick="{{ setPreviewOps }}" style="{{ previewTabOpsStyle }}">operations</button>
+              <button onClick="{{ setPreviewSetups }}" style="{{ previewTabSetupsStyle }}">setups</button>
+            </div>
+          </div>
+          <div style="overflow-x:auto;">
+            <table style="width:100%; border-collapse:collapse; font-family:'DM Mono',monospace; font-size:12px; min-width:400px;">
+              <thead>
+                <tr style="background:#FDFCFB;">
+                  <th style="text-align:left; padding:10px 22px; font-size:8.5px; letter-spacing:0.14em; color:#C0BFB8; font-weight:500; text-transform:uppercase; border-bottom:1px solid #F0EEE9; white-space:nowrap;">{{ previewH0 }}</th>
+                  <th style="text-align:left; padding:10px 18px; font-size:8.5px; letter-spacing:0.14em; color:#C0BFB8; font-weight:500; text-transform:uppercase; border-bottom:1px solid #F0EEE9; white-space:nowrap;">{{ previewH1 }}</th>
+                  <th style="text-align:left; padding:10px 18px; font-size:8.5px; letter-spacing:0.14em; color:#C0BFB8; font-weight:500; text-transform:uppercase; border-bottom:1px solid #F0EEE9; white-space:nowrap;">{{ previewH2 }}</th>
+                  <th style="text-align:left; padding:10px 18px; font-size:8.5px; letter-spacing:0.14em; color:#C0BFB8; font-weight:500; text-transform:uppercase; border-bottom:1px solid #F0EEE9; white-space:nowrap;">{{ previewH3 }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <sc-for list="{{ previewRows }}" as="row" hint-placeholder-count="4">
+                  <tr style="border-bottom:1px solid #F8F7F4; transition:background 0.12s;" style-hover="background:#FDFCFB;">
+                    <td style="padding:10px 22px; color:#3C3E4F; letter-spacing:0.02em;">{{ row.c0 }}</td>
+                    <td style="padding:10px 18px; color:#3C3E4F; letter-spacing:0.02em;">{{ row.c1 }}</td>
+                    <td style="padding:10px 18px; color:#3C3E4F; letter-spacing:0.02em;">{{ row.c2 }}</td>
+                    <td style="padding:10px 18px; color:#3C3E4F; letter-spacing:0.02em;">{{ row.c3 }}</td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+          <div style="padding:10px 22px; border-top:1px solid #F4F3F0; background:#FDFCFB;">
+            <span style="font-size:10.5px; color:#C0BFB8; font-family:'DM Mono',monospace;">5 premières lignes affichées</span>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ── Actions ── -->
+      <div style="display:flex; align-items:center; justify-content:space-between; padding-top:4px;">
+        <button style="display:flex; align-items:center; gap:8px; background:none; border:1px solid #D8D6D0; padding:11px 18px; border-radius:3px; font-size:12px; font-family:'DM Sans',sans-serif; color:#888896; cursor:pointer; letter-spacing:0.06em; transition:all 0.15s;" style-hover="border-color:#0C0D18; color:#0C0D18;">
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M7 1.5L2.5 5.5 7 9.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Retour
+        </button>
+        <button style="{{ continueStyle }}" onClick="{{ continueClick }}">
+          Continuer — Configuration
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M4 1.5l4.5 4L4 9.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Right: format reference -->
+    <div style="width:272px; background:#FAFAF8; border-left:1px solid rgba(0,0,0,0.06); overflow-y:auto; padding:28px 22px; flex-shrink:0;">
+
+      <div style="font-size:9px; letter-spacing:0.2em; color:#C4963A; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:20px;">Format attendu</div>
+
+      <!-- jobs.csv reference -->
+      <div style="margin-bottom:22px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+          <span style="font-size:11px; font-family:'DM Mono',monospace; color:#0C0D18; font-weight:500; letter-spacing:0.04em;">jobs.csv</span>
+          <span style="font-size:8.5px; background:rgba(196,150,58,0.1); color:#A07828; font-family:'DM Mono',monospace; padding:2px 6px; border-radius:2px;">Requis</span>
+        </div>
+        <div style="background:#FFFFFF; border:1px solid #ECEAE4; border-radius:3px; overflow:hidden;">
+          <div style="display:grid; grid-template-columns:1fr 1fr; border-bottom:1px solid #F4F3F0; background:#FDFCFB;">
+            <div style="padding:6px 10px; font-size:9px; font-family:'DM Mono',monospace; color:#C0BFB8; letter-spacing:0.1em; text-transform:uppercase;">Colonne</div>
+            <div style="padding:6px 10px; font-size:9px; font-family:'DM Mono',monospace; color:#C0BFB8; letter-spacing:0.1em; text-transform:uppercase;">Type</div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; border-bottom:1px solid #F8F7F4;">
+            <div style="padding:7px 10px; font-size:11px; font-family:'DM Mono',monospace; color:#3C3E4F;">job_id</div>
+            <div style="padding:7px 10px; font-size:11px; font-family:'DM Mono',monospace; color:#AAAAB8;">string</div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; border-bottom:1px solid #F8F7F4;">
+            <div style="padding:7px 10px; font-size:11px; font-family:'DM Mono',monospace; color:#3C3E4F;">deadline</div>
+            <div style="padding:7px 10px; font-size:11px; font-family:'DM Mono',monospace; color:#AAAAB8;">int (min)</div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr;">
+            <div style="padding:7px 10px; font-size:11px; font-family:'DM Mono',monospace; color:#3C3E4F;">weight</div>
+            <div style="padding:7px 10px; font-size:11px; font-family:'DM Mono',monospace; color:#AAAAB8;">float</div>
+          </div>
+        </div>
+        <div style="margin-top:7px; font-size:10.5px; color:#B8B8C5; font-family:'DM Mono',monospace; line-height:1.55;">Ex: J1,480,3.0</div>
+      </div>
+
+      <!-- operations.csv reference -->
+      <div style="margin-bottom:22px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+          <span style="font-size:11px; font-family:'DM Mono',monospace; color:#0C0D18; font-weight:500; letter-spacing:0.04em;">operations.csv</span>
+          <span style="font-size:8.5px; background:rgba(196,150,58,0.1); color:#A07828; font-family:'DM Mono',monospace; padding:2px 6px; border-radius:2px;">Requis</span>
+        </div>
+        <div style="background:#FFFFFF; border:1px solid #ECEAE4; border-radius:3px; overflow:hidden;">
+          <div style="display:grid; grid-template-columns:1fr 1fr; border-bottom:1px solid #F4F3F0; background:#FDFCFB;">
+            <div style="padding:6px 10px; font-size:9px; font-family:'DM Mono',monospace; color:#C0BFB8; letter-spacing:0.1em; text-transform:uppercase;">Colonne</div>
+            <div style="padding:6px 10px; font-size:9px; font-family:'DM Mono',monospace; color:#C0BFB8; letter-spacing:0.1em; text-transform:uppercase;">Type</div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; border-bottom:1px solid #F8F7F4;">
+            <div style="padding:7px 10px; font-size:11px; font-family:'DM Mono',monospace; color:#3C3E4F;">job_id</div>
+            <div style="padding:7px 10px; font-size:11px; font-family:'DM Mono',monospace; color:#AAAAB8;">string</div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; border-bottom:1px solid #F8F7F4;">
+            <div style="padding:7px 10px; font-size:11px; font-family:'DM Mono',monospace; color:#3C3E4F;">machine_id</div>
+            <div style="padding:7px 10px; font-size:11px; font-family:'DM Mono',monospace; color:#AAAAB8;">string</div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; border-bottom:1px solid #F8F7F4;">
+            <div style="padding:7px 10px; font-size:11px; font-family:'DM Mono',monospace; color:#3C3E4F;">duration</div>
+            <div style="padding:7px 10px; font-size:11px; font-family:'DM Mono',monospace; color:#AAAAB8;">int (min)</div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr;">
+            <div style="padding:7px 10px; font-size:11px; font-family:'DM Mono',monospace; color:#3C3E4F;">position</div>
+            <div style="padding:7px 10px; font-size:11px; font-family:'DM Mono',monospace; color:#AAAAB8;">int</div>
+          </div>
+        </div>
+        <div style="margin-top:7px; font-size:10.5px; color:#B8B8C5; font-family:'DM Mono',monospace; line-height:1.55;">Ex: J1,M2,60,1</div>
+      </div>
+
+      <!-- setups.csv reference -->
+      <div style="margin-bottom:22px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+          <span style="font-size:11px; font-family:'DM Mono',monospace; color:#0C0D18; font-weight:500; letter-spacing:0.04em;">setups.csv</span>
+          <span style="font-size:8.5px; background:rgba(0,0,0,0.04); color:#AAAAB8; font-family:'DM Mono',monospace; padding:2px 6px; border-radius:2px;">Optionnel</span>
+        </div>
+        <div style="background:#FFFFFF; border:1px solid #ECEAE4; border-radius:3px; overflow:hidden;">
+          <div style="display:grid; grid-template-columns:1fr 1fr; border-bottom:1px solid #F4F3F0; background:#FDFCFB;">
+            <div style="padding:6px 10px; font-size:9px; font-family:'DM Mono',monospace; color:#C0BFB8; letter-spacing:0.1em; text-transform:uppercase;">Colonne</div>
+            <div style="padding:6px 10px; font-size:9px; font-family:'DM Mono',monospace; color:#C0BFB8; letter-spacing:0.1em; text-transform:uppercase;">Type</div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; border-bottom:1px solid #F8F7F4;">
+            <div style="padding:7px 10px; font-size:11px; font-family:'DM Mono',monospace; color:#3C3E4F; opacity:0.7;">from_job</div>
+            <div style="padding:7px 10px; font-size:11px; font-family:'DM Mono',monospace; color:#AAAAB8;">string</div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; border-bottom:1px solid #F8F7F4;">
+            <div style="padding:7px 10px; font-size:11px; font-family:'DM Mono',monospace; color:#3C3E4F; opacity:0.7;">to_job</div>
+            <div style="padding:7px 10px; font-size:11px; font-family:'DM Mono',monospace; color:#AAAAB8;">string</div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; border-bottom:1px solid #F8F7F4;">
+            <div style="padding:7px 10px; font-size:11px; font-family:'DM Mono',monospace; color:#3C3E4F; opacity:0.7;">machine_id</div>
+            <div style="padding:7px 10px; font-size:11px; font-family:'DM Mono',monospace; color:#AAAAB8;">string</div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr;">
+            <div style="padding:7px 10px; font-size:11px; font-family:'DM Mono',monospace; color:#3C3E4F; opacity:0.7;">duration</div>
+            <div style="padding:7px 10px; font-size:11px; font-family:'DM Mono',monospace; color:#AAAAB8;">int (min)</div>
+          </div>
+        </div>
+        <div style="margin-top:7px; font-size:10.5px; color:#B8B8C5; font-family:'DM Mono',monospace; line-height:1.55;">Ex: J1,J2,M2,15</div>
+      </div>
+
+      <!-- Tip -->
+      <div style="border:1px solid rgba(196,150,58,0.2); border-radius:3px; padding:12px 14px; background:rgba(196,150,58,0.03);">
+        <div style="font-size:9px; letter-spacing:0.16em; color:#C4963A; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:7px;">Note</div>
+        <p style="font-size:11.5px; color:#8A8A9E; line-height:1.6; font-weight:300;">L'encodage UTF-8 est requis. Le séparateur décimal est le point <span style="font-family:'DM Mono',monospace; color:#C4963A;">.</span></p>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+
+class Component extends DCLogic {
+  state = {
+    activeNav: 'instances',
+    dragOver: null,
+    previewTab: 'jobs',
+    files: {
+      jobs:       { status: 'idle', name: '', rows: [], headers: [], errors: [], warnings: [] },
+      operations: { status: 'idle', name: '', rows: [], headers: [], errors: [], warnings: [] },
+      setups:     { status: 'idle', name: '', rows: [], headers: [], errors: [], warnings: [] },
+    },
+  };
+
+  parseCSV(text) {
+    const lines = text.replace(/\r/g, '').trim().split('\n').filter(l => l.trim());
+    if (!lines.length) return { headers: [], rows: [] };
+    const clean = s => s.trim().replace(/^["']|["']$/g, '');
+    const headers = lines[0].split(',').map(clean);
+    const rows = lines.slice(1).map(line => {
+      const vals = line.split(',').map(clean);
+      return headers.reduce((obj, h, i) => { obj[h] = vals[i] ?? ''; return obj; }, {});
+    });
+    return { headers, rows };
+  }
+
+  validateFile(type, headers) {
+    const required = {
+      jobs:       ['job_id', 'deadline', 'weight'],
+      operations: ['job_id', 'machine_id', 'duration', 'position'],
+      setups:     ['from_job', 'to_job', 'machine_id', 'duration'],
+    }[type] || [];
+    const errors = required.filter(c => !headers.includes(c)).map(c => `Colonne manquante\u00a0: "${c}"`);
+    const warnings = headers.filter(h => !required.includes(h) && h).map(h => `Colonne non reconnue\u00a0: "${h}"`);
+    return { errors, warnings };
+  }
+
+  handleFile(type, file) {
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      this.setState(s => ({ files: { ...s.files, [type]: { status: 'error', name: file.name, rows: [], headers: [], errors: ['Format invalide. Un fichier .csv est requis.'], warnings: [] } } }));
+      return;
+    }
+    this.setState(s => ({ files: { ...s.files, [type]: { ...s.files[type], status: 'reading', name: file.name } } }));
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const { headers, rows } = this.parseCSV(e.target.result);
+      const { errors, warnings } = this.validateFile(type, headers);
+      this.setState(s => ({
+        files: { ...s.files, [type]: { status: errors.length ? 'error' : 'valid', name: file.name, rows, headers, errors, warnings } },
+        previewTab: errors.length ? s.previewTab : type,
+      }));
+    };
+    reader.onerror = () => {
+      this.setState(s => ({ files: { ...s.files, [type]: { ...s.files[type], status: 'error', errors: ['Erreur de lecture du fichier.'] } } }));
+    };
+    reader.readAsText(file);
+  }
+
+  navStyle(id) {
+    const active = this.state.activeNav === id;
+    return { display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 12px', borderRadius: '4px', cursor: 'pointer', marginBottom: '2px', color: active ? '#E8E8F2' : '#3E4058', background: active ? 'rgba(196,150,58,0.1)' : 'transparent', transition: 'all 0.15s' };
+  }
+
+  renderVals() {
+    const { files, dragOver, previewTab, activeNav } = this.state;
+
+    const fv = (type) => {
+      const f = files[type];
+      const dragging = dragOver === type;
+      return {
+        cardStyle: {
+          border: dragging ? '1.5px dashed #C4963A' : f.status === 'valid' ? '1.5px solid rgba(42,122,91,0.35)' : f.status === 'error' ? '1.5px solid rgba(200,72,72,0.3)' : '1.5px dashed #D8D6D0',
+          background: dragging ? 'rgba(196,150,58,0.03)' : f.status === 'valid' ? '#FAFEFC' : f.status === 'error' ? '#FFF9F9' : '#FFFFFF',
+          borderRadius: '4px', padding: '18px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column',
+        },
+        isIdle:    f.status === 'idle',
+        isReading: f.status === 'reading',
+        isValid:   f.status === 'valid',
+        isError:   f.status === 'error',
+        fileName:  f.name || '',
+        rowCount:  f.rows.length,
+        firstError: f.errors[0] || '',
+      };
+    };
+
+    const jv = fv('jobs');
+    const ov = fv('operations');
+    const sv = fv('setups');
+
+    const drop = (type) => ({
+      onDragOver:  (e) => e.preventDefault(),
+      onDragEnter: (e) => { e.preventDefault(); this.setState({ dragOver: type }); },
+      onDragLeave: (e) => { if (!e.currentTarget.contains(e.relatedTarget)) this.setState({ dragOver: null }); },
+      onDrop:      (e) => { e.preventDefault(); this.setState({ dragOver: null }); const f = e.dataTransfer.files[0]; if (f) this.handleFile(type, f); },
+    });
+
+    const jd = drop('jobs');
+    const od = drop('operations');
+    const sd = drop('setups');
+
+    // Validation summary
+    const jobsCount    = files.jobs.status       === 'valid' ? files.jobs.rows.length       : 0;
+    const opsCount     = files.operations.status  === 'valid' ? files.operations.rows.length  : 0;
+    const machineCount = files.operations.status  === 'valid'
+      ? new Set(files.operations.rows.map(r => r.machine_id).filter(Boolean)).size : 0;
+    const totalErrors   = Object.values(files).reduce((n, f) => n + f.errors.length,   0);
+    const totalWarnings = Object.values(files).reduce((n, f) => n + f.warnings.length, 0);
+    const anyUploaded   = Object.values(files).some(f => f.status === 'valid' || f.status === 'error');
+    const canContinue   = files.jobs.status === 'valid' && files.operations.status === 'valid';
+
+    // Preview
+    const pfd = files[previewTab];
+    const previewHeaders = pfd?.headers || [];
+    const previewRows = (pfd?.rows || []).slice(0, 5).map(row => {
+      const vals = Object.values(row);
+      return { c0: String(vals[0] ?? ''), c1: String(vals[1] ?? ''), c2: String(vals[2] ?? ''), c3: String(vals[3] ?? '') };
+    });
+
+    const tabStyle = (tab) => ({
+      padding: '5px 12px', fontSize: '11px', fontFamily: "'DM Mono', monospace", letterSpacing: '0.05em',
+      border: previewTab === tab ? '1px solid #0C0D18' : '1px solid transparent',
+      borderRadius: '3px', cursor: 'pointer',
+      background: previewTab === tab ? '#0C0D18' : 'transparent',
+      color: previewTab === tab ? '#F2F1EE' : '#AAAAB8',
+      transition: 'all 0.15s',
+    });
+
+    return {
+      // Jobs
+      jobsCardStyle: jv.cardStyle, jobsIsIdle: jv.isIdle, jobsIsReading: jv.isReading,
+      jobsIsValid: jv.isValid, jobsIsError: jv.isError,
+      jobsFileName: jv.fileName, jobsRowCount: jv.rowCount, jobsFirstError: jv.firstError,
+      jobsDragOver: jd.onDragOver, jobsDragEnter: jd.onDragEnter, jobsDragLeave: jd.onDragLeave, jobsDrop: jd.onDrop,
+      handleJobsChange: (e) => { const f = e.target.files[0]; if (f) this.handleFile('jobs', f); },
+      clickJobs: () => { const el = document.getElementById('in-jobs'); if (el) el.click(); },
+
+      // Operations
+      opsCardStyle: ov.cardStyle, opsIsIdle: ov.isIdle, opsIsReading: ov.isReading,
+      opsIsValid: ov.isValid, opsIsError: ov.isError,
+      opsFileName: ov.fileName, opsRowCount: ov.rowCount, opsFirstError: ov.firstError,
+      opsDragOver: od.onDragOver, opsDragEnter: od.onDragEnter, opsDragLeave: od.onDragLeave, opsDrop: od.onDrop,
+      handleOpsChange: (e) => { const f = e.target.files[0]; if (f) this.handleFile('operations', f); },
+      clickOps: () => { const el = document.getElementById('in-ops'); if (el) el.click(); },
+
+      // Setups
+      setupsCardStyle: sv.cardStyle, setupsIsIdle: sv.isIdle, setupsIsReading: sv.isReading,
+      setupsIsValid: sv.isValid, setupsIsError: sv.isError,
+      setupsFileName: sv.fileName, setupsRowCount: sv.rowCount, setupsFirstError: sv.firstError,
+      setupsDragOver: sd.onDragOver, setupsDragEnter: sd.onDragEnter, setupsDragLeave: sd.onDragLeave, setupsDrop: sd.onDrop,
+      handleSetupsChange: (e) => { const f = e.target.files[0]; if (f) this.handleFile('setups', f); },
+      clickSetups: () => { const el = document.getElementById('in-setups'); if (el) el.click(); },
+
+      // Summary
+      anyUploaded, jobsCount, opsCount, machineCount, totalErrors, totalWarnings,
+      errorsColor:   totalErrors   === 0 ? '#2A7A5B' : '#C84848',
+      warningsColor: totalWarnings === 0 ? '#2A7A5B' : '#C4963A',
+
+      // Preview
+      previewRows, showPreview: previewRows.length > 0,
+      previewH0: previewHeaders[0] || '', previewH1: previewHeaders[1] || '',
+      previewH2: previewHeaders[2] || '', previewH3: previewHeaders[3] || '',
+      previewTabJobsStyle:   tabStyle('jobs'),
+      previewTabOpsStyle:    tabStyle('operations'),
+      previewTabSetupsStyle: tabStyle('setups'),
+      setPreviewJobs:   () => this.setState({ previewTab: 'jobs' }),
+      setPreviewOps:    () => this.setState({ previewTab: 'operations' }),
+      setPreviewSetups: () => this.setState({ previewTab: 'setups' }),
+
+      // Continue button
+      continueClick: canContinue ? () => { window.location.href = 'Configuration.dc.html'; } : () => {},
+      continueStyle: {
+        display: 'flex', alignItems: 'center', gap: '8px',
+        background: canContinue ? '#0C0D18' : '#D8D6D0',
+        color: canContinue ? '#F2F1EE' : '#AAAAAA',
+        border: 'none', padding: '12px 22px', borderRadius: '3px',
+        fontSize: '12px', fontFamily: "'DM Sans', sans-serif", fontWeight: '500',
+        letterSpacing: '0.1em', textTransform: 'uppercase',
+        cursor: canContinue ? 'pointer' : 'not-allowed', transition: 'background 0.2s',
+      },
+
+      // Nav
+      navDashStyle: this.navStyle('dashboard'), navInstStyle: this.navStyle('instances'),
+      navResStyle:  this.navStyle('results'),   navSetStyle:  this.navStyle('settings'),
+      setNavDash: () => window.location.href = 'Dashboard.dc.html',
+      setNavInst: () => window.location.href = 'Dashboard.dc.html',
+      setNavRes:  () => window.location.href = 'Resultats.dc.html',
+      setNavSet:  () => window.location.href = 'Admin.dc.html',
+    };
+  }
+}
+
+</script>
+</body>
+</html>

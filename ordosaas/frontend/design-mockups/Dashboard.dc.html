@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+
+<helmet>
+  <title>OrdoSaaS — Tableau de bord</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    @keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+    @keyframes rowIn { from { opacity:0; transform:translateX(-4px); } to { opacity:1; transform:translateX(0); } }
+  </style>
+</helmet>
+
+<div style="display:flex; height:100vh; font-family:'DM Sans',sans-serif; overflow:hidden; background:#08090F;">
+
+  <!-- ══ SIDEBAR ══ -->
+  <aside style="width:232px; background:#08090F; display:flex; flex-direction:column; border-right:1px solid rgba(255,255,255,0.045); flex-shrink:0;">
+
+    <!-- Logo -->
+    <div style="padding:26px 22px 22px; border-bottom:1px solid rgba(255,255,255,0.04);">
+      <div style="display:flex; align-items:center; gap:13px;">
+        <svg width="36" height="36" viewBox="0 0 46 46" fill="none">
+          <circle cx="23" cy="23" r="20" stroke="#C4963A" stroke-width="1.5"/>
+          <rect x="11" y="16.5" width="13" height="3.5" rx="1.75" fill="#C4963A"/>
+          <rect x="11" y="22.5" width="21" height="3.5" rx="1.75" fill="#C4963A"/>
+          <rect x="11" y="28.5" width="16" height="3.5" rx="1.75" fill="#C4963A" opacity="0.6"/>
+        </svg>
+        <div>
+          <div style="font-size:16.5px; font-weight:600; letter-spacing:-0.03em; color:#EAEAF5; line-height:1;">OrdoSaaS</div>
+          <div style="font-size:8px; letter-spacing:0.2em; color:#C4963A; font-family:'DM Mono',monospace; margin-top:3px; text-transform:uppercase;">Scheduling</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Nav -->
+    <nav style="flex:1; padding:16px 10px 8px;">
+      <div style="font-size:7.5px; letter-spacing:0.2em; color:#1E2032; font-family:'DM Mono',monospace; text-transform:uppercase; padding:0 12px; margin-bottom:8px;">Menu</div>
+
+      <!-- Tableau de bord -->
+      <div style="{{ navDashStyle }}" onClick="{{ setNavDash }}">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;">
+          <rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/>
+          <rect x="9" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/>
+          <rect x="1.5" y="9" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/>
+          <rect x="9" y="9" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/>
+        </svg>
+        <span style="font-size:13.5px; font-weight:{{ navDashWeight }}; letter-spacing:-0.01em;">Tableau de bord</span>
+      </div>
+
+      <!-- Instances -->
+      <div style="{{ navInstStyle }}" onClick="{{ setNavInst }}">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;">
+          <path d="M2 5l6-3 6 3-6 3-6-3Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+          <path d="M2 9l6 3 6-3" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+          <path d="M2 12l6 3 6-3" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+        </svg>
+        <span style="font-size:13.5px; font-weight:{{ navInstWeight }}; letter-spacing:-0.01em;">Mes instances</span>
+        <span style="margin-left:auto; background:rgba(196,150,58,0.13); color:#C4963A; font-size:10px; font-family:'DM Mono',monospace; padding:2px 7px; border-radius:10px; line-height:1.5; flex-shrink:0;">47</span>
+      </div>
+
+      <!-- Résultats -->
+      <div style="{{ navResStyle }}" onClick="{{ setNavRes }}">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;">
+          <path d="M3 13V7M6.5 13V9M10 13V5M13.5 13V8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        </svg>
+        <span style="font-size:13.5px; font-weight:{{ navResWeight }}; letter-spacing:-0.01em;">Résultats</span>
+      </div>
+
+      <!-- Séparateur -->
+      <div style="height:1px; background:rgba(255,255,255,0.04); margin:10px 12px;"></div>
+
+      <!-- Paramètres -->
+      <div style="{{ navSetStyle }}" onClick="{{ setNavSet }}">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;">
+          <circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.2"/>
+          <path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+        <span style="font-size:13.5px; font-weight:{{ navSetWeight }}; letter-spacing:-0.01em;">Paramètres</span>
+      </div>
+    </nav>
+
+    <!-- User profile -->
+    <div style="padding:16px 20px; border-top:1px solid rgba(255,255,255,0.04);">
+      <div style="display:flex; align-items:center; gap:11px;">
+        <div style="width:34px; height:34px; border-radius:50%; background:linear-gradient(140deg,#C4963A 0%,#7A5214 100%); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; color:#0C0D18; flex-shrink:0; letter-spacing:0.02em;">ML</div>
+        <div style="min-width:0; flex:1;">
+          <div style="font-size:13px; font-weight:500; color:#D8D8E5; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; letter-spacing:-0.01em;">M. Lefebvre</div>
+          <div style="font-size:9.5px; color:#36384E; font-family:'DM Mono',monospace; letter-spacing:0.05em; margin-top:1px;">Planificateur</div>
+        </div>
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="color:#2C2E42; flex-shrink:0; cursor:pointer;">
+          <path d="M5.5 3l4 4-4 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ══ MAIN CONTENT ══ -->
+  <main style="flex:1; background:#F2F1EE; overflow-y:auto; display:flex; flex-direction:column; min-width:0;">
+
+    <!-- Top header -->
+    <div style="padding:30px 36px 0; display:flex; align-items:flex-start; justify-content:space-between; animation:fadeUp 0.45s ease-out both;">
+      <div>
+        <div style="font-size:9px; letter-spacing:0.22em; color:#C4963A; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:9px;">Lundi 22 juin 2026</div>
+        <h1 style="font-size:27px; font-weight:500; letter-spacing:-0.035em; color:#0C0D18; line-height:1.1;">Tableau de bord</h1>
+        <p style="margin-top:6px; font-size:13px; color:#AAAAB8; font-weight:300;">Bonjour, Marc. Voici l'état de votre production.</p>
+      </div>
+      <button onClick="{{ openModal }}" style="display:flex; align-items:center; gap:9px; background:#0C0D18; color:#F2F1EE; border:none; padding:12px 22px; border-radius:3px; font-size:11.5px; font-family:'DM Sans',sans-serif; font-weight:500; letter-spacing:0.12em; text-transform:uppercase; cursor:pointer; margin-top:4px; transition:background 0.2s; flex-shrink:0;" style-hover="background:#1C1E30;">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><line x1="6" y1="1" x2="6" y2="11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><line x1="1" y1="6" x2="11" y2="6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        Nouvelle instance
+      </button>
+    </div>
+
+    <!-- ── KPI Cards ── -->
+    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:14px; padding:24px 36px 0; animation:fadeUp 0.45s 0.08s ease-out both;">
+
+      <!-- Instances créées -->
+      <div style="background:#FFFFFF; border-radius:4px; padding:22px 22px 18px; border:1px solid rgba(0,0,0,0.055);">
+        <div style="font-size:8.5px; letter-spacing:0.18em; color:#C0BFB8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:14px;">Instances créées</div>
+        <div style="font-size:40px; font-weight:300; letter-spacing:-0.05em; color:#0C0D18; line-height:1; font-variant-numeric:tabular-nums;">47</div>
+        <div style="display:flex; align-items:center; gap:5px; margin-top:11px;">
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M1.5 7.5L5.5 2.5L9.5 7.5" stroke="#2A7A5B" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span style="font-size:11.5px; color:#2A7A5B; font-weight:300;">+3 cette semaine</span>
+        </div>
+      </div>
+
+      <!-- Jobs en retard -->
+      <div style="background:#FFFFFF; border-radius:4px; padding:22px 22px 18px; border:1px solid rgba(0,0,0,0.055);">
+        <div style="font-size:8.5px; letter-spacing:0.18em; color:#C0BFB8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:14px;">Jobs en retard</div>
+        <div style="font-size:40px; font-weight:300; letter-spacing:-0.05em; color:#C84848; line-height:1; font-variant-numeric:tabular-nums;">3</div>
+        <div style="display:flex; align-items:center; gap:5px; margin-top:11px;">
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M1.5 3.5L5.5 8.5L9.5 3.5" stroke="#2A7A5B" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span style="font-size:11.5px; color:#2A7A5B; font-weight:300;">−2 vs semaine passée</span>
+        </div>
+      </div>
+
+      <!-- Plannings à l'heure -->
+      <div style="background:#FFFFFF; border-radius:4px; padding:22px 22px 18px; border:1px solid rgba(0,0,0,0.055);">
+        <div style="font-size:8.5px; letter-spacing:0.18em; color:#C0BFB8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:14px;">Plannings à l'heure</div>
+        <div style="font-size:40px; font-weight:300; letter-spacing:-0.05em; color:#2A7A5B; line-height:1; font-variant-numeric:tabular-nums;">94.2<span style="font-size:22px;">%</span></div>
+        <div style="margin-top:12px;">
+          <div style="height:2px; background:#EDECE8; border-radius:1px; overflow:hidden;">
+            <div style="width:94.2%; height:100%; background:#2A7A5B; border-radius:1px;"></div>
+          </div>
+          <div style="font-size:11px; color:#C0BFB8; margin-top:6px; font-weight:300;">Objectif&nbsp;:&nbsp;90 %</div>
+        </div>
+      </div>
+
+      <!-- Temps moyen résolution -->
+      <div style="background:#FFFFFF; border-radius:4px; padding:22px 22px 18px; border:1px solid rgba(0,0,0,0.055);">
+        <div style="font-size:8.5px; letter-spacing:0.18em; color:#C0BFB8; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:14px;">Résolution moyenne</div>
+        <div style="font-size:40px; font-weight:300; letter-spacing:-0.05em; color:#0C0D18; line-height:1; font-variant-numeric:tabular-nums;">2<span style="font-size:22px; letter-spacing:0em;">m 18s</span></div>
+        <div style="display:flex; align-items:center; gap:5px; margin-top:11px;">
+          <div style="width:6px; height:6px; border-radius:50%; background:#C4963A;"></div>
+          <span style="font-size:11.5px; color:#B2B2BF; font-weight:300;">30 derniers jours</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── Table ── -->
+    <div style="margin:20px 36px 36px; background:#FFFFFF; border-radius:4px; border:1px solid rgba(0,0,0,0.055); animation:fadeUp 0.5s 0.16s ease-out both; overflow:hidden; flex:1; min-height:0; display:flex; flex-direction:column;">
+
+      <!-- Table topbar -->
+      <div style="padding:20px 24px 16px; border-bottom:1px solid #F0EEE9; display:flex; align-items:center; justify-content:space-between; flex-shrink:0;">
+        <div>
+          <h2 style="font-size:15px; font-weight:500; letter-spacing:-0.025em; color:#0C0D18;">Résolutions récentes</h2>
+          <p style="font-size:12px; color:#B0B0BF; margin-top:3px; font-weight:300;">{{ instanceCount }} instances · triées par date</p>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div style="font-size:8.5px; letter-spacing:0.15em; color:#C4963A; font-family:'DM Mono',monospace; text-transform:uppercase; border:1px solid rgba(196,150,58,0.28); padding:5px 11px; border-radius:2px; cursor:default;">
+            Semaine 25
+          </div>
+        </div>
+      </div>
+
+      <!-- Column headers -->
+      <div style="display:grid; grid-template-columns:1fr 70px 96px 116px 108px 96px; padding:10px 24px 9px; border-bottom:1px solid #F7F5F2; flex-shrink:0; background:#FDFCFB;">
+        <span style="font-size:8.5px; letter-spacing:0.16em; color:#C8C6C0; font-family:'DM Mono',monospace; text-transform:uppercase;">Instance</span>
+        <span style="font-size:8.5px; letter-spacing:0.16em; color:#C8C6C0; font-family:'DM Mono',monospace; text-transform:uppercase;">Jobs</span>
+        <span style="font-size:8.5px; letter-spacing:0.16em; color:#C8C6C0; font-family:'DM Mono',monospace; text-transform:uppercase;">Méthode</span>
+        <span style="font-size:8.5px; letter-spacing:0.16em; color:#C8C6C0; font-family:'DM Mono',monospace; text-transform:uppercase;">Retard pondéré</span>
+        <span style="font-size:8.5px; letter-spacing:0.16em; color:#C8C6C0; font-family:'DM Mono',monospace; text-transform:uppercase;">Date</span>
+        <span style="font-size:8.5px; letter-spacing:0.16em; color:#C8C6C0; font-family:'DM Mono',monospace; text-transform:uppercase; text-align:right;">Actions</span>
+      </div>
+
+      <!-- Rows -->
+      <div style="overflow-y:auto; flex:1;">
+        <sc-for list="{{ instances }}" as="inst" hint-placeholder-count="6">
+          <div style="display:grid; grid-template-columns:1fr 70px 96px 116px 108px 96px; padding:13px 24px; border-bottom:1px solid #F7F5F2; align-items:center; transition:background 0.13s; animation:rowIn 0.4s ease-out both;" style-hover="background:#FDFCFB;">
+
+            <!-- Name -->
+            <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+              <div style="width:7px; height:7px; border-radius:50%; background:{{ inst.dotColor }}; flex-shrink:0;"></div>
+              <span style="font-size:13.5px; color:#18191F; letter-spacing:-0.015em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ inst.name }}</span>
+            </div>
+
+            <!-- Jobs -->
+            <span style="font-size:13px; color:#666773; font-family:'DM Mono',monospace; font-weight:400;">{{ inst.jobs }}</span>
+
+            <!-- Method badge -->
+            <div>
+              <span style="font-size:9px; font-family:'DM Mono',monospace; letter-spacing:0.1em; padding:3px 9px; border-radius:2px; background:{{ inst.methodBg }}; color:{{ inst.methodColor }}; font-weight:500; white-space:nowrap;">{{ inst.method }}</span>
+            </div>
+
+            <!-- Delay -->
+            <span style="font-size:13px; font-family:'DM Mono',monospace; color:{{ inst.delayColor }};">{{ inst.delayLabel }}</span>
+
+            <!-- Date -->
+            <span style="font-size:12px; color:#AAAAB8; font-family:'DM Mono',monospace; letter-spacing:0.01em;">{{ inst.date }}</span>
+
+            <!-- Actions -->
+            <div style="display:flex; align-items:center; gap:5px; justify-content:flex-end;">
+
+              <button title="Voir" onClick="{{ inst.onView }}" style="width:29px; height:29px; border:1px solid #ECEAE4; border-radius:3px; background:none; cursor:pointer; display:flex; align-items:center; justify-content:center; color:#AAAAAA; transition:all 0.15s;" style-hover="border-color:#C4963A; color:#C4963A; background:#FFF9F0;">
+                <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M1.5 7S3.5 3 7 3s5.5 4 5.5 4-2 4-5.5 4-5.5-4-5.5-4Z" stroke="currentColor" stroke-width="1.2"/><circle cx="7" cy="7" r="1.6" stroke="currentColor" stroke-width="1.2"/></svg>
+              </button>
+
+              <button title="Télécharger" onClick="{{ inst.onDownload }}" style="width:29px; height:29px; border:1px solid #ECEAE4; border-radius:3px; background:none; cursor:pointer; display:flex; align-items:center; justify-content:center; color:#AAAAAA; transition:all 0.15s;" style-hover="border-color:#C4963A; color:#C4963A; background:#FFF9F0;">
+                <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M7 1.5v7M4.5 6l2.5 3 2.5-3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 10v2h10v-2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+              </button>
+
+              <button title="Supprimer" onClick="{{ inst.onDelete }}" style="width:29px; height:29px; border:1px solid #ECEAE4; border-radius:3px; background:none; cursor:pointer; display:flex; align-items:center; justify-content:center; color:#AAAAAA; transition:all 0.15s;" style-hover="border-color:#D05050; color:#D05050; background:#FFF5F5;">
+                <svg width="12" height="13" viewBox="0 0 12 14" fill="none"><path d="M1 3h10M4 3V1.5h4V3M4.5 6v5M7.5 6v5M2 3l.75 9.5h6.5L10 3" stroke="currentColor" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+
+            </div>
+          </div>
+        </sc-for>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- ══ MODAL: Nouvelle instance ══ -->
+  <sc-if value="{{ showModal }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeModalBg }}" style="position:fixed; inset:0; background:rgba(8,9,15,0.82); z-index:100; display:flex; align-items:center; justify-content:center; animation:fadeIn 0.18s ease-out both;">
+      <div onClick="{{ stopProp }}" style="background:#FFFFFF; border-radius:5px; padding:36px; width:480px; max-width:90vw; animation:fadeUp 0.22s ease-out both;">
+
+        <!-- Modal header -->
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:28px;">
+          <div>
+            <div style="font-size:8.5px; letter-spacing:0.2em; color:#C4963A; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:10px;">Planification</div>
+            <h2 style="font-size:23px; font-weight:500; letter-spacing:-0.03em; color:#0C0D18; line-height:1;">Nouvelle instance</h2>
+            <p style="font-size:13px; color:#B0B0BF; margin-top:6px; font-weight:300;">Choisissez votre mode de saisie.</p>
+          </div>
+          <button onClick="{{ closeModal }}" style="width:32px; height:32px; border:1px solid #ECEAE4; border-radius:3px; background:none; cursor:pointer; display:flex; align-items:center; justify-content:center; color:#AAAAAA; flex-shrink:0; margin-left:16px; transition:all 0.15s;" style-hover="border-color:#0C0D18; color:#0C0D18;">
+            <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M1 1l9 9M10 1L1 10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+
+        <!-- Option cards -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:13px; margin-bottom:22px;">
+
+          <div onClick="{{ selectCsv }}" style="border:1.5px solid {{ csvBorder }}; border-radius:4px; padding:22px 18px; cursor:pointer; transition:border-color 0.2s, background 0.2s; background:{{ csvBg }};" style-hover="border-color:#C4963A;">
+            <svg width="28" height="30" viewBox="0 0 28 30" fill="none" style="margin-bottom:14px; display:block;">
+              <rect x="3.5" y="1.5" width="18" height="22" rx="2" stroke="{{ csvIconColor }}" stroke-width="1.2"/>
+              <path d="M20 1.5v7H25" stroke="{{ csvIconColor }}" stroke-width="1.2" stroke-linejoin="round"/>
+              <path d="M7 13h14M7 17h14M7 21h10" stroke="{{ csvIconColor }}" stroke-width="1" stroke-linecap="round"/>
+            </svg>
+            <div style="font-size:14px; font-weight:500; color:#0C0D18; margin-bottom:5px; letter-spacing:-0.01em;">Import CSV</div>
+            <div style="font-size:12px; color:#AAAAB8; font-weight:300; line-height:1.55; text-wrap:pretty;">Chargez un fichier structuré avec vos jobs et contraintes.</div>
+          </div>
+
+          <div onClick="{{ selectManual }}" style="border:1.5px solid {{ manualBorder }}; border-radius:4px; padding:22px 18px; cursor:pointer; transition:border-color 0.2s, background 0.2s; background:{{ manualBg }};" style-hover="border-color:#C4963A;">
+            <svg width="28" height="30" viewBox="0 0 28 30" fill="none" style="margin-bottom:14px; display:block;">
+              <rect x="2" y="2" width="24" height="24" rx="3" stroke="{{ manualIconColor }}" stroke-width="1.2"/>
+              <path d="M14 8v12M8 14h12" stroke="{{ manualIconColor }}" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            <div style="font-size:14px; font-weight:500; color:#0C0D18; margin-bottom:5px; letter-spacing:-0.01em;">Saisie manuelle</div>
+            <div style="font-size:12px; color:#AAAAB8; font-weight:300; line-height:1.55; text-wrap:pretty;">Définissez vos jobs, machines et contraintes étape par étape.</div>
+          </div>
+
+        </div>
+
+        <button onClick="{{ continueToImport }}" style="width:100%; padding:13px; background:#0C0D18; color:#F2F1EE; border:none; border-radius:3px; font-size:11.5px; font-family:'DM Sans',sans-serif; font-weight:500; letter-spacing:0.12em; text-transform:uppercase; cursor:pointer; transition:background 0.2s;" style-hover="background:#1C1E30;">
+          Continuer →
+        </button>
+
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+
+class Component extends DCLogic {
+  state = {
+    activeNav: 'dashboard',
+    showModal: false,
+    modalType: 'csv',
+    instances: [
+      { id: 1, name: 'Job Shop — Atelier 3',      jobs: 124, method: 'CP-SAT', delay: 0,   date: '21 juin 2026' },
+      { id: 2, name: 'Flowshop Peinture',           jobs: 87,  method: 'LNS',    delay: 142, date: '20 juin 2026' },
+      { id: 3, name: 'Maintenance Plan S25',         jobs: 56,  method: 'CP-SAT', delay: 0,   date: '19 juin 2026' },
+      { id: 4, name: 'Assemblage Ligne B',           jobs: 203, method: 'CP-SAT', delay: 38,  date: '18 juin 2026' },
+      { id: 5, name: 'Forge — Campagne Q2',          jobs: 145, method: 'LNS',    delay: 76,  date: '17 juin 2026' },
+      { id: 6, name: 'Contrôle Qualité S24',         jobs: 34,  method: 'CP-SAT', delay: 0,   date: '14 juin 2026' },
+      { id: 7, name: 'Emboutissage Tôlerie',         jobs: 98,  method: 'LNS',    delay: 12,  date: '11 juin 2026' },
+    ],
+  };
+
+  navStyle(id) {
+    const active = this.state.activeNav === id;
+    return {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '10px',
+      padding: '9px 12px',
+      borderRadius: '4px',
+      cursor: 'pointer',
+      marginBottom: '2px',
+      color: active ? '#E8E8F2' : '#3E4058',
+      background: active ? 'rgba(196,150,58,0.1)' : 'transparent',
+      transition: 'all 0.15s',
+    };
+  }
+
+  renderVals() {
+    const { activeNav, showModal, modalType, instances } = this.state;
+
+    const processedInstances = instances.map(inst => {
+      const isClean   = inst.delay === 0;
+      const isHeavy   = inst.delay > 100;
+      const dotColor    = isClean ? '#2A7A5B' : isHeavy ? '#C84848' : '#C4963A';
+      const delayColor  = isClean ? '#9BBFAC' : isHeavy ? '#C84848' : '#C4963A';
+      const delayLabel  = isClean ? '—' : `${inst.delay} min`;
+      const isCpSat     = inst.method === 'CP-SAT';
+      const methodBg    = isCpSat ? 'rgba(42,122,91,0.09)'  : 'rgba(196,150,58,0.1)';
+      const methodColor = isCpSat ? '#2A7A5B'               : '#B07A20';
+      return {
+        ...inst,
+        dotColor, delayColor, delayLabel, methodBg, methodColor,
+        onView:     () => {},
+        onDownload: () => {},
+        onDelete:   () => this.setState(s => ({
+          instances: s.instances.filter(i => i.id !== inst.id)
+        })),
+      };
+    });
+
+    const csvSelected    = modalType === 'csv';
+    const manualSelected = modalType === 'manual';
+
+    return {
+      instances:      processedInstances,
+      instanceCount:  instances.length,
+
+      // Nav styles
+      navDashStyle:  this.navStyle('dashboard'),
+      navInstStyle:  this.navStyle('instances'),
+      navResStyle:   this.navStyle('results'),
+      navSetStyle:   this.navStyle('settings'),
+      navDashWeight: activeNav === 'dashboard' ? '500' : '400',
+      navInstWeight: activeNav === 'instances' ? '500' : '400',
+      navResWeight:  activeNav === 'results'   ? '500' : '400',
+      navSetWeight:  activeNav === 'settings'  ? '500' : '400',
+
+      setNavDash: () => window.location.href = 'Dashboard.dc.html',
+      setNavInst: () => window.location.href = 'Dashboard.dc.html',
+      setNavRes:  () => window.location.href = 'Resultats.dc.html',
+      setNavSet:  () => window.location.href = 'Admin.dc.html',
+
+      // Modal
+      showModal,
+      csvBorder:     csvSelected    ? '#C4963A' : '#E8E6E0',
+      manualBorder:  manualSelected ? '#C4963A' : '#E8E6E0',
+      csvBg:         csvSelected    ? 'rgba(196,150,58,0.04)' : 'transparent',
+      manualBg:      manualSelected ? 'rgba(196,150,58,0.04)' : 'transparent',
+      csvIconColor:     csvSelected    ? '#C4963A' : '#C8C6C0',
+      manualIconColor:  manualSelected ? '#C4963A' : '#C8C6C0',
+
+      openModal:        () => this.setState({ showModal: true, modalType: 'csv' }),
+      closeModal:       () => this.setState({ showModal: false }),
+      continueToImport: () => { window.location.href = 'ImportCSV.dc.html'; },
+      closeModalBg:   () => this.setState({ showModal: false }),
+      stopProp:       (e) => e.stopPropagation(),
+      selectCsv:      () => this.setState({ modalType: 'csv'    }),
+      selectManual:   () => this.setState({ modalType: 'manual' }),
+    };
+  }
+}
+
+</script>
+</body>
+</html>

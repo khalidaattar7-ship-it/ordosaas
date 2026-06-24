@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+
+<helmet>
+  <title>OrdoSaaS — Résolution en cours</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; background: #08090F; }
+    @keyframes spin    { to { transform: rotate(360deg); } }
+    @keyframes pulse   { 0%,100%{opacity:.4} 50%{opacity:1} }
+    @keyframes shimmer { 0%{transform:translateX(-100%)} 100%{transform:translateX(500%)} }
+    @keyframes fadeUp  { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes fadeIn  { from{opacity:0} to{opacity:1} }
+    @keyframes breathe { 0%,100%{box-shadow:0 0 0 0 rgba(196,150,58,0)} 50%{box-shadow:0 0 0 6px rgba(196,150,58,0.12)} }
+  </style>
+</helmet>
+
+<div style="display:flex; height:100vh; font-family:'DM Sans',sans-serif; overflow:hidden; background:#08090F;">
+
+  <!-- SIDEBAR -->
+  <aside style="width:232px; background:#08090F; display:flex; flex-direction:column; border-right:1px solid rgba(255,255,255,0.045); flex-shrink:0;">
+    <div style="padding:26px 22px 22px; border-bottom:1px solid rgba(255,255,255,0.04);">
+      <div style="display:flex; align-items:center; gap:13px;">
+        <svg width="36" height="36" viewBox="0 0 46 46" fill="none"><circle cx="23" cy="23" r="20" stroke="#C4963A" stroke-width="1.5"/><rect x="11" y="16.5" width="13" height="3.5" rx="1.75" fill="#C4963A"/><rect x="11" y="22.5" width="21" height="3.5" rx="1.75" fill="#C4963A"/><rect x="11" y="28.5" width="16" height="3.5" rx="1.75" fill="#C4963A" opacity="0.6"/></svg>
+        <div>
+          <div style="font-size:16.5px; font-weight:600; letter-spacing:-0.03em; color:#EAEAF5;">OrdoSaaS</div>
+          <div style="font-size:8px; letter-spacing:0.2em; color:#C4963A; font-family:'DM Mono',monospace; margin-top:3px; text-transform:uppercase;">Scheduling</div>
+        </div>
+      </div>
+    </div>
+    <nav style="flex:1; padding:16px 10px 8px;">
+      <div style="font-size:7.5px; letter-spacing:0.2em; color:#1E2032; font-family:'DM Mono',monospace; text-transform:uppercase; padding:0 12px; margin-bottom:8px;">Menu</div>
+      <div style="display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:4px; cursor:pointer; color:#3E4058; transition:all 0.15s; margin-bottom:2px;" style-hover="background:rgba(255,255,255,0.03); color:#9090A4;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="9" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="1.5" y="9" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="9" y="9" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.2"/></svg>
+        <span style="font-size:13.5px;">Tableau de bord</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:4px; cursor:pointer; background:rgba(196,150,58,0.1); color:#E8E8F2; margin-bottom:2px;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><path d="M2 5l6-3 6 3-6 3-6-3Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M2 9l6 3 6-3" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M2 12l6 3 6-3" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+        <span style="font-size:13.5px; font-weight:500;">Mes instances</span>
+        <span style="margin-left:auto; background:rgba(196,150,58,0.13); color:#C4963A; font-size:10px; font-family:'DM Mono',monospace; padding:2px 7px; border-radius:10px; line-height:1.5;">47</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:4px; cursor:pointer; color:#3E4058; transition:all 0.15s; margin-bottom:2px;" style-hover="background:rgba(255,255,255,0.03); color:#9090A4;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><path d="M3 13V7M6.5 13V9M10 13V5M13.5 13V8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        <span style="font-size:13.5px;">Résultats</span>
+      </div>
+    </nav>
+
+    <!-- Solving status in sidebar -->
+    <div style="margin:0 12px 12px; border:1px solid rgba(196,150,58,0.2); border-radius:4px; padding:14px; background:rgba(196,150,58,0.05);">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+        <div style="width:7px; height:7px; border-radius:50%; background:#C4963A; animation:pulse 1.5s ease-in-out infinite;"></div>
+        <span style="font-size:9px; letter-spacing:0.14em; color:#C4963A; font-family:'DM Mono',monospace; text-transform:uppercase;">En cours</span>
+      </div>
+      <div style="font-size:11.5px; color:#DDDDE8; font-weight:400; margin-bottom:3px; letter-spacing:-0.01em;">Job Shop — Atelier 3</div>
+      <div style="font-size:10px; color:#44465A; font-family:'DM Mono',monospace;">LNS récursif · 180 jobs</div>
+      <div style="height:3px; background:rgba(255,255,255,0.06); border-radius:2px; margin-top:12px; overflow:hidden;">
+        <div style="width:{{ globalPctStr }}; height:100%; background:#C4963A; border-radius:2px; transition:width 0.8s ease; position:relative; overflow:hidden;">
+          <div style="position:absolute; top:0; left:0; bottom:0; width:40%; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.25),transparent); animation:shimmer 1.8s ease-in-out infinite;"></div>
+        </div>
+      </div>
+      <div style="font-size:10px; color:#44465A; font-family:'DM Mono',monospace; margin-top:5px; text-align:right;">{{ globalPct }}%</div>
+    </div>
+
+    <div style="padding:16px 20px; border-top:1px solid rgba(255,255,255,0.04);">
+      <div style="display:flex; align-items:center; gap:11px;">
+        <div style="width:34px; height:34px; border-radius:50%; background:linear-gradient(140deg,#C4963A,#7A5214); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; color:#0C0D18; flex-shrink:0;">ML</div>
+        <div>
+          <div style="font-size:13px; font-weight:500; color:#D8D8E5; letter-spacing:-0.01em;">M. Lefebvre</div>
+          <div style="font-size:9.5px; color:#36384E; font-family:'DM Mono',monospace; margin-top:1px;">Planificateur</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN — dark control room -->
+  <main style="flex:1; background:#0C0D18; overflow-y:auto; display:flex; flex-direction:column; padding:32px 36px 40px; gap:24px; min-width:0;">
+
+    <!-- Top bar -->
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; animation:fadeUp 0.4s ease-out both;">
+      <div>
+        <div style="font-size:9px; letter-spacing:0.22em; color:#C4963A; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:9px;">Résolution active · {{ clockTime }}</div>
+        <h1 style="font-size:26px; font-weight:500; letter-spacing:-0.03em; color:#EAEAF5; line-height:1.1;">Optimisation en cours</h1>
+        <p style="margin-top:7px; font-size:13.5px; color:#44465A; font-weight:300;">LNS récursif · 180 jobs · 10 machines · WR = 3</p>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px; flex-shrink:0;">
+        <div style="font-size:11px; color:#44465A; font-family:'DM Mono',monospace; letter-spacing:0.06em; background:rgba(255,255,255,0.04); padding:8px 14px; border-radius:3px;">{{ elapsedStr }}</div>
+        <sc-if value="{{ notDone }}" hint-placeholder-val="{{ true }}">
+          <button onClick="{{ handleCancel }}" style="display:flex; align-items:center; gap:7px; background:none; border:1px solid rgba(200,72,72,0.3); color:#C05050; padding:8px 16px; border-radius:3px; font-size:12px; font-family:'DM Sans',sans-serif; cursor:pointer; letter-spacing:0.06em; transition:all 0.2s;" style-hover="border-color:#C84848; color:#E06060; background:rgba(200,72,72,0.06);">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1 1l8 8M9 1L1 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            Annuler
+          </button>
+        </sc-if>
+        <sc-if value="{{ isDone }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; align-items:center; gap:8px; background:rgba(42,122,91,0.1); border:1px solid rgba(42,122,91,0.3); padding:8px 16px; border-radius:3px;">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M1.5 6l3 3.5 6-6.5" stroke="#2A7A5B" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span style="font-size:12px; color:#2A7A5B; font-family:'DM Sans',monospace; letter-spacing:0.04em;">Terminé</span>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+
+    <!-- Global progress bar -->
+    <div style="animation:fadeUp 0.4s 0.06s ease-out both;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+        <span style="font-size:9px; letter-spacing:0.18em; color:#2E3048; font-family:'DM Mono',monospace; text-transform:uppercase;">Progression globale</span>
+        <span style="font-size:20px; font-weight:300; color:#EAEAF5; font-family:'DM Mono',monospace; letter-spacing:-0.04em; font-variant-numeric:tabular-nums;">{{ globalPct }}<span style="font-size:13px;">%</span></span>
+      </div>
+      <div style="height:8px; background:rgba(255,255,255,0.06); border-radius:4px; overflow:hidden;">
+        <div style="height:100%; width:{{ globalPctStr }}; background:linear-gradient(90deg,#8B6520,#C4963A); border-radius:4px; transition:width 0.8s ease; position:relative; overflow:hidden;">
+          <div style="position:absolute; top:0; left:0; bottom:0; width:35%; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.22),transparent); animation:shimmer 1.8s ease-in-out infinite;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Two columns -->
+    <div style="display:flex; gap:20px; flex:1; min-height:0; animation:fadeUp 0.45s 0.1s ease-out both;">
+
+      <!-- LEFT: Phase pipeline -->
+      <div style="flex:1; display:flex; flex-direction:column; gap:10px; min-width:0;">
+
+        <!-- Phase 1 — DONE -->
+        <div style="background:rgba(42,122,91,0.07); border:1px solid rgba(42,122,91,0.18); border-radius:4px; padding:16px 20px; display:flex; align-items:flex-start; gap:16px;">
+          <div style="width:28px; height:28px; border-radius:50%; background:rgba(42,122,91,0.18); display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px;">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M1.5 6l2.8 3.5L10.5 2" stroke="#2A7A5B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div style="flex:1; min-width:0;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+              <span style="font-size:9px; letter-spacing:0.14em; color:#2A7A5B; font-family:'DM Mono',monospace; text-transform:uppercase;">Phase 1</span>
+              <span style="font-size:8.5px; background:rgba(42,122,91,0.15); color:#2A7A5B; font-family:'DM Mono',monospace; padding:1px 8px; border-radius:2px; letter-spacing:0.08em;">Terminée · 3 s</span>
+            </div>
+            <div style="font-size:13.5px; font-weight:500; color:#DDDDE8; letter-spacing:-0.01em; margin-bottom:3px;">Initialisation ATCS</div>
+            <div style="font-size:12px; color:#44465A; font-weight:300;">Solution initiale générée · Retard pondéré de base : 2 850 min</div>
+          </div>
+        </div>
+
+        <!-- Phase 2 — DONE -->
+        <div style="background:rgba(42,122,91,0.07); border:1px solid rgba(42,122,91,0.18); border-radius:4px; padding:16px 20px; display:flex; align-items:flex-start; gap:16px;">
+          <div style="width:28px; height:28px; border-radius:50%; background:rgba(42,122,91,0.18); display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px;">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M1.5 6l2.8 3.5L10.5 2" stroke="#2A7A5B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div style="flex:1; min-width:0;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+              <span style="font-size:9px; letter-spacing:0.14em; color:#2A7A5B; font-family:'DM Mono',monospace; text-transform:uppercase;">Phase 2</span>
+              <span style="font-size:8.5px; background:rgba(42,122,91,0.15); color:#2A7A5B; font-family:'DM Mono',monospace; padding:1px 8px; border-radius:2px; letter-spacing:0.08em;">Terminée · 1 s</span>
+            </div>
+            <div style="font-size:13.5px; font-weight:500; color:#DDDDE8; letter-spacing:-0.01em; margin-bottom:3px;">Découpage en fenêtres temporelles</div>
+            <div style="font-size:12px; color:#44465A; font-weight:300;">5 fenêtres créées · ~36 jobs / fenêtre · Horizon 480 min</div>
+          </div>
+        </div>
+
+        <!-- Phase 3 — ACTIVE -->
+        <div style="{{ phase3CardStyle }}">
+          <div style="display:flex; align-items:flex-start; gap:16px;">
+            <div style="width:28px; height:28px; border-radius:50%; border:2.5px solid #C4963A; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px; animation:{{ phase3SpinnerAnim }};">
+              <sc-if value="{{ notDone }}" hint-placeholder-val="{{ true }}">
+                <div style="width:8px; height:8px; border:2px solid rgba(196,150,58,0.2); border-top-color:#C4963A; border-radius:50%; animation:spin 0.9s linear infinite;"></div>
+              </sc-if>
+              <sc-if value="{{ isDone }}" hint-placeholder-val="{{ false }}">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M1.5 6l2.8 3.5L10.5 2" stroke="#2A7A5B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </sc-if>
+            </div>
+            <div style="flex:1; min-width:0;">
+              <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px; flex-wrap:wrap;">
+                <span style="font-size:9px; letter-spacing:0.14em; color:#C4963A; font-family:'DM Mono',monospace; text-transform:uppercase;">Phase 3</span>
+                <span style="font-size:8.5px; background:rgba(196,150,58,0.12); color:#C4963A; font-family:'DM Mono',monospace; padding:1px 8px; border-radius:2px; letter-spacing:0.08em; animation:pulse 2s ease-in-out infinite;">{{ phase3Badge }}</span>
+              </div>
+              <div style="font-size:13.5px; font-weight:500; color:#EAEAF5; letter-spacing:-0.01em; margin-bottom:3px;">Optimisation récursive CP-SAT</div>
+              <div style="font-size:12px; color:#5A5C70; font-weight:300; margin-bottom:16px;">Résolution CP-SAT fenêtre par fenêtre · WR = 3 actif</div>
+
+              <!-- Window grid -->
+              <div style="display:flex; gap:8px; margin-bottom:12px;">
+                <sc-for list="{{ windows }}" as="w" hint-placeholder-count="5">
+                  <div style="flex:1; border-radius:3px; overflow:hidden; background:{{ w.bg }}; border:1px solid {{ w.border }}; min-width:0; transition:all 0.4s;">
+                    <div style="padding:8px 6px 6px; text-align:center;">
+                      <div style="font-size:8.5px; font-family:'DM Mono',monospace; color:{{ w.labelColor }}; letter-spacing:0.1em; font-weight:500; margin-bottom:4px;">W{{ w.i }}</div>
+                      <sc-if value="{{ w.isDone }}" hint-placeholder-val="{{ false }}">
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="display:block; margin:0 auto;"><path d="M1.5 6l2.8 3.5L10.5 2" stroke="#2A7A5B" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                      </sc-if>
+                      <sc-if value="{{ w.isActive }}" hint-placeholder-val="{{ false }}">
+                        <div style="font-size:9px; font-family:'DM Mono',monospace; color:#0C0D18; font-weight:600;">{{ w.pct }}<span style="font-size:7px;">%</span></div>
+                      </sc-if>
+                      <sc-if value="{{ w.isWaiting }}" hint-placeholder-val="{{ false }}">
+                        <div style="width:8px; height:8px; border-radius:50%; border:1.5px solid #2A2B3A; margin:0 auto;"></div>
+                      </sc-if>
+                    </div>
+                    <sc-if value="{{ w.isActive }}" hint-placeholder-val="{{ false }}">
+                      <div style="height:3px; background:rgba(0,0,0,0.2);">
+                        <div style="height:100%; width:{{ w.pctStr }}; background:#0C0D18; opacity:0.4; transition:width 0.8s ease;"></div>
+                      </div>
+                    </sc-if>
+                  </div>
+                </sc-for>
+              </div>
+
+              <!-- Active window detail -->
+              <sc-if value="{{ showWindowDetail }}" hint-placeholder-val="{{ true }}">
+                <div style="background:rgba(0,0,0,0.25); border-radius:3px; padding:10px 12px; font-size:11px; font-family:'DM Mono',monospace; color:#5A5C70; line-height:1.7;">
+                  <span style="color:#C4963A;">›</span> Fenêtre {{ activeWindowNum }} / 5 — 36 jobs — CP-SAT actif<br/>
+                  <span style="color:#C4963A;">›</span> Contrainte WR = 3 techniciens · Timeout 30 s / fenêtre<br/>
+                  <span style="color:#C4963A;">›</span> Meilleure borne actuelle : {{ currentWindowPct }}% vers l'optimum
+                </div>
+              </sc-if>
+            </div>
+          </div>
+        </div>
+
+        <!-- Phase 4 — WAITING or DONE -->
+        <div style="{{ phase4CardStyle }}">
+          <div style="display:flex; align-items:flex-start; gap:16px;">
+            <div style="width:28px; height:28px; border-radius:50%; border:1.5px solid {{ phase4CircleColor }}; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px;">
+              <sc-if value="{{ phase4Done }}" hint-placeholder-val="{{ false }}">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M1.5 6l2.8 3.5L10.5 2" stroke="#2A7A5B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </sc-if>
+              <sc-if value="{{ phase4Active }}" hint-placeholder-val="{{ false }}">
+                <div style="width:8px; height:8px; border:2px solid rgba(196,150,58,0.2); border-top-color:#C4963A; border-radius:50%; animation:spin 0.9s linear infinite;"></div>
+              </sc-if>
+              <sc-if value="{{ phase4Waiting }}" hint-placeholder-val="{{ true }}">
+                <div style="width:7px; height:7px; border-radius:50%; background:#2A2B3A;"></div>
+              </sc-if>
+            </div>
+            <div style="flex:1;">
+              <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+                <span style="font-size:9px; letter-spacing:0.14em; color:{{ phase4LabelColor }}; font-family:'DM Mono',monospace; text-transform:uppercase;">Phase 4</span>
+                <span style="font-size:8.5px; background:{{ phase4BadgeBg }}; color:{{ phase4BadgeColor }}; font-family:'DM Mono',monospace; padding:1px 8px; border-radius:2px; letter-spacing:0.08em;">{{ phase4Badge }}</span>
+              </div>
+              <div style="font-size:13.5px; font-weight:500; color:{{ phase4TitleColor }}; letter-spacing:-0.01em; margin-bottom:3px;">Optimisation des jonctions</div>
+              <div style="font-size:12px; color:#2E3048; font-weight:300;">Lissage LNS global entre les fenêtres · Minimisation des transitions inter-fenêtres</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- RIGHT: Metrics + Log -->
+      <div style="width:300px; display:flex; flex-direction:column; gap:14px; flex-shrink:0;">
+
+        <!-- Metrics 2×2 -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+
+          <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:4px; padding:16px 14px;">
+            <div style="font-size:8px; letter-spacing:0.16em; color:#2E3048; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:10px;">Retard actuel</div>
+            <div style="font-size:26px; font-weight:300; color:#EAEAF5; letter-spacing:-0.04em; font-variant-numeric:tabular-nums; line-height:1; font-family:'DM Mono',monospace;">{{ totalDelay }}</div>
+            <div style="font-size:10px; color:#2E3048; font-family:'DM Mono',monospace; margin-top:5px;">min pondérées</div>
+          </div>
+
+          <div style="background:rgba(42,122,91,0.08); border:1px solid rgba(42,122,91,0.18); border-radius:4px; padding:16px 14px;">
+            <div style="font-size:8px; letter-spacing:0.16em; color:#2A5A3E; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:10px;">Amélioration</div>
+            <div style="font-size:26px; font-weight:300; color:#2A7A5B; letter-spacing:-0.04em; font-variant-numeric:tabular-nums; line-height:1; font-family:'DM Mono',monospace;">{{ improvementStr }}</div>
+            <div style="font-size:10px; color:#2A5A3E; font-family:'DM Mono',monospace; margin-top:5px;">vs ATCS initial</div>
+          </div>
+
+          <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:4px; padding:16px 14px;">
+            <div style="font-size:8px; letter-spacing:0.16em; color:#2E3048; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:10px;">Jobs traités</div>
+            <div style="font-size:26px; font-weight:300; color:#EAEAF5; letter-spacing:-0.04em; font-variant-numeric:tabular-nums; line-height:1; font-family:'DM Mono',monospace;">{{ jobsOptimized }}</div>
+            <div style="font-size:10px; color:#2E3048; font-family:'DM Mono',monospace; margin-top:5px;">/ 180 jobs</div>
+          </div>
+
+          <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:4px; padding:16px 14px;">
+            <div style="font-size:8px; letter-spacing:0.16em; color:#2E3048; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:10px;">Temps écoulé</div>
+            <div style="font-size:26px; font-weight:300; color:#EAEAF5; letter-spacing:-0.04em; font-variant-numeric:tabular-nums; line-height:1; font-family:'DM Mono',monospace;">{{ elapsedStr }}</div>
+            <div style="font-size:10px; color:#2E3048; font-family:'DM Mono',monospace; margin-top:5px;">mm:ss</div>
+          </div>
+
+        </div>
+
+        <!-- Improvement bar -->
+        <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:4px; padding:14px 16px;">
+          <div style="font-size:8px; letter-spacing:0.16em; color:#2E3048; font-family:'DM Mono',monospace; text-transform:uppercase; margin-bottom:10px;">Courbe d'amélioration</div>
+          <div style="display:flex; align-items:flex-end; gap:3px; height:40px;">
+            <div style="flex:1; background:rgba(196,150,58,0.18); border-radius:1px 1px 0 0;" title="ATCS"></div>
+            <div style="flex:1; height:80%; background:rgba(196,150,58,0.28); border-radius:1px 1px 0 0;"></div>
+            <div style="flex:1; height:68%; background:rgba(196,150,58,0.38); border-radius:1px 1px 0 0;"></div>
+            <div style="flex:1; height:58%; background:rgba(196,150,58,0.55); border-radius:1px 1px 0 0;"></div>
+            <div style="flex:1; height:52%; background:rgba(196,150,58,0.65); border-radius:1px 1px 0 0;"></div>
+            <div style="flex:1; height:{{ improvementBarH }}; background:#C4963A; border-radius:1px 1px 0 0; transition:height 0.8s ease; position:relative; overflow:hidden;">
+              <div style="position:absolute; top:0; left:0; right:0; bottom:0; background:linear-gradient(180deg,rgba(255,255,255,0.15),transparent); animation:pulse 2s ease-in-out infinite;"></div>
+            </div>
+          </div>
+          <div style="height:1px; background:rgba(255,255,255,0.06); margin-top:4px;"></div>
+          <div style="display:flex; justify-content:space-between; margin-top:5px;">
+            <span style="font-size:9px; color:#2A2B3A; font-family:'DM Mono',monospace;">Initial</span>
+            <span style="font-size:9px; color:#C4963A; font-family:'DM Mono',monospace;">Actuel</span>
+          </div>
+        </div>
+
+        <!-- Activity log -->
+        <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:4px; overflow:hidden; flex:1;">
+          <div style="padding:12px 14px; border-bottom:1px solid rgba(255,255,255,0.05); display:flex; align-items:center; gap:8px;">
+            <div style="width:6px; height:6px; border-radius:50%; background:#C4963A; animation:pulse 1.2s ease-in-out infinite; flex-shrink:0;"></div>
+            <span style="font-size:9px; letter-spacing:0.16em; color:#2E3048; font-family:'DM Mono',monospace; text-transform:uppercase;">Journal d'activité</span>
+          </div>
+          <div style="padding:10px 14px; display:flex; flex-direction:column; gap:6px; overflow-y:auto;">
+            <sc-for list="{{ logs }}" as="log" hint-placeholder-count="5">
+              <div style="font-size:10.5px; font-family:'DM Mono',monospace; color:{{ log.color }}; line-height:1.6; letter-spacing:0.01em;">{{ log.text }}</div>
+            </sc-for>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+
+class Component extends DCLogic {
+  state = {
+    elapsed:           142,
+    phase:             3,
+    windowsDone:       2,
+    currentWindowPct:  35,
+    totalDelay:        1240,
+    initialDelay:      2850,
+    cancelled:         false,
+    done:              false,
+    logs: [
+      { text: '10:44:31 · Fenêtre 3 en cours — CP-SAT actif sur 36 jobs', color: '#C4963A' },
+      { text: '10:43:02 · Fenêtre 2 optimisée — retard: 490 → 338 (−31%)',  color: '#2A7A5B' },
+      { text: '10:42:48 · Fenêtre 1 optimisée — retard: 580 → 412 (−29%)',  color: '#2A7A5B' },
+      { text: '10:42:18 · Phase 2 terminée — 5 fenêtres créées',              color: '#44465A' },
+      { text: '10:42:08 · Phase 1 terminée — ATCS: retard pondéré 2 850',    color: '#44465A' },
+    ],
+  };
+
+  componentDidMount() {
+    this._ticker = setInterval(() => {
+      if (this.state.done || this.state.cancelled) { clearInterval(this._ticker); return; }
+      this.setState(s => {
+        let { elapsed, phase, windowsDone, currentWindowPct, totalDelay, done, logs } = s;
+        elapsed += 1;
+        const speed = Math.random() * 2.5 + 1;
+
+        if (phase === 3 && windowsDone < 5) {
+          currentWindowPct = Math.min(100, currentWindowPct + speed);
+          if (currentWindowPct >= 100) {
+            windowsDone += 1;
+            currentWindowPct = 0;
+            const reduction = Math.floor(Math.random() * 90 + 110);
+            totalDelay = Math.max(760, totalDelay - reduction);
+            const pct = Math.round((1 - totalDelay / s.initialDelay) * 100);
+            const t = this.clockStr(elapsed);
+            const entry = { text: `${t} · Fenêtre ${windowsDone} optimisée — retard → ${totalDelay} (−${pct}% total)`, color: '#2A7A5B' };
+            logs = [entry, ...logs.slice(0, 7)];
+            if (windowsDone >= 5) {
+              phase = 4;
+              currentWindowPct = 0;
+              const t2 = this.clockStr(elapsed);
+              logs = [{ text: `${t2} · Phase 4 démarrée — optimisation des jonctions`, color: '#C4963A' }, ...logs.slice(0, 7)];
+            }
+          }
+        } else if (phase === 4) {
+          currentWindowPct = Math.min(100, currentWindowPct + speed * 1.4);
+          if (currentWindowPct >= 100) {
+            done = true;
+            totalDelay = Math.max(740, totalDelay - 45);
+            const pct = Math.round((1 - totalDelay / s.initialDelay) * 100);
+            const t = this.clockStr(elapsed);
+            logs = [{ text: `${t} · Résolution terminée — retard final: ${totalDelay} (−${pct}% vs initial)`, color: '#2A7A5B' }, ...logs.slice(0, 7)];
+          }
+        }
+        return { elapsed, phase, windowsDone, currentWindowPct, totalDelay, done, logs };
+      });
+    }, 800);
+  }
+
+  componentWillUnmount() { clearInterval(this._ticker); }
+
+  clockStr(elapsed) {
+    const base = 10 * 3600 + 42 * 60 + 15;
+    const total = base + elapsed;
+    const h = Math.floor(total / 3600) % 24;
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  }
+
+  renderVals() {
+    const { elapsed, phase, windowsDone, currentWindowPct, totalDelay, initialDelay, done, cancelled, logs } = this.state;
+
+    // Progress
+    let globalPct;
+    if (done) globalPct = 100;
+    else if (phase === 3) globalPct = Math.round(25 + (windowsDone / 5) * 50 + (currentWindowPct / 100 / 5) * 50);
+    else if (phase === 4) globalPct = Math.round(75 + (currentWindowPct / 100) * 25);
+    else globalPct = 25;
+    globalPct = Math.min(100, globalPct);
+
+    // Elapsed
+    const mins = Math.floor(elapsed / 60);
+    const secs = elapsed % 60;
+    const elapsedStr = `${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
+
+    // Metrics
+    const improvement = Math.round((1 - totalDelay / initialDelay) * 100);
+    const improvementStr = `−${improvement}%`;
+    const jobsOptimized = Math.min(180, Math.round(72 + (windowsDone / 5) * 108 + (currentWindowPct / 100 / 5) * 108));
+    const improvementBarH = `${Math.min(100, 42 + improvement * 0.7)}%`;
+
+    // Windows
+    const windows = [1,2,3,4,5].map(i => {
+      const isWDone  = i <= windowsDone;
+      const isActive = !done && phase === 3 && i === windowsDone + 1;
+      const isWait   = !isWDone && !isActive;
+      const pct      = isActive ? Math.round(currentWindowPct) : isWDone ? 100 : 0;
+      return {
+        i,
+        isDone:    isWDone,
+        isActive:  isActive,
+        isWaiting: isWait,
+        pct:       String(pct),
+        pctStr:    `${pct}%`,
+        bg:        isWDone ? 'rgba(42,122,91,0.18)' : isActive ? '#C4963A' : 'rgba(255,255,255,0.03)',
+        border:    isWDone ? 'rgba(42,122,91,0.3)' : isActive ? '#C4963A' : 'rgba(255,255,255,0.07)',
+        labelColor: isWDone ? '#2A7A5B' : isActive ? '#0C0D18' : '#2E3048',
+      };
+    });
+
+    // Phase 3 card
+    const phase3CardStyle = {
+      background: done ? 'rgba(42,122,91,0.07)' : 'rgba(196,150,58,0.05)',
+      border: done ? '1px solid rgba(42,122,91,0.18)' : '1px solid rgba(196,150,58,0.22)',
+      borderRadius: '4px', padding: '16px 20px',
+      animation: done ? '' : 'breathe 3s ease-in-out infinite',
+    };
+
+    // Phase 4
+    const p4done   = done;
+    const p4active = !done && phase === 4;
+    const p4wait   = !done && phase !== 4;
+
+    return {
+      // Global
+      globalPct,
+      globalPctStr:    `${globalPct}%`,
+      elapsedStr,
+      clockTime:       this.clockStr(elapsed),
+      isDone:          done,
+      notDone:         !done,
+
+      // Metrics
+      totalDelay,
+      improvementStr,
+      jobsOptimized,
+      improvementBarH,
+
+      // Windows
+      windows,
+      showWindowDetail: !done && phase === 3,
+      activeWindowNum:  String(windowsDone + 1),
+      currentWindowPct: String(Math.round(currentWindowPct)),
+
+      // Phase 3 card
+      phase3CardStyle,
+      phase3Badge:       done ? 'Terminée' : `Fenêtre ${Math.min(5, windowsDone + 1)} / 5 en cours`,
+      phase3SpinnerAnim: 'none',
+
+      // Phase 4
+      phase4Done:        p4done,
+      phase4Active:      p4active,
+      phase4Waiting:     p4wait,
+      phase4CardStyle: {
+        background: p4done ? 'rgba(42,122,91,0.07)' : 'rgba(255,255,255,0.02)',
+        border: p4done ? '1px solid rgba(42,122,91,0.18)' : '1px solid rgba(255,255,255,0.06)',
+        borderRadius: '4px', padding: '16px 20px',
+      },
+      phase4CircleColor:  p4done ? '#2A7A5B' : p4active ? '#C4963A' : '#2A2B3A',
+      phase4LabelColor:   p4done ? '#2A7A5B' : p4active ? '#C4963A' : '#2A2B3A',
+      phase4TitleColor:   p4done || p4active ? '#DDDDE8' : '#2A2B3A',
+      phase4Badge:        p4done ? 'Terminée' : p4active ? 'En cours' : 'En attente',
+      phase4BadgeBg:      p4done ? 'rgba(42,122,91,0.15)' : p4active ? 'rgba(196,150,58,0.12)' : 'rgba(255,255,255,0.04)',
+      phase4BadgeColor:   p4done ? '#2A7A5B' : p4active ? '#C4963A' : '#2A2B3A',
+
+      // Logs
+      logs,
+
+      // Cancel & Results
+      handleCancel:  () => { this.setState({ cancelled: true }); clearInterval(this._ticker); },
+      viewResults:   () => { window.location.href = 'Resultats.dc.html'; },
+      goSolvingDash: () => { window.location.href = 'Dashboard.dc.html'; },
+    };
+  }
+}
+
+</script>
+</body>
+</html>
