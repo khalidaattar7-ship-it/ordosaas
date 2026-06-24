@@ -66,7 +66,8 @@ async def main():
             await db.flush()
             print(f"[seed] admin {DEMO_ADMIN_EMAIL} cree (mdp: {DEMO_ADMIN_PASSWORD})")
 
-        # 3. Machines
+        # 3. Machines — IMPERATIF : creees et committees AVANT l'import de
+        # l'instance, sinon la validation CSV echoue (machine_id inexistant).
         for ext, name in DEMO_MACHINES:
             exists = (
                 await db.execute(
@@ -79,6 +80,19 @@ async def main():
                 db.add(Machine(tenant_id=tenant.id, external_id=ext, name=name, status="active"))
                 print(f"[seed] machine {ext} ({name}) creee")
         await db.commit()
+
+        # Verifie que toutes les machines requises existent bien avant l'import.
+        existing_machines = {
+            m.external_id
+            for m in (
+                await db.execute(select(Machine).where(Machine.tenant_id == tenant.id))
+            ).scalars().all()
+        }
+        required = {ext for ext, _ in DEMO_MACHINES}
+        missing = required - existing_machines
+        if missing:
+            print(f"[seed] ERREUR : machines manquantes {missing}, import annule")
+            return
 
         # 4. Import de l'instance exemple
         jobs_csv = _read("jobs.csv")
