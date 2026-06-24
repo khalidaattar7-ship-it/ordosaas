@@ -10,11 +10,17 @@ export default defineConfig({
   server: {
     port: 3000,
     host: true,
+    // Dev-only proxy. In production the API is served via Render's /api/* rewrite,
+    // and the client uses the relative baseURL '/api/v1'.
     proxy: {
       '/api': {
         target: proxyTarget,
         changeOrigin: true,
       },
     },
+  },
+  build: {
+    outDir: 'dist',
+    sourcemap: false,
   },
 })
