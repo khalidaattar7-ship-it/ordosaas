@@ -1,4 +1,5 @@
 """Application configuration loaded from environment variables."""
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -25,6 +26,17 @@ class Settings(BaseSettings):
     JUNCTION_RADIUS: int = 10
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @field_validator("DATABASE_URL")
+    @classmethod
+    def fix_db_url(cls, v: str) -> str:
+        """Render exposes a `postgres://` URL but SQLAlchemy async needs
+        `postgresql+asyncpg://`. Normalise it here. SQLite URLs are untouched."""
+        if v.startswith("postgres://"):
+            return v.replace("postgres://", "postgresql+asyncpg://", 1)
+        if v.startswith("postgresql://"):
+            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return v
 
     @property
     def cors_origins(self) -> list[str]:
