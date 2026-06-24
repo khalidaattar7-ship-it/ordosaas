@@ -1,8 +1,9 @@
 """Alembic migration environment."""
+import os
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import create_engine, pool
 
 config = context.config
 if config.config_file_name is not None:
@@ -11,19 +12,31 @@ if config.config_file_name is not None:
 target_metadata = None
 
 
+def get_sync_url() -> str:
+    """Return a synchronous SQLAlchemy URL for Alembic.
+
+    Alembic must use a sync driver (psycopg2), never asyncpg. Prefer the
+    runtime DATABASE_URL env var (e.g. Render's connection string) and
+    normalise it to a plain `postgresql://` URL; fall back to alembic.ini.
+    """
+    url = os.environ.get("DATABASE_URL", "")
+    if url:
+        url = url.replace("postgresql+asyncpg://", "postgresql://")
+        url = url.replace("postgres://", "postgresql://")
+        return url
+    return config.get_main_option("sqlalchemy.url")
+
+
 def run_migrations_offline() -> None:
-    url = config.get_main_option("sqlalchemy.url")
-    context.configure(url=url, target_metadata=target_metadata, literal_binds=True)
+    context.configure(
+        url=get_sync_url(), target_metadata=target_metadata, literal_binds=True
+    )
     with context.begin_transaction():
         context.run_migrations()
 
 
 def run_migrations_online() -> None:
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    connectable = create_engine(get_sync_url(), poolclass=pool.NullPool, future=True)
     with connectable.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():
