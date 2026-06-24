@@ -27,15 +27,18 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    @field_validator("DATABASE_URL")
+    @field_validator("DATABASE_URL", mode="before")
     @classmethod
     def fix_db_url(cls, v: str) -> str:
-        """Render exposes a `postgres://` URL but SQLAlchemy async needs
-        `postgresql+asyncpg://`. Normalise it here. SQLite URLs are untouched."""
+        """Railway / Render expose a `postgres://` URL but SQLAlchemy async needs
+        `postgresql+asyncpg://`. Normalise it here (idempotent). SQLite URLs and
+        already-async URLs are left untouched."""
+        if not v:
+            return v
         if v.startswith("postgres://"):
-            return v.replace("postgres://", "postgresql+asyncpg://", 1)
-        if v.startswith("postgresql://"):
-            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+            v = v.replace("postgres://", "postgresql+asyncpg://", 1)
+        elif v.startswith("postgresql://") and "+asyncpg" not in v:
+            v = v.replace("postgresql://", "postgresql+asyncpg://", 1)
         return v
 
     @property
