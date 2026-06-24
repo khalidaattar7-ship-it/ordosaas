@@ -16,8 +16,9 @@ def get_sync_url() -> str:
     """Return a synchronous SQLAlchemy URL for Alembic.
 
     Alembic must use a sync driver (psycopg2), never asyncpg. Prefer the
-    runtime DATABASE_URL env var (e.g. Render's connection string) and
-    normalise it to a plain `postgresql://` URL; fall back to alembic.ini.
+    runtime DATABASE_URL env var (Railway / Render expose it as
+    `postgres://` or `postgresql+asyncpg://`) and normalise it to a plain
+    `postgresql://` URL; fall back to alembic.ini when unset.
     """
     url = os.environ.get("DATABASE_URL", "")
     if url:
