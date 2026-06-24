@@ -1,16 +1,30 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@300;400;500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  html, body, #root {
+    @apply h-full;
+  }
+  body {
+    @apply bg-cream text-ink-soft font-mono;
+  }
+  h1, h2, h3, h4 {
+    @apply font-sans;
+  }
+}
 
 @layer components {
   .btn {
     @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
   }
-  .btn-primary { @apply btn bg-accent text-white hover:bg-blue-600; }
-  .btn-secondary { @apply btn bg-gray-100 text-gray-700 hover:bg-gray-200; }
-  .btn-danger { @apply btn bg-red-500 text-white hover:bg-red-600; }
-  .card { @apply bg-white rounded-lg shadow-sm border border-gray-100 p-5; }
-  .input { @apply w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent; }
+  .btn-primary { @apply btn bg-accent text-ink hover:bg-accent-dark; }
+  .btn-secondary { @apply btn bg-cream-card text-ink-soft border border-brand-border hover:bg-cream; }
+  .btn-danger { @apply btn bg-danger text-white hover:opacity-90; }
+  .card { @apply bg-cream-card rounded-lg shadow-sm border border-brand-border p-5; }
+  .input { @apply w-full px-3 py-2 border border-brand-border rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent; }
 }
 
 @media print {
