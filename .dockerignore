@@ -1,0 +1,9 @@
+**/node_modules
+**/dist
+**/__pycache__
+**/.ruff_cache
+**/.pytest_cache
+**/*.db
+**/.env
+ordosaas/frontend/design-mockups
+*.zip

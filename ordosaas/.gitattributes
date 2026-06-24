@@ -1,3 +1,4 @@
-# Shell scripts must keep LF endings so they run in Linux containers.
+# Shell scripts and Procfiles must keep LF endings to run in Linux containers.
 *.sh text eol=lf
 start.sh text eol=lf
+Procfile text eol=lf

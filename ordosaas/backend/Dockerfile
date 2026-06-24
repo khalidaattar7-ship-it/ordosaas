@@ -17,5 +17,7 @@ RUN chmod +x start.sh
 
 EXPOSE 8000
 
-# start.sh runs migrations + seed, then launches uvicorn on $PORT (Render sets it).
-CMD ["./start.sh"]
+# Backend-only image (local dev / standalone). start.sh runs migrations + seed,
+# then launches uvicorn on $PORT (Render/Railway set it). The repo-root Dockerfile
+# additionally bundles the built frontend for single-service Railway deploys.
+CMD ["bash", "start.sh"]
