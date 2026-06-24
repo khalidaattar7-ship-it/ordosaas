@@ -11,8 +11,8 @@ export default function WindowOverlay({ windows, zoom, height }) {
             left: w.t_start * zoom,
             width: Math.max(1, (w.t_end - w.t_start) * zoom),
             height,
-            backgroundColor: i % 2 === 0 ? 'rgba(59,130,246,0.06)' : 'rgba(59,130,246,0.12)',
-            borderLeft: '1px dashed rgba(59,130,246,0.4)',
+            backgroundColor: i % 2 === 0 ? 'rgba(196,150,58,0.05)' : 'rgba(196,150,58,0.11)',
+            borderLeft: '1px dashed rgba(196,150,58,0.45)',
           }}
         />
       ))}

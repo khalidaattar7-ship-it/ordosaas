@@ -1,5 +1,5 @@
 export default function GanttBar({ entry, zoom, rowHeight, selected, onSelect }) {
-  const color = entry.is_late ? '#ef4444' : '#22c55e'
+  const color = entry.is_late ? '#C84848' : '#2A7A5B'
   const tooltip = `${entry.job_external_id} • ${entry.machine_external_id}\n${entry.start_time} → ${entry.end_time} (durée ${entry.duration})${
     entry.job_tardiness ? `\nretard: ${entry.job_tardiness}` : ''
   }`

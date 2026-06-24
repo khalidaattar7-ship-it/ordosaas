@@ -95,10 +95,10 @@ export default function GanttChart({ ganttData, onJobSelect }) {
 
       {/* legend */}
       <div className="mt-4 flex flex-wrap gap-4 text-xs text-gray-500">
-        <Legend color="#ef4444" label="En retard" />
-        <Legend color="#22c55e" label="À l'heure" />
+        <Legend color="#C84848" label="En retard" />
+        <Legend color="#2A7A5B" label="À l'heure" />
         <Legend color="#9ca3af" label="Setup" />
-        <Legend color="rgba(59,130,246,0.3)" label="Fenêtre" />
+        <Legend color="rgba(196,150,58,0.35)" label="Fenêtre" />
       </div>
     </div>
   )

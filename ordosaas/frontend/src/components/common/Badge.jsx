@@ -1,26 +1,34 @@
 import clsx from 'clsx'
 
+// Status palette aligned with the .dc.html mockups:
+// success #2A7A5B, danger #C84848, brass #C4963A, ink/muted neutrals.
+const SUCCESS = 'bg-[#2A7A5B]/12 text-[#2A7A5B]'
+const DANGER = 'bg-[#C84848]/12 text-[#C84848]'
+const GOLD = 'bg-[#C4963A]/15 text-[#A87E2E]'
+const NEUTRAL = 'bg-[#ECEAE4] text-[#666677]'
+const FADED = 'bg-[#F2F1EE] text-[#AAAAB8]'
+
 const STYLES = {
-  draft: 'bg-gray-100 text-gray-700',
-  solved: 'bg-green-100 text-green-700',
-  completed: 'bg-green-100 text-green-700',
-  running: 'bg-blue-100 text-blue-700 animate-pulse',
-  solving: 'bg-blue-100 text-blue-700 animate-pulse',
-  pending: 'bg-yellow-100 text-yellow-700',
-  partial: 'bg-amber-100 text-amber-700',
-  failed: 'bg-red-100 text-red-700',
-  error: 'bg-red-100 text-red-700',
-  cancelled: 'bg-gray-100 text-gray-400',
-  active: 'bg-green-100 text-green-700',
-  inactive: 'bg-gray-100 text-gray-400',
-  maintenance: 'bg-amber-100 text-amber-700',
-  admin: 'bg-purple-100 text-purple-700',
-  planificateur: 'bg-blue-100 text-blue-700',
-  lecteur: 'bg-gray-100 text-gray-600',
+  draft: NEUTRAL,
+  solved: SUCCESS,
+  completed: SUCCESS,
+  running: `${GOLD} animate-pulse`,
+  solving: `${GOLD} animate-pulse`,
+  pending: GOLD,
+  partial: GOLD,
+  failed: DANGER,
+  error: DANGER,
+  cancelled: FADED,
+  active: SUCCESS,
+  inactive: FADED,
+  maintenance: GOLD,
+  admin: GOLD,
+  planificateur: 'bg-[#3A5A8A]/12 text-[#3A5A8A]',
+  lecteur: NEUTRAL,
 }
 
 export default function Badge({ status, label }) {
-  const cls = STYLES[status] || 'bg-gray-100 text-gray-700'
+  const cls = STYLES[status] || NEUTRAL
   return (
     <span
       className={clsx(

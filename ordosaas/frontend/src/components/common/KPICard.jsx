@@ -1,10 +1,10 @@
 import clsx from 'clsx'
 
 const COLORS = {
-  default: 'text-gray-900',
-  green: 'text-green-600',
-  orange: 'text-orange-500',
-  red: 'text-red-600',
+  default: 'text-ink-soft',
+  green: 'text-[#2A7A5B]',
+  orange: 'text-[#A87E2E]',
+  red: 'text-[#C84848]',
   blue: 'text-accent',
 }
 
