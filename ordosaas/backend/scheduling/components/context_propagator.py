@@ -28,9 +28,25 @@ class ContextPropagator:
                 last_job_per_machine[machine_id] = last_entry.job_id
                 machine_loads[machine_id] = last_entry.end_time
         pending_jobs = list({e.job_id for e in schedule.entries})
+
+        # Identify jobs straddling the boundary: scheduled in this window but
+        # with operations still pending (their last op isn't this window's).
+        total_ops = {j.id: len(j.operations) for j in instance.jobs}
+        scheduled_positions: dict[str, int] = {}
+        for e in schedule.entries:
+            cur = scheduled_positions.get(e.job_id, 0)
+            if e.position_in_job > cur:
+                scheduled_positions[e.job_id] = e.position_in_job
+        incomplete_jobs = {
+            job_id: last_pos
+            for job_id, last_pos in scheduled_positions.items()
+            if last_pos < total_ops.get(job_id, last_pos)
+        }
+
         return BoundaryContext(
             last_job_per_machine=last_job_per_machine, active_setups=[],
             pending_jobs=pending_jobs, machine_loads=machine_loads,
+            incomplete_jobs=incomplete_jobs,
         )
 
     def build_right_context(

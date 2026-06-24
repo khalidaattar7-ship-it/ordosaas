@@ -1,5 +1,5 @@
 """BoundaryContext: state propagated between temporal windows."""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -14,6 +14,8 @@ class BoundaryContext:
     pending_jobs: list  # [job_id]
     # Current load per machine (end_time of the last op)
     machine_loads: dict  # {machine_id: last_end_time}
+    # Jobs straddling the boundary: some operations scheduled, some not.
+    incomplete_jobs: dict = field(default_factory=dict)  # {job_id: last_completed_position}
 
     @classmethod
     def empty(cls) -> "BoundaryContext":
@@ -22,4 +24,5 @@ class BoundaryContext:
             active_setups=[],
             pending_jobs=[],
             machine_loads={},
+            incomplete_jobs={},
         )
