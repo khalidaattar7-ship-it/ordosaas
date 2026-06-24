@@ -1,0 +1,54 @@
+# Render Blueprint for OrdoSaaS (DB + Backend + Frontend).
+# Repo layout: everything lives under ordosaas/, so paths are prefixed accordingly.
+databases:
+  - name: ordosaas-db
+    plan: free
+    databaseName: ordosaas
+    user: ordosaas_app
+
+services:
+  - type: web
+    name: ordosaas-backend
+    runtime: docker
+    dockerfilePath: ./ordosaas/backend/Dockerfile
+    dockerContext: ./ordosaas/backend
+    plan: free
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ordosaas-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALGORITHM
+        value: HS256
+      - key: ENVIRONMENT
+        value: production
+      - key: CORS_ORIGINS
+        value: https://ordosaas-frontend.onrender.com
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "60"
+    buildFilter:
+      paths:
+        - ordosaas/backend/**
+
+  - type: web
+    name: ordosaas-frontend
+    runtime: static
+    buildCommand: cd ordosaas/frontend && npm install && npm run build
+    staticPublishPath: ./ordosaas/frontend/dist
+    plan: free
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: public, max-age=0, must-revalidate
+    routes:
+      - type: rewrite
+        source: /api/*
+        destination: https://ordosaas-backend.onrender.com/api/*
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    buildFilter:
+      paths:
+        - ordosaas/frontend/**
