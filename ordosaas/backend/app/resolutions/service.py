@@ -186,7 +186,8 @@ async def _run_resolution_async(resolution_id) -> None:
             tw = TimeWindow(
                 tenant_id=resolution.tenant_id, resolution_id=resolution.id,
                 window_index=1, t_start=0, t_end=max(1, horizon),
-                nb_jobs=max(1, len(db_jobs)), status="feasible",
+                nb_jobs=max(1, len(db_jobs)),
+                status=getattr(schedule, "solver_status", None) or "feasible",
                 method_used=schedule.method_used, recursion_depth=0,
                 local_weighted_tardiness=schedule.total_weighted_tardiness,
             )

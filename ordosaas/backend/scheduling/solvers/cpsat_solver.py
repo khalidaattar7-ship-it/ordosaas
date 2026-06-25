@@ -183,9 +183,11 @@ class CPSATSolver(BaseSolver):
         if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
             return None  # Signal failure to the recursive optimizer
 
-        # Build Schedule
+        # Build Schedule. method_used must name the SOLVER (cpsat) for the DB
+        # constraint; the optimal/feasible outcome goes into solver_status.
         schedule = Schedule(
-            method_used="optimal" if status == cp_model.OPTIMAL else "feasible"
+            method_used="cpsat",
+            solver_status="optimal" if status == cp_model.OPTIMAL else "feasible",
         )
         for job in jobs:
             for op in job.operations:

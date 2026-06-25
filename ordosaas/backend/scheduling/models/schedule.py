@@ -39,6 +39,10 @@ class Schedule:
     jobs_result: list = field(default_factory=list)
     total_weighted_tardiness: float = 0.0
     method_used: str = "unknown"
+    # Solver outcome status ('optimal' / 'feasible' / ...), distinct from the
+    # solver that produced it (method_used). Kept separate so method_used always
+    # holds the solver name (cpsat/lns/atcs) expected by the DB constraint.
+    solver_status: Optional[str] = None
     # Optional KPIs / context attached by solvers
     atcs_twt: Optional[float] = None
     improvement_vs_atcs_pct: Optional[float] = None

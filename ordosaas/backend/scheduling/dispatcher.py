@@ -43,9 +43,27 @@ class SolverDispatcher:
             solver.get_name(), nb_jobs, strategy,
         )
         schedule = solver.solve(instance)
-        if schedule is not None and schedule.method_used in ("unknown", None):
-            schedule.method_used = solver.get_name().lower().replace("solver", "")
+        if schedule is not None:
+            schedule.method_used = self._normalize_method(schedule.method_used, solver)
         return schedule
+
+    @staticmethod
+    def _normalize_method(method_used, solver) -> str:
+        """Guarantee method_used names the solver (cpsat/lns/atcs).
+
+        Some solvers historically stored a result status (optimal/feasible) in
+        method_used; the DB constraint only accepts solver names, so coerce any
+        unexpected value back to the concrete solver that produced it.
+        """
+        valid = {"cpsat", "lns", "atcs"}
+        if method_used in valid:
+            return method_used
+        mapping = {
+            "CPSATSolver": "cpsat",
+            "ATCSSolver": "atcs",
+            "LNSRecursiveSolver": "lns",
+        }
+        return mapping.get(solver.get_name(), "cpsat")
 
     def _select_solver(self, nb_jobs: int, strategy: str, progress_callback=None) -> BaseSolver:
         cpsat_timeout = self.config.get("cpsat_timeout", 30)
