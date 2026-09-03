@@ -131,6 +131,19 @@ des jobs futurs affectés) est **détecté et signalé** par une exception dédi
 routage réel vers `LNSRecursiveSolver` dans `SolverDispatcher` n'est **pas** implémenté.
 C'est un travail explicitement laissé pour une session ultérieure.
 
+### H6 — Unité de temps et valeurs par défaut de l'horizon de recherche (2026-09-03)
+
+Les `start_time` / `end_time` / `duration` du projet sont des entiers sans unité
+explicite nulle part dans le code. En supposant la **minute** (cohérent avec les durées
+de l'instance d'exemple, 4 à 82 par opération), les valeurs par défaut de `ImpactAnalyzer`
+ont été fixées à `search_horizon = 240` (les 4 prochaines heures, cf. §2.4) et
+`max_impacted_jobs = 30` (les 30 prochains jobs, cf. §2.4). Ce sont des **défauts de
+constructeur, surchargeables à chaque appel** — rien n'est codé en dur dans la logique.
+Si l'unité réelle n'est pas la minute, seuls ces deux défauts sont à revoir.
+
+Note de conception : la borne de l'horizon est **inclusive** — une opération démarrant
+exactement à `T_now + search_horizon` reste dans la zone.
+
 ## Prochaines étapes prévues
 
 Plan global à 5 discussions :
