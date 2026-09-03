@@ -38,6 +38,34 @@ REASON_CONTENTION = "machine_contention"
 # dans la logique : ce sont les defauts du constructeur, surchargeables par appel.
 DEFAULT_SEARCH_HORIZON = 240  # unites de temps apres T_now (cf. Sec. 2.4 : "4 prochaines heures")
 DEFAULT_MAX_IMPACTED_JOBS = 30  # cf. Sec. 2.4 : "30 prochains jobs"
+# Au-dela de cette part de jobs futurs touches, l'incremental perd son sens
+# structurel : mieux vaut relancer un LNS complet (cf. Sec. 2.6).
+DEFAULT_FALLBACK_THRESHOLD = 0.5
+
+
+class IncrementalNotSuitableError(Exception):
+    """La zone d'impact est trop large pour que l'incremental ait du sens.
+
+    POINT D'EXTENSION (garde-fou de repli, Sec. 2.6). Cette exception SIGNALE
+    que la perturbation depasse le seuil ; elle ne route rien. Le routage reel
+    vers LNSRecursiveSolver dans SolverDispatcher est volontairement laisse pour
+    une session ulterieure (hypothese H5 de docs/CONTEXTE_ET_DECISIONS.md).
+
+    Le contrat attendu du futur appelant : rattraper cette exception et relancer
+    une resolution complete, plutot que de forcer une resolution partielle
+    degradee sur une zone qui couvre la moitie du planning.
+    """
+
+    def __init__(self, zone, threshold: float):
+        self.zone = zone
+        self.threshold = threshold
+        self.ratio = zone.ratio_future_jobs_affected
+        super().__init__(
+            f"Zone d'impact trop large : {zone.nb_impacted_jobs} job(s) touche(s) "
+            f"sur {zone.nb_future_jobs} futurs ({100 * self.ratio:.0f}%), seuil "
+            f"{100 * threshold:.0f}%. Le reordonnancement incremental n'est pas "
+            f"adapte a cette perturbation : relancer une resolution complete."
+        )
 
 
 @dataclass
@@ -55,6 +83,8 @@ class ImpactZone:
     impacted_entries: list = field(default_factory=list)
     # True si la propagation a ete coupee par une borne de l'horizon de recherche.
     truncated: bool = False
+    # True si la zone depasse le seuil de repli : l'incremental n'est pas adapte.
+    fallback_recommended: bool = False
 
     @property
     def impacted_job_ids(self) -> set:
@@ -106,6 +136,7 @@ class ImpactAnalyzer:
         self,
         search_horizon: int = DEFAULT_SEARCH_HORIZON,
         max_impacted_jobs: int = DEFAULT_MAX_IMPACTED_JOBS,
+        fallback_threshold: float = DEFAULT_FALLBACK_THRESHOLD,
         state_manager: ScheduleStateManager = None,
     ):
         """
@@ -114,13 +145,20 @@ class ImpactAnalyzer:
                 T_now + search_horizon. Unite : celle des start_time du Schedule.
             max_impacted_jobs: nombre maximal de jobs dans la zone ; au-dela, la
                 propagation s'arrete et `truncated` passe a True.
+            fallback_threshold: part des jobs futurs au-dela de laquelle
+                l'incremental n'est plus adapte (defaut 0.5, soit 50 %).
         """
         if search_horizon <= 0:
             raise ValueError(f"search_horizon doit etre > 0, recu {search_horizon}")
         if max_impacted_jobs <= 0:
             raise ValueError(f"max_impacted_jobs doit etre > 0, recu {max_impacted_jobs}")
+        if not 0 < fallback_threshold <= 1:
+            raise ValueError(
+                f"fallback_threshold doit etre dans ]0, 1], recu {fallback_threshold}"
+            )
         self.search_horizon = search_horizon
         self.max_impacted_jobs = max_impacted_jobs
+        self.fallback_threshold = fallback_threshold
         self.state_manager = state_manager or ScheduleStateManager()
 
     # ----------------------------------------------------------------------
@@ -160,6 +198,15 @@ class ImpactAnalyzer:
         zone.impacted_entries = [
             e for e in state.future_entries if e.job_id in zone.reason_by_job
         ]
+        zone.fallback_recommended = (
+            zone.ratio_future_jobs_affected > self.fallback_threshold
+        )
+        if zone.fallback_recommended:
+            logger.warning(
+                "Zone d'impact au-dela du seuil de repli (%.0f%% > %.0f%%) : "
+                "l'incremental n'est pas adapte a cette perturbation",
+                100 * zone.ratio_future_jobs_affected, 100 * self.fallback_threshold,
+            )
         logger.info(
             "ImpactZone: %s -> %d job(s) sur %d futurs (%.0f%%), %d entree(s)%s",
             event.event_type.value, zone.nb_impacted_jobs, zone.nb_future_jobs,
@@ -167,6 +214,21 @@ class ImpactAnalyzer:
             " [tronquee]" if zone.truncated else "",
         )
         return zone
+
+    # -- garde-fou de repli (Sec. 2.6) --------------------------------------
+    def is_suitable(self, zone) -> bool:
+        """L'incremental a-t-il encore du sens pour cette zone ?"""
+        return not zone.fallback_recommended
+
+    def check_suitability(self, zone) -> None:
+        """Leve IncrementalNotSuitableError si la zone depasse le seuil.
+
+        A appeler entre l'analyse et la re-optimisation quand on veut un echec
+        franc plutot qu'un simple drapeau. Voir IncrementalNotSuitableError pour
+        le contrat attendu du futur routage.
+        """
+        if zone.fallback_recommended:
+            raise IncrementalNotSuitableError(zone, self.fallback_threshold)
 
     # -- impact direct, par type d'evenement --------------------------------
     def _seed_direct_impact(self, event, ctx, instance) -> None:

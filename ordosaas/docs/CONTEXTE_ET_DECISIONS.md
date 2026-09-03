@@ -160,10 +160,23 @@ différentes, et les concilier avec les 5 valeurs de type retenues ici pour
 
 ### H5 — Le routage du garde-fou de repli reste à faire (2026-09-03)
 
-Conformément au point 7 du prompt, le garde-fou de dépassement de seuil (par défaut 50 %
-des jobs futurs affectés) est **détecté et signalé** par une exception dédiée, mais le
-routage réel vers `LNSRecursiveSolver` dans `SolverDispatcher` n'est **pas** implémenté.
-C'est un travail explicitement laissé pour une session ultérieure.
+Conformément au point 7 du prompt, le garde-fou de dépassement de seuil est **détecté et
+signalé**, mais le routage réel vers `LNSRecursiveSolver` dans `SolverDispatcher` n'est
+**pas** implémenté. C'est un travail explicitement laissé pour une session ultérieure.
+
+Le point d'extension livré, dans `scheduling/components/impact_analyzer.py` :
+
+- `ImpactAnalyzer(fallback_threshold=0.5)` — seuil configurable, validé dans `]0, 1]` ;
+- `ImpactZone.fallback_recommended` — drapeau posé par `analyze()`, accompagné d'un
+  `logger.warning` ; `analyze()` ne lève jamais d'elle-même, l'appelant reste maître ;
+- `ImpactAnalyzer.is_suitable(zone)` / `check_suitability(zone)` ;
+- `IncrementalNotSuitableError(zone, threshold)` — exception dédiée, qui porte la zone et
+  le seuil et dont la docstring décrit le contrat attendu du futur appelant : rattraper et
+  relancer une résolution complète, plutôt que forcer une résolution partielle dégradée.
+
+`tests/test_fallback_guard.py::test_le_dispatcher_ne_route_pas_encore_vers_lincremental`
+verrouille l'absence de routage : si ce test tombe un jour, c'est que le branchement a été
+fait, et il faudra retirer cette hypothèse H5 plutôt que contourner le test.
 
 ### H6 — Unité de temps et valeurs par défaut de l'horizon de recherche (2026-09-03)
 
