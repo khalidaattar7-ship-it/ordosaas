@@ -191,6 +191,51 @@ Si l'unité réelle n'est pas la minute, seuls ces deux défauts sont à revoir.
 Note de conception : la borne de l'horizon est **inclusive** — une opération démarrant
 exactement à `T_now + search_horizon` reste dans la zone.
 
+### H7 — Les setups aux jonctions zone / futur non touché ne sont pas matérialisés (2026-09-03)
+
+Découvert en faisant tourner la chaîne complète sur l'instance réelle à 10 jobs, où les
+setups sont non nuls. Trois types de setups peuvent apparaître à la frontière d'une zone
+réoptimisée :
+
+1. **setups internes à la zone** — portés par des variables optionnelles du modèle, donc
+   présents dans le `NoOverlap` et la `Cumulative` : dates sûres, émis normalement ;
+2. **setup de jonction gauche** (dernier job figé → premier job de la zone) — sa place est
+   réservée par la contrainte `s >= charge + durée` ; il est émis, mais uniquement quand
+   l'opération est réellement la première à occuper sa machine après T_now ;
+3. **setups à la jonction avec une opération non touchée** — leur *place en temps* est
+   réservée (les obstacles fixes sont élargis vers l'amont de la durée du setup entrant le
+   plus long), mais leurs **dates ne sont pas des variables du modèle**. Ils ne sont donc
+   **pas émis** comme `SetupEntry`.
+
+Une première version les fabriquait après coup à partir de `left.machine_loads` : les dates
+obtenues étaient arbitraires et chevauchaient le planning existant (8 violations sur
+l'instance réelle). Le choix retenu est de ne jamais émettre un setup dont les dates ne
+sortent pas du modèle. Conséquence : un planning fusionné peut présenter une transition
+entre deux jobs sans `SetupEntry` explicite à la jonction zone / futur non touché, alors
+que le temps correspondant est bien réservé sur la machine.
+
+→ **À trancher par Khalid** : soit modéliser explicitement ces setups de jonction dans
+`IncrementalOptimizer` (variables optionnelles vers le premier job non touché de chaque
+machine), soit les reconstruire dans `ScheduleMerger` à partir du temps déjà réservé. La
+première option est plus juste, la seconde moins invasive. À traiter en Discussion 2.
+
+### Constat — le planning initial de l'instance d'exemple est très dense (2026-09-03)
+
+CP-SAT compacte le planning initial : il n'y reste presque aucun temps mort. L'absorption
+du retard implémentée dans `ImpactAnalyzer` n'a donc rien à absorber sur cette instance, et
+une panne machine de seulement 10 unités de temps se propage à **75 % des jobs futurs**,
+déclenchant le garde-fou de repli.
+
+Ce n'est pas un défaut de la cascade — c'est une propriété du planning de départ, et
+précisément le cas que le garde-fou existe pour détecter. Le critère « une perturbation
+locale reste locale » est vérifié là où il a un sens, sur un planning comportant du temps
+mort (`tests/test_impact_analyzer.py::test_le_temps_mort_absorbe_le_retard`).
+
+Implication produit à garder en tête : sur un atelier réel dont le planning est optimisé au
+plus serré, le réordonnancement incrémental sera souvent hors de son domaine de pertinence.
+Il faudra soit conserver de la marge dans le planning initial, soit relever le seuil de
+repli. À arbitrer avec Khalid.
+
 ## Prochaines étapes prévues
 
 Plan global à 5 discussions :
@@ -203,13 +248,20 @@ Plan global à 5 discussions :
 | 4 | Endpoints API (`POST /resolutions/{id}/events`, `GET /resolutions/{id}/diff`) + migrations Alembic | à venir |
 | 5 | Déploiement | à venir |
 
-Composants à livrer dans la Discussion 1, dans l'ordre (un commit poussé par composant) :
+Composants livrés dans la Discussion 1 (un commit poussé par composant) :
 
-1. `PerturbationEvent` — à faire
-2. `ScheduleStateManager` — à faire
-3. `ImpactAnalyzer` — à faire
-4. `IncrementalContextBuilder` — à faire
-5. `IncrementalOptimizer` (+ terme de stabilité, `STABILITY_WEIGHT` = 0.1) — à faire
-6. `ScheduleMerger` — à faire
-7. Garde-fou de repli (documenté, non routé) — à faire
-8. 3-4 scénarios de test minimaux sur l'instance d'exemple 10 jobs — à faire
+| # | Composant | Fichier | Tests | État |
+|---|---|---|---|---|
+| 1 | `PerturbationEvent` | `models/perturbation.py` | 20 | livré |
+| 2 | `ScheduleStateManager` | `components/schedule_state_manager.py` | 14 | livré |
+| 3 | `ImpactAnalyzer` / `ImpactZone` | `components/impact_analyzer.py` | 18 | livré |
+| 4 | `IncrementalContextBuilder` | `components/incremental_context_builder.py` | 11 | livré |
+| 5 | `IncrementalOptimizer` | `solvers/incremental_optimizer.py` | 21 | livré |
+| 6 | `ScheduleMerger` + `validation.py` | `components/schedule_merger.py`, `validation.py` | 20 | livré |
+| 7 | Garde-fou de repli (signalé, non routé) | `components/impact_analyzer.py` | 9 | livré |
+| 8 | Scénarios sur l'instance 10 jobs | `tests/test_incremental_scenarios.py` | 8 | livré |
+
+Suite complète hors tests API : **141 tests verts**. `python -m tests.validate_example`
+passe toujours (TWT 3012.84), donc aucune régression sur le solveur initial. Les tests de
+`test_instances.py` / `test_auth.py` / `test_resolutions.py` exigent un PostgreSQL local et
+échouent en connexion — situation préexistante, sans rapport avec cette session.

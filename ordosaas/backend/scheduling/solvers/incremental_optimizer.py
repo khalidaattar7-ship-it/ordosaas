@@ -34,6 +34,13 @@ from scheduling.models.window import Window, WindowResult
 
 logger = logging.getLogger(__name__)
 
+
+def _occupation_start(entry) -> int:
+    """Debut d'occupation reelle de la machine : le setup precede l'operation."""
+    if entry.setup and entry.setup.duration > 0:
+        return min(entry.start_time, entry.setup.start_time)
+    return entry.start_time
+
 # Poids par defaut du terme de stabilite. Faible : la stabilite departage les
 # solutions quasi optimales, elle ne domine pas le retard pondere.
 DEFAULT_STABILITY_WEIGHT = 0.1
@@ -87,11 +94,9 @@ class IncrementalOptimizer:
         op_vars = self._declare_operations(model, pending_ops, t_now, horizon)
         self._add_precedences(model, zone, sub_instance, op_vars)
         self._add_left_boundary(model, contexts.left, sub_instance, op_vars)
-        right_reserve = self._add_right_boundary(
-            model, contexts.right, sub_instance, op_vars
-        )
+        obstacles = self._build_untouched_obstacles(model, zone, sub_instance, t_now)
         setup_vars = self._add_setups(model, sub_instance, op_vars, t_now, horizon)
-        self._add_no_overlap(model, zone, sub_instance, op_vars, setup_vars)
+        self._add_no_overlap(model, zone, sub_instance, op_vars, setup_vars, obstacles)
         self._add_cumulative_wr(model, zone, sub_instance, contexts.left, setup_vars,
                                 horizon)
         tardiness_vars, completion_vars = self._add_tardiness(
@@ -112,8 +117,8 @@ class IncrementalOptimizer:
         )
         if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
             logger.warning(
-                "Aucune solution sur la zone d'impact (reserve de setup droite : %s)",
-                right_reserve,
+                "Aucune solution sur la zone d'impact (%d obstacle(s) non touche(s))",
+                sum(len(v) for v in obstacles.values()),
             )
             return None
 
@@ -211,6 +216,8 @@ class IncrementalOptimizer:
             base = max(base, entry.end_time)
         for borne in contexts.right.machine_loads.values():
             base = max(base, borne)
+        for entry in zone.untouched_future_entries:
+            base = max(base, entry.end_time)
         travail = sum(op.duration for _, op in pending_ops)
         jobs_zone = {j.id for j in sub_instance.jobs}
         setups = sum(
@@ -274,31 +281,55 @@ class IncrementalOptimizer:
                 if s_dur > 0:
                     model.Add(s >= charge + s_dur)
 
-    def _add_right_boundary(self, model, right, sub_instance, op_vars) -> int:
-        """Contexte droit EXACT et CONTRAIGNANT : la zone ne deborde pas dessus.
+    @staticmethod
+    def _build_untouched_obstacles(model, zone, sub_instance, t_now) -> dict:
+        """Contexte droit EXACT et CONTRAIGNANT : le futur non touche est un obstacle.
 
-        Une reserve est retranchee a la borne pour laisser place au setup entre la
-        derniere operation de la zone et la premiere operation non touchee de la
-        machine. Cette reserve est volontairement conservatrice (le setup le plus
-        long possible vers ce job) : cela peut couter un peu de compacite, mais
-        garantit qu'aucune fusion ne produira de chevauchement a la frontiere
-        droite — c'est le critere d'acceptation du ScheduleMerger.
+        Le futur non touche n'est PAS une simple date butoir apres laquelle la zone
+        devrait tenir : sur une machine donnee, operations de la zone et operations
+        non touchees s'entrelacent. Les forcer toutes avant la premiere operation
+        non touchee est structurellement impossible des que l'entrelacement existe.
+
+        La modelisation correcte est de traiter chaque operation non touchee comme
+        un INTERVALLE FIXE occupant sa machine. La zone peut alors se placer avant,
+        entre, ou apres, mais jamais dessus — ce qui garantit par construction
+        l'absence de chevauchement a la frontiere droite, critere d'acceptation du
+        ScheduleMerger.
+
+        Chaque obstacle est de plus elargi vers l'amont de la duree du setup le plus
+        long qu'un job de la zone pourrait exiger avant lui, afin de reserver la
+        place de ce setup a la jonction. L'elargissement est borne par la fin de
+        l'obstacle precedent sur la meme machine, sans quoi deux obstacles se
+        chevaucheraient et rendraient le NoOverlap infaisable.
+
+        Returns:
+            {machine_id: [IntervalVar fixes]}
         """
-        reserves = {}
-        for machine_id, borne in right.machine_loads.items():
-            job_suivant = right.last_job_per_machine.get(machine_id)
-            reserve = 0
-            if job_suivant:
-                for job in sub_instance.jobs:
-                    reserve = max(
-                        reserve,
-                        sub_instance.get_setup(job.id, job_suivant, machine_id),
-                    )
-            reserves[machine_id] = reserve
-            for (_, _), (_, e, _, op) in op_vars.items():
-                if op.machine_id == machine_id:
-                    model.Add(e <= borne - reserve)
-        return reserves
+        obstacles = {}
+        par_machine = {}
+        for entry in zone.untouched_future_entries:
+            par_machine.setdefault(entry.machine_id, []).append(entry)
+
+        for machine_id, entrees in par_machine.items():
+            entrees.sort(key=_occupation_start)
+            fin_precedente = t_now
+            intervalles = []
+            for entry in entrees:
+                debut_reel = _occupation_start(entry)
+                garde = max(
+                    (sub_instance.get_setup(job.id, entry.job_id, machine_id)
+                     for job in sub_instance.jobs),
+                    default=0,
+                )
+                debut = max(fin_precedente, debut_reel - garde, t_now)
+                fin = max(entry.end_time, debut)
+                intervalles.append(model.NewIntervalVar(
+                    model.NewConstant(debut), fin - debut, model.NewConstant(fin),
+                    f"intouche_{machine_id}_{entry.job_id}_{entry.position_in_job}",
+                ))
+                fin_precedente = fin
+            obstacles[machine_id] = intervalles
+        return obstacles
 
     @staticmethod
     def _add_setups(model, sub_instance, op_vars, t_now, horizon) -> dict:
@@ -334,11 +365,14 @@ class IncrementalOptimizer:
         return setup_vars
 
     @staticmethod
-    def _add_no_overlap(model, zone, sub_instance, op_vars, setup_vars) -> None:
-        """NoOverlap par machine : operations, setups, et machine indisponible.
+    def _add_no_overlap(model, zone, sub_instance, op_vars, setup_vars,
+                        obstacles) -> None:
+        """NoOverlap par machine : operations, setups, obstacles, panne.
 
-        Une panne machine est modelisee comme un intervalle fixe occupant la
-        machine : aucune operation ne peut y etre placee.
+        Trois sources d'occupation en plus des operations de la zone : leurs
+        setups, les operations futures non touchees (obstacles fixes, cf.
+        _build_untouched_obstacles) et, le cas echeant, la fenetre
+        d'indisponibilite d'une machine en panne.
         """
         event = zone.event
         for machine_id in sub_instance.machines:
@@ -350,6 +384,7 @@ class IncrementalOptimizer:
                 siv for (_, _, km), (_, _, siv, _, _) in setup_vars.items()
                 if km == machine_id
             ]
+            intervals += obstacles.get(machine_id, [])
             if (event.event_type is PerturbationType.MACHINE_BREAKDOWN
                     and event.payload.machine_id == machine_id):
                 payload = event.payload
@@ -466,6 +501,7 @@ class IncrementalOptimizer:
             method_used="incremental",
             solver_status="optimal" if status == cp_model.OPTIMAL else "feasible",
         )
+        eligibles = self._eligibles_jonction_gauche(solver, zone, op_vars)
         for job in sub_instance.jobs:
             for op in job.operations:
                 s, e, _, _ = op_vars[(job.id, op.position)]
@@ -474,7 +510,7 @@ class IncrementalOptimizer:
                     start_time=solver.Value(s), end_time=solver.Value(e),
                     duration=op.duration,
                     setup=self._setup_entry_for(solver, job.id, op, setup_vars, left,
-                                                sub_instance),
+                                                sub_instance, eligibles),
                 ))
         total = 0.0
         for job in sub_instance.jobs:
@@ -491,11 +527,33 @@ class IncrementalOptimizer:
         return schedule
 
     @staticmethod
-    def _setup_entry_for(solver, job_id, op, setup_vars, left, sub_instance):
+    def _setup_entry_for(solver, job_id, op, setup_vars, left, sub_instance,
+                         eligibles_jonction_gauche):
+        """SetupEntry d'une operation, uniquement quand il est reellement modelise.
+
+        Deux cas seulement produisent un setup :
+
+        1. un setup INTERNE a la zone, porte par une variable optionnelle du modele :
+           il est deja dans le NoOverlap et dans la Cumulative, ses dates sont sures ;
+        2. le setup de jonction GAUCHE (dernier job fige -> premier job de la zone),
+           dont la place est reservee par la contrainte `s >= charge + duree` — mais
+           seulement si cette operation est bien la premiere a occuper sa machine
+           apres T_now.
+
+        Le troisieme cas concevable — un setup a la jonction avec une operation non
+        touchee — n'est PAS emis : sa place est reservee en temps (les obstacles sont
+        elargis vers l'amont, cf. _build_untouched_obstacles) mais ses dates ne sont
+        pas des variables du modele. Le fabriquer apres coup produirait des dates
+        arbitraires, qui chevauchent le planning existant. C'est une limite connue,
+        consignee dans docs/CONTEXTE_ET_DECISIONS.md (H7).
+        """
         for (fi, ti, km), (ss, se, _, b, sd) in setup_vars.items():
             if ti == job_id and km == op.machine_id and solver.Value(b) == 1:
                 return SetupEntry(from_job_id=fi, start_time=solver.Value(ss),
                                   end_time=solver.Value(se), duration=sd)
+
+        if (op.machine_id, job_id, op.position) not in eligibles_jonction_gauche:
+            return None
         dernier = left.last_job_per_machine.get(op.machine_id)
         if dernier and dernier != job_id:
             s_dur = sub_instance.get_setup(dernier, job_id, op.machine_id)
@@ -504,6 +562,35 @@ class IncrementalOptimizer:
                 return SetupEntry(from_job_id=dernier, start_time=charge,
                                   end_time=charge + s_dur, duration=s_dur)
         return None
+
+    @staticmethod
+    def _eligibles_jonction_gauche(solver, zone, op_vars) -> set:
+        """Operations de la zone reellement premieres sur leur machine apres T_now.
+
+        Une operation n'herite du setup de jonction gauche que si aucune operation
+        non touchee ne l'y precede : sinon son vrai predecesseur sur la machine
+        n'est pas le dernier job fige, et le setup calcule serait faux.
+        """
+        premier_intouche = {}
+        for entry in zone.untouched_future_entries:
+            debut = _occupation_start(entry)
+            actuel = premier_intouche.get(entry.machine_id)
+            if actuel is None or debut < actuel:
+                premier_intouche[entry.machine_id] = debut
+
+        premier_zone = {}
+        for (job_id, position), (s, _, _, op) in op_vars.items():
+            debut = solver.Value(s)
+            actuel = premier_zone.get(op.machine_id)
+            if actuel is None or debut < actuel[0]:
+                premier_zone[op.machine_id] = (debut, job_id, position)
+
+        eligibles = set()
+        for machine_id, (debut, job_id, position) in premier_zone.items():
+            borne = premier_intouche.get(machine_id)
+            if borne is None or debut < borne:
+                eligibles.add((machine_id, job_id, position))
+        return eligibles
 
     @staticmethod
     def _exit_context(schedule, sub_instance):
