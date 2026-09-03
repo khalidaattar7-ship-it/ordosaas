@@ -1,6 +1,5 @@
 """Shared pytest fixtures: scheduling helpers + API integration harness."""
 import os
-from collections import defaultdict
 
 import pytest
 import pytest_asyncio
@@ -15,6 +14,7 @@ from app.main import app
 from app.models.tenant import Tenant
 from app.models.user import User
 from scheduling.models.job import Job, Operation, ProblemInstance
+from scheduling.validation import find_machine_overlaps
 
 TEST_DATABASE_URL = os.getenv(
     "DATABASE_URL",
@@ -90,18 +90,13 @@ def example_schedule(example_instance):
 
 
 def assert_no_machine_overlap(schedule):
-    """Helper: assert no two intervals overlap on any machine (ops + setups)."""
-    slots = defaultdict(list)
-    for entry in schedule.entries:
-        slots[entry.machine_id].append((entry.start_time, entry.end_time))
-        if entry.setup and entry.setup.duration > 0:
-            slots[entry.machine_id].append((entry.setup.start_time, entry.setup.end_time))
-    for machine, intervals in slots.items():
-        intervals.sort()
-        for i in range(len(intervals) - 1):
-            assert intervals[i][1] <= intervals[i + 1][0], (
-                f"Overlap on {machine}: {intervals[i]} and {intervals[i + 1]}"
-            )
+    """Helper: assert no two intervals overlap on any machine (ops + setups).
+
+    Delegates to scheduling.validation, the project's single source of truth for
+    schedule validity (decision D3 in docs/CONTEXTE_ET_DECISIONS.md).
+    """
+    violations = find_machine_overlaps(schedule)
+    assert not violations, "\n".join(violations)
 
 
 # --------------------------------------------------------------------------

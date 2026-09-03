@@ -10,6 +10,7 @@ import sys
 
 from scheduling.models.job import Job, Operation, ProblemInstance
 from scheduling.solvers.cpsat_solver import CPSATSolver
+from scheduling.validation import find_machine_overlaps
 
 FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
 
@@ -83,19 +84,12 @@ def validate_precedence(schedule, instance):
 
 
 def validate_no_overlap(schedule, instance):
-    from collections import defaultdict
-
-    slots = defaultdict(list)
-    for e in schedule.entries:
-        slots[e.machine_id].append((e.start_time, e.end_time))
-        if e.setup and e.setup.duration > 0:
-            slots[e.machine_id].append((e.setup.start_time, e.setup.end_time))
-    for machine, intervals in slots.items():
-        intervals.sort()
-        for i in range(len(intervals) - 1):
-            if intervals[i][1] > intervals[i + 1][0]:
-                print(f"[FAIL] Overlap on {machine}: {intervals[i]} and {intervals[i + 1]}")
-                sys.exit(1)
+    """Delegue a scheduling.validation, endroit de verite unique (decision D3)."""
+    violations = find_machine_overlaps(schedule)
+    if violations:
+        for v in violations:
+            print(f"[FAIL] {v}")
+        sys.exit(1)
     print("[PASS] NoOverlap constraints satisfied")
 
 
