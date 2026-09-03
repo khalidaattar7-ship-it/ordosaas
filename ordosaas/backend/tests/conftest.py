@@ -48,6 +48,47 @@ def small_instance() -> ProblemInstance:
     return ProblemInstance(jobs=jobs, machines=["M1", "M2"], setup_times=setup_times, wr=1)
 
 
+@pytest.fixture(scope="session")
+def example_instance() -> ProblemInstance:
+    """Instance d'exemple du depot : 10 jobs, 3 machines, WR = 2.
+
+    Lue depuis tests/fixtures/{jobs,operations,setups}.csv via les parseurs deja
+    utilises par tests/validate_example.py, pour n'avoir qu'un seul code de
+    chargement. wr=2 y est fixe dans le script, pas dans les CSV.
+    """
+    from tests.validate_example import (
+        FIXTURES_DIR, build_jobs, parse_jobs_csv, parse_ops_csv, parse_setups_csv,
+    )
+
+    jobs_rows = parse_jobs_csv(os.path.join(FIXTURES_DIR, "jobs.csv"))
+    ops_rows = parse_ops_csv(os.path.join(FIXTURES_DIR, "operations.csv"))
+    setup_rows = parse_setups_csv(os.path.join(FIXTURES_DIR, "setups.csv"))
+
+    setup_times = {
+        (r["from_job"], r["to_job"], r["machine_id"]): r["duration"] for r in setup_rows
+    }
+    return ProblemInstance(
+        jobs=build_jobs(jobs_rows, ops_rows),
+        machines=sorted({o["machine_id"] for o in ops_rows}),
+        setup_times=setup_times,
+        wr=2,
+    )
+
+
+@pytest.fixture(scope="session")
+def example_schedule(example_instance):
+    """Planning initial optimise sur l'instance d'exemple.
+
+    Point de depart de tous les scenarios de reordonnancement incremental : on
+    part d'un planning deja resolu, comme en production.
+    """
+    from scheduling.solvers.cpsat_solver import CPSATSolver
+
+    schedule = CPSATSolver(timeout_seconds=30).solve(example_instance)
+    assert schedule is not None, "Le solveur n'a pas trouve de solution initiale"
+    return schedule
+
+
 def assert_no_machine_overlap(schedule):
     """Helper: assert no two intervals overlap on any machine (ops + setups)."""
     slots = defaultdict(list)
