@@ -113,6 +113,40 @@ viennent du document de conception `docs/architecture-incremental.md` §2.7, uni
 pour garder une terminologie cohérente en vue de la Discussion 4. **Aucune migration ni
 table n'est créée maintenant** — c'est explicitement hors périmètre.
 
+### D6 — Écarts assumés par rapport à `ContextPropagator` (2026-09-03)
+
+`IncrementalContextBuilder` réutilise `ContextPropagator.build_left_context()` et
+`build_right_context()` telles quelles pour tout le calcul commun (`last_job_per_machine`,
+`machine_loads`, `pending_jobs`, `incomplete_jobs`). Deux écarts sont nécessaires, et
+justifiés **avant** d'être écrits, comme le demande le prompt :
+
+**Écart 1 — le contexte droit est EXACT, plus approximatif.** La docstring de
+`ContextPropagator` pose comme « règle fondamentale » que le contexte droit est *toujours*
+approximatif, car il vient du planning ATCS. C'est vrai du LNS initial, pas de
+l'incrémental : ici le futur non touché vient de la résolution précédente **déjà
+optimisée**, il est simplement non retouché (cf. §2.1). `build_right_context()` est donc
+appelée en lui passant le `Schedule` réel au lieu du `Schedule` ATCS — le calcul est
+identique, seule la nature de l'entrée change. `ContextPropagator` n'est pas modifiée,
+pour ne pas toucher au LNS initial.
+
+**Écart 2 — le contexte droit porte des `machine_loads`.** `build_right_context()` renvoie
+`machine_loads={}` : dans le LNS initial le contexte droit est purement informationnel, il
+ne contraint rien (et de fait `CPSATSolver.solve_with_context` ignore complètement son
+`right_context`, cf. D2). Dans l'incrémental, le contexte droit doit **contraindre** : la
+zone réoptimisée ne peut pas déborder sur la première opération non touchée de chaque
+machine. `IncrementalContextBuilder` enrichit donc le contexte droit avec
+`machine_loads = {machine_id: début de la première entrée future non touchée}`, à lire
+comme une **date au plus tard** pour la zone, et non comme une charge déjà consommée
+(sens qu'a le champ dans le contexte gauche). Ce double sens du champ selon le côté est
+assumé pour ne pas modifier la dataclass `BoundaryContext` partagée avec le LNS.
+
+**Ajout — `active_setups` du contexte gauche.** `ContextPropagator` renvoie toujours
+`active_setups=[]`. L'incrémental les remplit réellement : un setup figé qui chevauche
+T_now consomme un technicien au-delà de T_now et doit compter dans la contrainte
+Cumulative WR de la zone. Le champ existe déjà dans `BoundaryContext` et
+`CPSATSolver.solve_with_context` sait déjà le consommer — c'est un remplissage, pas un
+écart de structure.
+
 ## Hypothèses en attente de validation par Khalid
 
 ### H4 — Le `schema_bdd.sql` de référence est un document de conception (2026-09-03)
