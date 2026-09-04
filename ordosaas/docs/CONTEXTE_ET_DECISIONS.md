@@ -449,6 +449,84 @@ levée, ce test échouera et signalera qu'il faut mettre à jour D8/D10 — et n
 le test.
 
 
+### Constat — densité du planning × perturbation : les données de la question produit (2026-09-04)
+
+Livrable 2 de la Discussion 2. Rapport reproductible : `python -m tests.densite_report`,
+qui régénère `docs/densite-perturbation.md`. **Descriptif, il ne tranche pas la question
+produit** — il fournit les chiffres pour que Khalid le fasse.
+
+#### Deux leviers de densité mesurés et écartés
+
+Avant de retenir un levier, deux candidats plus évidents ont été mesurés sur l'instance —
+et aucun ne fonctionne :
+
+| Levier essayé | Résultat | Pourquoi |
+|---|---|---|
+| Desserrer les deadlines (×1.5, ×2.5, ×4) | Utilisation **inchangée**, 68-70 % partout | Les deadlines pilotent le retard, pas l'occupation. CP-SAT compacte pareil, avec moins de retard. |
+| Raccourcir les durées (×0.7, ×0.5, ×0.3) | Densité stable, remonte même à 80 % à ×0.5 | L'horizon se contracte dans la même proportion. |
+| Réduire le nombre de jobs (10 → 4) | Fonctionne (69 % → 39 %) mais **écarté** | Change le dénominateur du ratio « part des jobs futurs » sur lequel porte le garde-fou : les variantes ne seraient plus comparables. |
+
+Dans les deux premiers cas, **M1 reste saturée à 100 %** : la machine goulot porte 509
+unités que CP-SAT tasse au plus serré, et aucun réglage de deadline ou de durée ne l'aère.
+
+#### Le levier retenu : l'étirement du planning
+
+Toutes les dates de début (opérations **et** setups) sont multipliées par `s ≥ 1`, les
+durées restent inchangées, les deadlines suivent. Trois propriétés le rendent exploitable :
+il modélise directement l'un des deux termes de la question produit (« conserver de la
+marge »), il conserve les 10 jobs donc évite le biais de dénominateur, et il préserve la
+validité **par construction** — la preuve tient en deux lignes et est vérifiée par
+`test_densite_variants.py::test_letirement_preserve_la_validite`.
+
+| Densité | `s` | Horizon | Utilisation | Temps mort interne | Par machine | TWT | Jobs en retard |
+|---|---|---|---|---|---|---|---|
+| dense | 1.0 | 674 | 68.6 % | 240 | M1:**0** M2:70 M3:170 | 3012.84 | 8/10 |
+| modérée | 1.4 | 916 | 50.5 % | 792 | M1:169 M2:264 M3:359 | 3764.71 | 7/10 |
+| détendue | 2.0 | 1278 | 36.2 % | 1616 | M1:422 M2:553 M3:641 | 4961.98 | 7/10 |
+
+#### Le résultat central — mesuré en deux régimes, ce qui est indispensable
+
+Perturbations en valeur **absolue**, identiques d'une variante à l'autre (une panne de 20
+unités reste une panne de 20 unités, quelle que soit la marge que le planificateur s'est
+gardée). T_now = un tiers de l'horizon.
+
+**Régime « cascade naturelle »** (bornes relâchées) — c'est lui qui répond à la question,
+car il montre jusqu'où la perturbation se propage réellement :
+
+| Perturbation | dense (69 %) | modérée (51 %) | détendue (36 %) |
+|---|---|---|---|
+| Panne machine (M1, 20 u.) | 4/8 — **50 %** | 2/8 — 25 % | 1/8 — 12 % |
+| Job urgent (2 op.) | 7/9 — **78 %** → repli | 3/9 — 33 % | 1/9 — 11 % |
+| Dépassement de durée (×1.5) | 6/8 — **75 %** → repli | 2/8 — 25 % | 1/8 — 12 % |
+
+L'effet est net et monotone : la part moyenne des jobs futurs touchés passe de **68 % en
+dense à 12 % en détendue**. Le garde-fou de repli ne se déclenche que sur le planning
+dense, et jamais sur les deux autres. La marge absorbe donc bien la perturbation, et le
+constat de fin de Discussion 1 est confirmé quantitativement.
+
+**Régime « production »** (bornes relatives par défaut de D7) — et c'est un piège de
+lecture qu'il faut connaître :
+
+Avec 8 à 9 jobs futurs, le plafond relatif de 0.20 vaut **1 à 2 jobs**. La zone est donc
+tronquée par le plafond dans presque toutes les cellules, à toutes les densités, et **le
+garde-fou de repli ne se déclenche jamais**. Ce régime montre que l'incrémental reste
+borné, mais il ne dit rien de l'effet de la densité, qu'il masque entièrement.
+
+#### Une troisième lecture apparue dans les chiffres
+
+La question produit était posée comme un choix binaire — conserver de la marge à
+l'optimisation initiale, ou relever le seuil de repli. Les mesures en font apparaître une
+troisième : **sur cette instance, le plafond relatif de D7 borne déjà la zone bien avant
+que le seuil de repli n'entre en jeu**, ce qui interroge le rôle réel du garde-fou en
+production. Ce point est signalé, pas tranché.
+
+Coût chiffré de l'option « garder de la marge », pour l'arbitrage : le TWT passe de
+3012.84 (dense) à 4961.98 (détendue), soit environ +65 %, et l'horizon de 674 à 1278.
+
+Tous les plannings fusionnés sont valides dans les 18 cellules de la matrice, régimes et
+densités confondus — y compris sur les zones larges non tronquées.
+
+
 ## Hypothèses en attente de validation par Khalid
 
 ### H4 — Le `schema_bdd.sql` de référence est un document de conception (2026-09-03)
@@ -535,7 +613,8 @@ Composants livrés dans la Discussion 1 (un commit poussé par composant) :
 | 10 | Setups de jonction en variables (cf. D8) | `solvers/incremental_optimizer.py`, `components/schedule_merger.py` | +6 | livré |
 | 11 | Orchestrateur public `resolve_incremental` (cf. D9) | `scheduling/incremental.py` | 15 | livré |
 
-Suite complète hors tests API : **170 tests verts** (141 à la fin des 8 premiers commits).
+Suite complète hors tests API : **189 tests verts** (141 à la fin des 8 premiers commits,
+170 à la fin de la Discussion 1).
 `python -m tests.validate_example` passe toujours (TWT 3012.84), donc aucune régression sur
 le solveur initial. Les tests de
 `test_instances.py` / `test_auth.py` / `test_resolutions.py` exigent un PostgreSQL local et
