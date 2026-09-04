@@ -218,6 +218,71 @@ Le constat de fond reste valable — un planning optimisé au plus serré propag
 mais il n'est plus aggravé par une borne mal dimensionnée.
 
 
+### D8 — Les setups de jonction sont modélisés en variables, pas fabriqués après coup (2026-09-04) — résout H7
+
+**Option retenue par Khalid** : modélisation explicite dans `IncrementalOptimizer`, avec
+des variables optionnelles vers le premier job non touché de chaque machine. L'option
+écartée — reconstruire les setups dans `ScheduleMerger` à partir du temps déjà réservé —
+reproduirait exactement le bug déjà corrigé côté gauche plus tôt : une première version
+fabriquait ces dates après coup à partir de `left.machine_loads`, et produisait 8
+chevauchements sur l'instance réelle. **La règle tenue est qu'on n'émet jamais un
+`SetupEntry` dont les dates ne sortent pas du modèle.**
+
+**Ce qui change dans le modèle CP-SAT** (`solvers/incremental_optimizer.py`) :
+
+1. `_build_untouched_obstacles` distingue désormais deux régimes. La **première** entrée
+   non touchée d'une machine où la zone a des opérations est la *jonction* : son obstacle
+   ne couvre plus que l'opération (`[start_time, end_time]`), la place de son setup étant
+   libérée pour devenir une variable. Toutes les autres entrées non touchées gardent leur
+   prédécesseur d'origine, donc leur obstacle couvre l'occupation complète et conserve
+   l'élargissement conservateur vers l'amont, inchangé.
+2. `_add_junction_setups` (nouveau) déclare, par machine de jonction, un intervalle
+   **optionnel** par prédécesseur candidat de la zone, de durée `get_setup(job_zone,
+   job_jonction, machine)`. Ces intervalles entrent dans le `NoOverlap` de la machine et
+   dans la `Cumulative` WR, exactement comme les setups internes à la zone.
+3. Le prédécesseur est **choisi par le modèle**, via `AddExactlyOne` sur les candidats de
+   la zone plus une option « prédécesseur d'origine inchangé ». Le candidat retenu est
+   contraint d'être l'opération de zone qui finit au plus tard avant la jonction
+   (construction `fin_eff` / `dernier` / `AddMaxEquality`). Sans cette contrainte, CP-SAT
+   désignerait un prédécesseur à setup nul et **économiserait un temps de setup qui doit
+   pourtant être payé** — c'était le principal piège de cette modélisation.
+4. Le setup d'origine de l'entrée de jonction devient lui aussi un intervalle optionnel,
+   actif seulement si le prédécesseur d'origine subsiste : sans cela, deux setups
+   occuperaient la machine devant la même opération.
+
+**Remontée du résultat.** Ces setups précèdent une opération qui n'appartient pas à la
+zone : ils ne peuvent donc pas être portés par le `Schedule` renvoyé, qui ne contient que
+les entrées réoptimisées. Ils remontent par un nouveau champ
+`WindowResult.junction_setups` — `{(job_id, position_in_job) de l'entrée non touchée →
+SetupEntry}` — que `ScheduleMerger._apply_junction_setups` rattache à l'entrée visée. La
+substitution passe par `dataclasses.replace` : les entrées non touchées appartiennent au
+`Schedule` de la résolution précédente, que la fusion n'a aucune raison de muter. Le champ
+a une valeur par défaut vide, donc le LNS initial, qui n'a pas de jonction de ce type,
+n'est pas affecté.
+
+**Vérification sur l'instance réelle** (10 jobs, setups non nuls). Balayage de 20
+scénarios de panne (T_now de 60 à 350, sur les 3 machines) : les jonctions produisent
+désormais de vrais `SetupEntry` — par exemple à T_now = 60 sur M2, trois setups émis
+(`J5 → J10` : 304-324, 379-393, 457-463) — et `validate_schedule` renvoie **0 violation**
+sur les 20 scénarios, frontières comprises. Avant D8, ces mêmes transitions n'étaient
+portées par aucun `SetupEntry`.
+
+**Limite résiduelle assumée.** Seule la **première** entrée non touchée de chaque machine
+est traitée, conformément à l'option retenue. Si la zone vient s'intercaler entre deux
+entrées non touchées plus loin dans le futur, le setup de cette transition-là reste
+seulement réservé en temps (obstacle élargi), sans `SetupEntry`. C'est le régime
+conservateur d'avant D8, qui ne sous-estime jamais le temps machine ; il ne concerne plus
+la jonction elle-même, qui est le cas fréquent.
+
+**Effet de bord sur un test.** `test_sans_stabilite_le_planning_se_compacte` affirmait
+`debuts["J1"] < 100`. Dans ce scénario le retard vaut zéro partout et le poids de
+stabilité est mis à zéro : **tous** les placements faisables sont également optimaux, et
+l'assertion verrouillait donc un choix arbitraire de CP-SAT, pas un comportement du
+modèle. Les nouvelles contraintes ont changé ce choix sans rien casser. Le test est
+renommé `test_sans_stabilite_la_solution_derive_de_loriginal` et porte désormais sur la
+dérive (`!= 100`), ce qui est bien l'intention d'origine.
+
+
 ## Hypothèses en attente de validation par Khalid
 
 ### H4 — Le `schema_bdd.sql` de référence est un document de conception (2026-09-03)
@@ -254,33 +319,10 @@ fait, et il faudra retirer cette hypothèse H5 plutôt que contourner le test.
 L'unité de temps a été tranchée par **audit du code frontend**, pas par supposition.
 La conclusion (unité abstraite) et ses conséquences sont consignées en D7.
 
-### H7 — Les setups aux jonctions zone / futur non touché ne sont pas matérialisés (2026-09-03)
+### H7 — RÉSOLUE le 2026-09-04 → voir D8 ci-dessous
 
-Découvert en faisant tourner la chaîne complète sur l'instance réelle à 10 jobs, où les
-setups sont non nuls. Trois types de setups peuvent apparaître à la frontière d'une zone
-réoptimisée :
-
-1. **setups internes à la zone** — portés par des variables optionnelles du modèle, donc
-   présents dans le `NoOverlap` et la `Cumulative` : dates sûres, émis normalement ;
-2. **setup de jonction gauche** (dernier job figé → premier job de la zone) — sa place est
-   réservée par la contrainte `s >= charge + durée` ; il est émis, mais uniquement quand
-   l'opération est réellement la première à occuper sa machine après T_now ;
-3. **setups à la jonction avec une opération non touchée** — leur *place en temps* est
-   réservée (les obstacles fixes sont élargis vers l'amont de la durée du setup entrant le
-   plus long), mais leurs **dates ne sont pas des variables du modèle**. Ils ne sont donc
-   **pas émis** comme `SetupEntry`.
-
-Une première version les fabriquait après coup à partir de `left.machine_loads` : les dates
-obtenues étaient arbitraires et chevauchaient le planning existant (8 violations sur
-l'instance réelle). Le choix retenu est de ne jamais émettre un setup dont les dates ne
-sortent pas du modèle. Conséquence : un planning fusionné peut présenter une transition
-entre deux jobs sans `SetupEntry` explicite à la jonction zone / futur non touché, alors
-que le temps correspondant est bien réservé sur la machine.
-
-→ **À trancher par Khalid** : soit modéliser explicitement ces setups de jonction dans
-`IncrementalOptimizer` (variables optionnelles vers le premier job non touché de chaque
-machine), soit les reconstruire dans `ScheduleMerger` à partir du temps déjà réservé. La
-première option est plus juste, la seconde moins invasive. À traiter en Discussion 2.
+L'option retenue par Khalid (modélisation explicite dans `IncrementalOptimizer`) est
+implémentée. Le détail, la justification et la limite résiduelle sont en D8.
 
 ### Constat — le planning initial de l'instance d'exemple est très dense (2026-09-03)
 

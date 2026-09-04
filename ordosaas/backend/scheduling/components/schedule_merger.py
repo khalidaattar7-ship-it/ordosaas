@@ -15,7 +15,7 @@ chevauchement a reutiliser — il ne calcule que des COUTS de jonction — donc 
 n'est duplique ici.
 """
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from scheduling.models.perturbation import PerturbationType
 from scheduling.models.schedule import Schedule
@@ -73,7 +73,10 @@ class ScheduleMerger:
         """
         frozen = list(zone.state.frozen_entries)
         reoptimized = list(window_result.schedule.entries) if window_result else []
-        untouched = list(zone.untouched_future_entries)
+        untouched = self._apply_junction_setups(
+            zone.untouched_future_entries,
+            window_result.junction_setups if window_result else {},
+        )
 
         merged = Schedule(
             entries=frozen + reoptimized + untouched,
@@ -116,6 +119,29 @@ class ScheduleMerger:
         return merged, report
 
     # ----------------------------------------------------------------------
+    @staticmethod
+    def _apply_junction_setups(untouched, junction_setups) -> list:
+        """Rattache aux entrees non touchees les setups de jonction du modele (D8).
+
+        Quand la zone donne un nouveau predecesseur a la premiere operation non
+        touchee d'une machine, son setup d'origine n'a plus lieu d'etre : il vient
+        d'un job qui ne la precede plus. IncrementalOptimizer a modelise le nouveau
+        setup en variables, donc ses dates sont sures et sans chevauchement — il
+        suffit de le substituer.
+
+        La substitution passe par `dataclasses.replace` : les entrees non touchees
+        appartiennent au Schedule de la resolution precedente, que la fusion n'a
+        aucune raison de muter.
+        """
+        if not junction_setups:
+            return list(untouched)
+        return [
+            replace(entry, setup=junction_setups[(entry.job_id, entry.position_in_job)])
+            if (entry.job_id, entry.position_in_job) in junction_setups
+            else entry
+            for entry in untouched
+        ]
+
     @staticmethod
     def _check_boundary(segment_gauche, segment_droit, nom: str) -> list:
         """Chevauchements entre deux segments adjacents, machine par machine.

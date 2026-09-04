@@ -94,11 +94,17 @@ class IncrementalOptimizer:
         op_vars = self._declare_operations(model, pending_ops, t_now, horizon)
         self._add_precedences(model, zone, sub_instance, op_vars)
         self._add_left_boundary(model, contexts.left, sub_instance, op_vars)
-        obstacles = self._build_untouched_obstacles(model, zone, sub_instance, t_now)
+        obstacles, cibles = self._build_untouched_obstacles(
+            model, zone, sub_instance, t_now
+        )
         setup_vars = self._add_setups(model, sub_instance, op_vars, t_now, horizon)
-        self._add_no_overlap(model, zone, sub_instance, op_vars, setup_vars, obstacles)
+        junction_vars = self._add_junction_setups(
+            model, sub_instance, op_vars, cibles, t_now, horizon
+        )
+        self._add_no_overlap(model, zone, sub_instance, op_vars, setup_vars, obstacles,
+                             junction_vars)
         self._add_cumulative_wr(model, zone, sub_instance, contexts.left, setup_vars,
-                                horizon)
+                                horizon, junction_vars)
         tardiness_vars, completion_vars = self._add_tardiness(
             model, sub_instance, op_vars, horizon
         )
@@ -126,6 +132,7 @@ class IncrementalOptimizer:
             solver, zone, sub_instance, op_vars, setup_vars, contexts.left,
             tardiness_vars, completion_vars, status,
         )
+        junction_setups = self._collect_junction_setups(solver, junction_vars)
         return WindowResult(
             window=Window(
                 index=0, t_start=t_now, t_end=schedule.horizon,
@@ -136,6 +143,7 @@ class IncrementalOptimizer:
             objective=solver.ObjectiveValue() / WEIGHT_SCALE,
             method="incremental",
             duration_seconds=round(elapsed, 3),
+            junction_setups=junction_setups,
         )
 
     # -- sous-instance -------------------------------------------------------
@@ -282,7 +290,7 @@ class IncrementalOptimizer:
                     model.Add(s >= charge + s_dur)
 
     @staticmethod
-    def _build_untouched_obstacles(model, zone, sub_instance, t_now) -> dict:
+    def _build_untouched_obstacles(model, zone, sub_instance, t_now):
         """Contexte droit EXACT et CONTRAIGNANT : le futur non touche est un obstacle.
 
         Le futur non touche n'est PAS une simple date butoir apres laquelle la zone
@@ -296,31 +304,51 @@ class IncrementalOptimizer:
         l'absence de chevauchement a la frontiere droite, critere d'acceptation du
         ScheduleMerger.
 
-        Chaque obstacle est de plus elargi vers l'amont de la duree du setup le plus
-        long qu'un job de la zone pourrait exiger avant lui, afin de reserver la
-        place de ce setup a la jonction. L'elargissement est borne par la fin de
-        l'obstacle precedent sur la meme machine, sans quoi deux obstacles se
-        chevaucheraient et rendraient le NoOverlap infaisable.
+        Deux regimes, depuis la resolution de H7 (cf. D8) :
+
+        - La PREMIERE entree non touchee d'une machine ou la zone a des operations
+          est la JONCTION : son setup peut changer, puisque la zone peut lui donner
+          un nouveau predecesseur. Son obstacle ne couvre donc que l'OPERATION
+          ([start_time, end_time]) ; la place du setup est laissee libre et devient
+          une variable du modele (cf. _add_junction_setups).
+        - Toutes les autres entrees non touchees gardent leur predecesseur d'origine :
+          leur obstacle couvre l'occupation complete (setup inclus) et reste elargi
+          vers l'amont de la duree du setup entrant le plus long qu'un job de la zone
+          pourrait exiger, reservation conservatrice inchangee. L'elargissement est
+          borne par la fin de l'obstacle precedent sur la meme machine, sans quoi deux
+          obstacles se chevaucheraient et rendraient le NoOverlap infaisable.
 
         Returns:
-            {machine_id: [IntervalVar fixes]}
+            (obstacles, cibles) ou obstacles = {machine_id: [IntervalVar fixes]} et
+            cibles = {machine_id: entree de jonction} pour les machines concernees.
         """
-        obstacles = {}
+        obstacles, cibles = {}, {}
         par_machine = {}
         for entry in zone.untouched_future_entries:
             par_machine.setdefault(entry.machine_id, []).append(entry)
+
+        machines_zone = {
+            op.machine_id for job in sub_instance.jobs for op in job.operations
+        }
 
         for machine_id, entrees in par_machine.items():
             entrees.sort(key=_occupation_start)
             fin_precedente = t_now
             intervalles = []
-            for entry in entrees:
-                debut_reel = _occupation_start(entry)
-                garde = max(
-                    (sub_instance.get_setup(job.id, entry.job_id, machine_id)
-                     for job in sub_instance.jobs),
-                    default=0,
-                )
+            for rang, entry in enumerate(entrees):
+                jonction = rang == 0 and machine_id in machines_zone
+                if jonction:
+                    # Le setup de cette entree redevient une variable : l'obstacle
+                    # ne couvre que l'operation, la place du setup est liberee.
+                    cibles[machine_id] = entry
+                    debut_reel, garde = entry.start_time, 0
+                else:
+                    debut_reel = _occupation_start(entry)
+                    garde = max(
+                        (sub_instance.get_setup(job.id, entry.job_id, machine_id)
+                         for job in sub_instance.jobs),
+                        default=0,
+                    )
                 debut = max(fin_precedente, debut_reel - garde, t_now)
                 fin = max(entry.end_time, debut)
                 intervalles.append(model.NewIntervalVar(
@@ -329,7 +357,100 @@ class IncrementalOptimizer:
                 ))
                 fin_precedente = fin
             obstacles[machine_id] = intervalles
-        return obstacles
+        return obstacles, cibles
+
+    @staticmethod
+    def _add_junction_setups(model, sub_instance, op_vars, cibles, t_now, horizon):
+        """Setups de jonction zone -> premier job non touche, en VARIABLES (D8).
+
+        Resout H7. La version precedente se contentait de reserver la place de ces
+        setups en elargissant les obstacles vers l'amont, sans variable : leurs dates
+        n'existaient donc pas, et aucun SetupEntry n'etait emis a la jonction. Les
+        fabriquer apres coup a partir de left.machine_loads avait ete essaye et
+        rejete — les dates obtenues chevauchaient le planning existant.
+
+        Ici la place du setup de jonction est un intervalle OPTIONNEL du modele,
+        donc soumis au NoOverlap de la machine et a la Cumulative WR, exactement
+        comme les setups internes a la zone. Ses dates sortent du solveur.
+
+        Le predecesseur de l'entree de jonction est choisi par le modele, parmi les
+        jobs de la zone presents sur la machine, plus l'option "predecesseur
+        d'origine inchange". Un seul est retenu (AddExactlyOne), et c'est
+        necessairement l'operation de zone qui finit au plus tard avant la jonction :
+        sans cette contrainte, CP-SAT pourrait designer un predecesseur a setup nul
+        et economiser un temps de setup qui doit pourtant etre paye.
+
+        Returns:
+            {machine_id: (cible, [(job_id, b, ss, se, duree, iv)], b_origine)}
+        """
+        junction_vars = {}
+        for machine_id, cible in cibles.items():
+            op_debut = cible.start_time
+            candidats = [
+                job for job in sub_instance.jobs
+                if any(op.machine_id == machine_id for op in job.operations)
+            ]
+            if not candidats:
+                continue
+
+            # -- "l'operation de zone qui finit au plus tard avant la jonction" ----
+            # fin_eff vaut la fin de l'operation quand elle precede la jonction, et
+            # t_now sinon : le maximum des fin_eff designe donc le predecesseur reel,
+            # ou vaut t_now si aucune operation de zone ne precede la jonction.
+            fins_eff, avant = {}, {}
+            for job in candidats:
+                e_var = _var_on_machine(op_vars, job.id, machine_id, index=1)
+                a = model.NewBoolVar(f"avant_{job.id}_{machine_id}")
+                model.Add(e_var <= op_debut).OnlyEnforceIf(a)
+                model.Add(e_var > op_debut).OnlyEnforceIf(a.Not())
+                fe = model.NewIntVar(t_now, horizon, f"fineff_{job.id}_{machine_id}")
+                model.Add(fe == e_var).OnlyEnforceIf(a)
+                model.Add(fe == t_now).OnlyEnforceIf(a.Not())
+                fins_eff[job.id], avant[job.id] = fe, a
+
+            dernier = model.NewIntVar(t_now, horizon, f"dernier_{machine_id}")
+            model.AddMaxEquality(dernier, list(fins_eff.values()) + [t_now])
+
+            b_origine = model.NewBoolVar(f"jonction_origine_{machine_id}")
+            # Le predecesseur d'origine ne subsiste que si aucune operation de la
+            # zone ne vient s'intercaler avant la jonction.
+            model.Add(dernier == t_now).OnlyEnforceIf(b_origine)
+
+            choix = []
+            for job in candidats:
+                b = model.NewBoolVar(f"jonction_{job.id}_{machine_id}")
+                model.AddImplication(b, avant[job.id])
+                model.Add(fins_eff[job.id] == dernier).OnlyEnforceIf(b)
+                model.Add(dernier > t_now).OnlyEnforceIf(b)
+                duree = sub_instance.get_setup(job.id, cible.job_id, machine_id)
+                ss = se = iv = None
+                if duree > 0:
+                    e_var = _var_on_machine(op_vars, job.id, machine_id, index=1)
+                    ss = model.NewIntVar(t_now, horizon, f"jss_{job.id}_{machine_id}")
+                    se = model.NewIntVar(t_now, horizon, f"jse_{job.id}_{machine_id}")
+                    iv = model.NewOptionalIntervalVar(
+                        ss, duree, se, b, f"jiv_{job.id}_{machine_id}"
+                    )
+                    # Le setup s'intercale entre la fin de l'operation de zone et le
+                    # debut de l'operation non touchee, dont la date est fixe.
+                    model.Add(ss >= e_var).OnlyEnforceIf(b)
+                    model.Add(se <= op_debut).OnlyEnforceIf(b)
+                choix.append((job.id, b, ss, se, duree, iv))
+
+            # L'entree de jonction a exactement un predecesseur : un job de la zone,
+            # ou celui d'origine.
+            model.AddExactlyOne([b for _, b, _, _, _, _ in choix] + [b_origine])
+
+            # Le setup d'origine n'occupe la machine que s'il subsiste.
+            if cible.setup and cible.setup.duration > 0:
+                model.NewOptionalIntervalVar(
+                    model.NewConstant(cible.setup.start_time),
+                    cible.setup.duration,
+                    model.NewConstant(cible.setup.end_time),
+                    b_origine, f"jonction_setup_origine_{machine_id}",
+                )
+            junction_vars[machine_id] = (cible, choix, b_origine)
+        return junction_vars
 
     @staticmethod
     def _add_setups(model, sub_instance, op_vars, t_now, horizon) -> dict:
@@ -366,11 +487,12 @@ class IncrementalOptimizer:
 
     @staticmethod
     def _add_no_overlap(model, zone, sub_instance, op_vars, setup_vars,
-                        obstacles) -> None:
+                        obstacles, junction_vars=None) -> None:
         """NoOverlap par machine : operations, setups, obstacles, panne.
 
-        Trois sources d'occupation en plus des operations de la zone : leurs
-        setups, les operations futures non touchees (obstacles fixes, cf.
+        Quatre sources d'occupation en plus des operations de la zone : leurs
+        setups, les setups de jonction vers le futur non touche (cf. D8), les
+        operations futures non touchees (obstacles fixes, cf.
         _build_untouched_obstacles) et, le cas echeant, la fenetre
         d'indisponibilite d'une machine en panne.
         """
@@ -385,6 +507,7 @@ class IncrementalOptimizer:
                 if km == machine_id
             ]
             intervals += obstacles.get(machine_id, [])
+            intervals += _junction_intervals(model, junction_vars, machine_id)
             if (event.event_type is PerturbationType.MACHINE_BREAKDOWN
                     and event.payload.machine_id == machine_id):
                 payload = event.payload
@@ -398,11 +521,13 @@ class IncrementalOptimizer:
                 model.AddNoOverlap(intervals)
 
     @staticmethod
-    def _add_cumulative_wr(model, zone, sub_instance, left, setup_vars, horizon) -> None:
+    def _add_cumulative_wr(model, zone, sub_instance, left, setup_vars, horizon,
+                           junction_vars=None) -> None:
         """Contrainte Cumulative sur les setups (WR techniciens).
 
-        Trois sources de demande : les setups de la zone, les setups figes encore
-        actifs a T_now (contexte gauche exact), et — pour un evenement
+        Quatre sources de demande : les setups de la zone, les setups de jonction
+        vers le futur non touche (cf. D8), les setups figes encore actifs a T_now
+        (contexte gauche exact), et — pour un evenement
         resource_change — un intervalle fixe qui consomme la capacite retiree
         pendant la fenetre, ce qui revient exactement a abaisser le WR sur cette
         periode sans avoir a rendre la capacite variable dans le temps.
@@ -411,6 +536,11 @@ class IncrementalOptimizer:
         for (_, _, _), (_, _, siv, _, _) in setup_vars.items():
             intervals.append(siv)
             demands.append(1)
+
+        for machine_id in (junction_vars or {}):
+            for iv in _junction_intervals(model, junction_vars, machine_id):
+                intervals.append(iv)
+                demands.append(1)
 
         for machine_id, from_j, to_j, s_time, e_time in left.active_setups:
             if e_time > s_time:
@@ -540,12 +670,12 @@ class IncrementalOptimizer:
            seulement si cette operation est bien la premiere a occuper sa machine
            apres T_now.
 
-        Le troisieme cas concevable — un setup a la jonction avec une operation non
-        touchee — n'est PAS emis : sa place est reservee en temps (les obstacles sont
-        elargis vers l'amont, cf. _build_untouched_obstacles) mais ses dates ne sont
-        pas des variables du modele. Le fabriquer apres coup produirait des dates
-        arbitraires, qui chevauchent le planning existant. C'est une limite connue,
-        consignee dans docs/CONTEXTE_ET_DECISIONS.md (H7).
+        Le troisieme cas — un setup a la jonction avec une operation non touchee —
+        n'est pas traite ici, mais il n'est plus une limite : depuis D8 il est
+        modelise par des variables optionnelles (cf. _add_junction_setups) et
+        remonte par `WindowResult.junction_setups`, car il precede une operation qui
+        n'appartient pas a la zone et ne peut donc pas etre porte par une entree de
+        ce Schedule.
         """
         for (fi, ti, km), (ss, se, _, b, sd) in setup_vars.items():
             if ti == job_id and km == op.machine_id and solver.Value(b) == 1:
@@ -562,6 +692,33 @@ class IncrementalOptimizer:
                 return SetupEntry(from_job_id=dernier, start_time=charge,
                                   end_time=charge + s_dur, duration=s_dur)
         return None
+
+    @staticmethod
+    def _collect_junction_setups(solver, junction_vars) -> dict:
+        """SetupEntry de jonction retenus, indexes par l'entree non touchee visee.
+
+        Ces setups precedent une operation qui n'appartient PAS a la zone : ils ne
+        peuvent donc pas etre portes par le Schedule renvoye ici, qui ne contient
+        que les entrees reoptimisees. Ils remontent par le WindowResult, et c'est le
+        ScheduleMerger qui les rattache a l'entree non touchee correspondante.
+
+        Rien n'est emis quand le predecesseur d'origine subsiste (b_origine) ou
+        quand la transition retenue a un setup de duree nulle.
+        """
+        junction_setups = {}
+        for _machine_id, (cible, choix, b_origine) in junction_vars.items():
+            if solver.Value(b_origine) == 1:
+                continue
+            for job_id, b, ss, se, duree, _iv in choix:
+                if solver.Value(b) != 1 or duree <= 0:
+                    continue
+                junction_setups[(cible.job_id, cible.position_in_job)] = SetupEntry(
+                    from_job_id=job_id,
+                    start_time=solver.Value(ss),
+                    end_time=solver.Value(se),
+                    duration=duree,
+                )
+        return junction_setups
 
     @staticmethod
     def _eligibles_jonction_gauche(solver, zone, op_vars) -> set:
@@ -622,6 +779,19 @@ class IncrementalOptimizer:
             method="incremental",
             duration_seconds=round(time.time() - debut, 3),
         )
+
+
+def _junction_intervals(model, junction_vars, machine_id) -> list:
+    """Intervalles optionnels des setups de jonction d'une machine (cf. D8).
+
+    Ce sont les intervalles DEJA declares par _add_junction_setups : en recreer
+    ici sur les memes variables produirait deux intervalles actifs simultanement,
+    donc un NoOverlap infaisable.
+    """
+    if not junction_vars or machine_id not in junction_vars:
+        return []
+    _cible, choix, _b_origine = junction_vars[machine_id]
+    return [iv for _jid, _b, _ss, _se, _duree, iv in choix if iv is not None]
 
 
 def _var_on_machine(op_vars, job_id, machine_id, index):

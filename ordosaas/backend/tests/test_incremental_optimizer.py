@@ -3,6 +3,7 @@ import pytest
 
 from scheduling.components.impact_analyzer import ImpactAnalyzer
 from scheduling.components.incremental_context_builder import IncrementalContextBuilder
+from scheduling.components.schedule_merger import ScheduleMerger
 from scheduling.models.job import Job, Operation, ProblemInstance
 from scheduling.models.perturbation import make_event
 from scheduling.models.schedule import Schedule, ScheduleEntry
@@ -10,6 +11,7 @@ from scheduling.solvers.incremental_optimizer import (
     DEFAULT_STABILITY_WEIGHT,
     IncrementalOptimizer,
 )
+from scheduling.validation import validate_schedule
 
 
 def _entry(job_id, machine_id, position, start, duration, setup=None):
@@ -186,8 +188,15 @@ def test_la_stabilite_maintient_le_planning_proche_de_loriginal(atelier_indiffer
     assert debuts.get("J2", 200) == 200
 
 
-def test_sans_stabilite_le_planning_se_compacte(atelier_indifferent):
-    """Contre-epreuve : a poids nul, la solution derive de l'original."""
+def test_sans_stabilite_la_solution_derive_de_loriginal(atelier_indifferent):
+    """Contre-epreuve : a poids nul, plus rien n'ancre le job sur sa place.
+
+    L'assertion porte sur la DERIVE, pas sur une date precise : le retard vaut zero
+    partout (les deadlines sont hors de portee) et le terme de stabilite est neutralise,
+    donc toutes les placements faisables sont egalement optimaux et CP-SAT peut rendre
+    n'importe lequel. Exiger une date particuliere reviendrait a verrouiller un choix
+    arbitraire du solveur, pas un comportement du modele.
+    """
     schedule, instance = atelier_indifferent
     event = make_event("duration_change", timestamp=90, job_id="J1",
                        position_in_job=1, machine_id="M1", new_duration=50)
@@ -196,7 +205,7 @@ def test_sans_stabilite_le_planning_se_compacte(atelier_indifferent):
                           optimizer=IncrementalOptimizer(timeout_seconds=10,
                                                          stability_weight=0.0))
     debuts = {e.job_id: e.start_time for e in sans.schedule.entries}
-    assert debuts["J1"] < 100  # ramenee au plus tot, aucun frein a la derive
+    assert debuts["J1"] != 100  # plus aucun frein a la derive
 
 
 def test_la_stabilite_ne_bloque_pas_un_deplacement_necessaire(atelier):
@@ -331,3 +340,150 @@ def test_reoptimisation_sur_instance_reelle(example_schedule, example_instance):
     figees = {(e.job_id, e.position_in_job) for e in zone.state.frozen_entries}
     reoptimisees = {(e.job_id, e.position_in_job) for e in result.schedule.entries}
     assert figees & reoptimisees == set()
+
+
+# -- setups de jonction vers le futur non touche (D8, resout H7) -------------
+@pytest.fixture
+def atelier_jonction():
+    """Une machine, un job de zone, un job non touche, setup non nul entre les deux.
+
+    M1 : J1[100-140] (zone, allongee par l'evenement) puis J2[300-340] (non touche).
+    Le trou de 160 unites laisse largement la place au setup J1 -> J2 (20 unites),
+    de sorte que le placement du setup est contraint par le modele, pas par l'espace.
+    """
+    entries = [
+        _entry("J1", "M1", 1, 100, 40),
+        _entry("J2", "M1", 1, 300, 40),
+    ]
+    jobs = [
+        Job(id="J1", operations=[Operation("J1", "M1", 40, 1)], deadline=900, weight=1.0),
+        Job(id="J2", operations=[Operation("J2", "M1", 40, 1)], deadline=900, weight=1.0),
+    ]
+    setup_times = {("J1", "J2", "M1"): 20, ("J2", "J1", "M1"): 20}
+    instance = ProblemInstance(jobs=jobs, machines=["M1"], setup_times=setup_times, wr=1)
+    return Schedule(entries=entries), instance
+
+
+def _evenement_jonction():
+    """Allonge J1 : la zone ne contient que J1, J2 reste non touche."""
+    return make_event("duration_change", timestamp=90, job_id="J1",
+                      position_in_job=1, machine_id="M1", new_duration=60)
+
+
+def test_le_setup_de_jonction_est_emis_avec_des_dates_du_modele(atelier_jonction):
+    """H7 resolu : la transition zone -> futur non touche porte un vrai SetupEntry.
+
+    Avant D8, ce setup n'existait que sous forme de place reservee dans un obstacle
+    elargi : aucune date, donc aucun SetupEntry emis. Il est desormais porte par des
+    variables optionnelles, et ses dates sortent du solveur.
+    """
+    schedule, instance = atelier_jonction
+    zone, result = _reoptimise(_evenement_jonction(), schedule, instance)
+
+    assert result is not None
+    assert ("J2", 1) in result.junction_setups, (
+        "aucun setup emis a la jonction zone / futur non touche"
+    )
+    setup = result.junction_setups[("J2", 1)]
+    assert setup.from_job_id == "J1"
+    assert setup.duration == 20
+    assert setup.end_time - setup.start_time == 20
+
+
+def test_le_setup_de_jonction_sinsere_sans_chevaucher(atelier_jonction):
+    """Ses dates tiennent entre la fin de l'operation de zone et le job non touche."""
+    schedule, instance = atelier_jonction
+    zone, result = _reoptimise(_evenement_jonction(), schedule, instance)
+
+    setup = result.junction_setups[("J2", 1)]
+    fin_zone = max(e.end_time for e in result.schedule.entries if e.job_id == "J1")
+    assert setup.start_time >= fin_zone, "le setup empiete sur l'operation de zone"
+    assert setup.end_time <= 300, "le setup empiete sur l'operation non touchee"
+
+
+def test_la_fusion_rattache_le_setup_de_jonction_sans_muter_loriginal(atelier_jonction):
+    """Le setup remonte par le WindowResult et devient celui de l'entree non touchee."""
+    schedule, instance = atelier_jonction
+    avant = [e.setup for e in schedule.entries if e.job_id == "J2"]
+    zone, result = _reoptimise(_evenement_jonction(), schedule, instance)
+    merged, _report = ScheduleMerger().merge(zone, result, instance)
+
+    fusionnee = next(e for e in merged.entries if e.job_id == "J2")
+    assert fusionnee.setup is not None
+    assert fusionnee.setup.from_job_id == "J1"
+    # Les entrees non touchees appartiennent a la resolution precedente : la fusion
+    # travaille sur une copie et ne doit pas les modifier en place.
+    assert [e.setup for e in schedule.entries if e.job_id == "J2"] == avant
+
+
+def test_le_predecesseur_dorigine_subsiste_quand_la_zone_ne_sintercale_pas(atelier):
+    """Aucun setup de jonction n'est invente si la zone ne precede pas la jonction.
+
+    Contre-epreuve du garde-fou `AddExactlyOne` : le modele doit pouvoir conclure
+    "predecesseur inchange", et alors n'emettre aucun SetupEntry de jonction.
+    """
+    schedule, instance = atelier
+    event = make_event("machine_breakdown", timestamp=90,
+                       machine_id="M1", start_time=100, end_time=160)
+    _zone, result = _reoptimise(event, schedule, instance)
+
+    # Cet atelier n'a aucun setup declare : aucune jonction ne peut en produire.
+    assert result.junction_setups == {}
+
+
+def test_le_setup_de_jonction_occupe_reellement_la_machine(atelier_jonction):
+    """Le setup de jonction est un intervalle du modele, pas une date decorative.
+
+    C'est la difference avec la version d'avant D8 : etant dans le NoOverlap de sa
+    machine, aucune operation de la zone ne peut le chevaucher. Ses dates sont donc
+    exploitables telles quelles par la fusion.
+    """
+    schedule, instance = atelier_jonction
+    zone, result = _reoptimise(_evenement_jonction(), schedule, instance)
+    setup = result.junction_setups[("J2", 1)]
+
+    for entry in result.schedule.entries:
+        if entry.machine_id != "M1":
+            continue
+        assert entry.end_time <= setup.start_time or entry.start_time >= setup.end_time
+
+
+def test_sur_instance_reelle_les_jonctions_sont_emises_et_valides(
+    example_schedule, example_instance
+):
+    """Sur les 10 jobs, au moins un scenario produit des setups de jonction valides.
+
+    C'est le cas qui avait revele H7 : sur cette instance les setups sont non nuls,
+    et la fusion presentait des transitions sans SetupEntry a la frontiere droite.
+    """
+    machine = example_instance.machines[1]  # M2 : setups non nuls, futur non touche
+    t_now = 60
+    suivantes = sorted(
+        (e for e in example_schedule.entries
+         if e.machine_id == machine and e.start_time > t_now),
+        key=lambda e: e.start_time,
+    )
+    debut = suivantes[0].start_time
+    event = make_event("machine_breakdown", timestamp=t_now, machine_id=machine,
+                       start_time=debut, end_time=debut + 20)
+
+    zone, result = _reoptimise(
+        event, example_schedule, example_instance,
+        analyzer=ImpactAnalyzer(search_horizon=400, max_impacted_jobs=30),
+    )
+    assert result is not None
+    assert result.junction_setups, "aucun setup de jonction sur un cas qui en exige"
+
+    merged, report = ScheduleMerger().merge(zone, result, example_instance)
+    assert report.right_boundary_violations == []
+    assert validate_schedule(merged, instance=example_instance) == []
+
+    # Chaque setup de jonction est bien porte par l'entree non touchee visee.
+    for (job_id, position), setup in result.junction_setups.items():
+        entry = next(
+            e for e in merged.entries
+            if e.job_id == job_id and e.position_in_job == position
+        )
+        assert entry.setup is not None
+        assert entry.setup.from_job_id == setup.from_job_id
+        assert entry.setup.start_time == setup.start_time
