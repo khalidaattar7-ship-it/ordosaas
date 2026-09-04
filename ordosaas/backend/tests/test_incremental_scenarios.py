@@ -16,24 +16,31 @@ Trois invariants sont verifies pour CHAQUE scenario, via `_verifie_les_invariant
 """
 import pytest
 
-from scheduling.components.impact_analyzer import ImpactAnalyzer
-from scheduling.components.incremental_context_builder import IncrementalContextBuilder
-from scheduling.components.schedule_merger import ScheduleMerger
+from scheduling.incremental import IncrementalConfig, resolve_incremental
 from scheduling.models.job import Operation
 from scheduling.models.perturbation import make_event
-from scheduling.solvers.incremental_optimizer import IncrementalOptimizer
 from scheduling.validation import validate_schedule
 
 
 def _replanifie(event, schedule, instance, search_horizon=400):
-    """Deroule la chaine incrementale complete et renvoie tout le contexte utile."""
-    analyzer = ImpactAnalyzer(search_horizon=search_horizon, max_impacted_jobs=30)
-    zone = analyzer.analyze(event, schedule, instance)
-    contexts = IncrementalContextBuilder().build(zone, instance)
-    result = IncrementalOptimizer(timeout_seconds=12).optimize(zone, contexts, instance)
-    assert result is not None, "CP-SAT n'a trouve aucune solution sur la zone d'impact"
-    merged, report = ScheduleMerger().merge(zone, result, instance)
-    return zone, result, merged, report
+    """Deroule la chaine incrementale complete et renvoie tout le contexte utile.
+
+    Passe deliberement par `resolve_incremental`, l'orchestrateur public, et non par
+    un enchainement local des composants : c'est le chemin exact qu'empruntera le
+    worker de la Discussion 3, et il ne doit exister qu'une seule facon de derouler
+    la cascade.
+
+    Les bornes sont ici des surcharges ABSOLUES, pour que ces scenarios restent
+    calibres sur cette instance precise independamment des fractions par defaut
+    (cf. D7) : ils testent la cascade, pas le dimensionnement de la zone, couvert
+    par tests/test_impact_analyzer.py.
+    """
+    config = IncrementalConfig(
+        search_horizon=search_horizon, max_impacted_jobs=30, timeout_seconds=12,
+    )
+    resolution = resolve_incremental(schedule, event, instance, config=config)
+    return (resolution.zone, resolution.window_result,
+            resolution.schedule, resolution.report)
 
 
 def _verifie_les_invariants(zone, merged, report, instance, max_ratio=1.0):
@@ -221,17 +228,17 @@ def test_scenario_depassement_la_stabilite_limite_les_perturbations(
         new_duration=int(cible.duration * 1.5) + 1,
     )
 
-    analyzer = ImpactAnalyzer(search_horizon=400, max_impacted_jobs=30)
-    zone = analyzer.analyze(event, example_schedule, example_instance)
-    contexts = IncrementalContextBuilder().build(zone, example_instance)
-
+    # Deux passages complets de la cascade, ne differant que par le poids de
+    # stabilite. L'analyse etant deterministe pour un meme evenement, les deux
+    # passages portent bien sur la meme zone d'impact.
     deplaces = {}
     for poids in (0.0, 0.1):
-        result = IncrementalOptimizer(
-            timeout_seconds=12, stability_weight=poids
-        ).optimize(zone, contexts, example_instance)
-        _, report = ScheduleMerger().merge(zone, result, example_instance)
-        deplaces[poids] = report.nb_jobs_affected
+        resolution = resolve_incremental(
+            example_schedule, event, example_instance,
+            config=IncrementalConfig(search_horizon=400, max_impacted_jobs=30,
+                                     timeout_seconds=12, stability_weight=poids),
+        )
+        deplaces[poids] = resolution.nb_jobs_affected
 
     assert deplaces[0.1] <= deplaces[0.0]
 

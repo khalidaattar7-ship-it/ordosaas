@@ -283,6 +283,60 @@ renommé `test_sans_stabilite_la_solution_derive_de_loriginal` et porte désorma
 dérive (`!= 100`), ce qui est bien l'intention d'origine.
 
 
+### D9 — L'orchestrateur public `resolve_incremental` est le seul chemin de la cascade (2026-09-04)
+
+Nouveau module `scheduling/incremental.py`, au même niveau que `validation.py` et
+`dispatcher.py` puisqu'il traverse à la fois `components/` et `solvers/`. Il enchaîne les
+six composants dans l'ordre de la §2.4 et devient le point d'entrée unique — c'est lui
+qu'appellera le worker de la Discussion 3.
+
+`ScheduleStateManager` n'y apparaît pas explicitement : `ImpactAnalyzer` l'invoque
+lui-même et publie son résultat sur `ImpactZone.state`, que consomment ensuite le builder
+de contextes et le merger. Le faire tourner une seconde fois dans l'orchestrateur
+produirait deux découpages distincts du même planning.
+
+**Deux écarts assumés par rapport à la signature esquissée**
+(`resolve_incremental(schedule, event, t_now, config) -> Schedule`) :
+
+1. **`instance` est un paramètre obligatoire.** Tous les composants en dépendent — la
+   construction de la sous-instance, les durées de setup, la `Cumulative` WR, le recalcul
+   des KPI — et rien ne permet de la retrouver depuis un `Schedule` seul. La signature
+   réelle est `resolve_incremental(schedule, event, instance, t_now=None, config=None)`.
+2. **Le retour est un `IncrementalResolution`, pas un `Schedule` nu.** Le planning fusionné
+   est accessible par `.schedule`, mais un `Schedule` seul perdrait le `MergeReport`, dont
+   le worker a besoin pour le KPI de communication (« 6 jobs replanifiés sur 180 », §2.4)
+   et l'endpoint `GET /resolutions/{id}/diff` de la Discussion 4. L'objet expose des
+   raccourcis (`nb_jobs_affected`, `nb_future_jobs`, `fallback_recommended`, `is_clean`).
+
+**`IncrementalConfig` ne redéfinit aucune politique.** Elle regroupe les points de réglage
+des trois composants configurables pour que l'appelant n'ait pas à les instancier à la
+main. Un champ à `None` signifie « garder le défaut du composant », pas « passer `None` » :
+les fractions et les seuils n'accepteraient pas `None`, seules les surcharges absolues le
+font. C'est vérifié par
+`test_incremental_orchestrator.py::test_sans_config_les_defauts_des_composants_sappliquent`.
+
+**Le garde-fou de repli reste conforme à H5.** Par défaut (`raise_on_fallback=False`) la
+cascade *signale* le dépassement de seuil sur `IncrementalResolution.fallback_recommended`
+et poursuit — elle ne route rien vers `LNSRecursiveSolver`. `raise_on_fallback=True` donne
+un échec franc pour l'appelant qui le préfère. Une zone sans solution CP-SAT lève
+`IncrementalResolutionError` plutôt que de renvoyer `None` silencieusement, pour que le
+worker puisse marquer la résolution `failed` avec un message exploitable (§3.5).
+
+**Les scénarios passent désormais par l'orchestrateur.** Le helper local
+`_replanifie` de `tests/test_incremental_scenarios.py` enchaînait les composants à la main :
+il délègue maintenant à `resolve_incremental`, de sorte qu'aucun chemin de code ne soit
+testé différemment de ce qui tournera en production. Le seul test qui appelait encore les
+composants directement (comparaison de deux poids de stabilité) fait maintenant deux
+passages complets de la cascade. `tests/test_incremental_orchestrator.py` (15 tests) couvre
+le chaînage lui-même, dont une équivalence explicite entre l'orchestrateur et
+l'enchaînement manuel.
+
+Ces scénarios conservent des surcharges **absolues** (`search_horizon=400`,
+`max_impacted_jobs=30`) : ils testent la cascade, pas le dimensionnement de la zone, qui
+relève de `test_impact_analyzer.py`. Les garder calibrés sur cette instance précise les
+rend indépendants d'un futur ajustement des fractions par défaut (D7).
+
+
 ## Hypothèses en attente de validation par Khalid
 
 ### H4 — Le `schema_bdd.sql` de référence est un document de conception (2026-09-03)
@@ -365,8 +419,12 @@ Composants livrés dans la Discussion 1 (un commit poussé par composant) :
 | 6 | `ScheduleMerger` + `validation.py` | `components/schedule_merger.py`, `validation.py` | 20 | livré |
 | 7 | Garde-fou de repli (signalé, non routé) | `components/impact_analyzer.py` | 9 | livré |
 | 8 | Scénarios sur l'instance 10 jobs | `tests/test_incremental_scenarios.py` | 8 | livré |
+| 9 | Bornes relatives (unité abstraite, cf. D7) | `components/impact_analyzer.py` | +8 | livré |
+| 10 | Setups de jonction en variables (cf. D8) | `solvers/incremental_optimizer.py`, `components/schedule_merger.py` | +6 | livré |
+| 11 | Orchestrateur public `resolve_incremental` (cf. D9) | `scheduling/incremental.py` | 15 | livré |
 
-Suite complète hors tests API : **141 tests verts**. `python -m tests.validate_example`
-passe toujours (TWT 3012.84), donc aucune régression sur le solveur initial. Les tests de
+Suite complète hors tests API : **170 tests verts** (141 à la fin des 8 premiers commits).
+`python -m tests.validate_example` passe toujours (TWT 3012.84), donc aucune régression sur
+le solveur initial. Les tests de
 `test_instances.py` / `test_auth.py` / `test_resolutions.py` exigent un PostgreSQL local et
 échouent en connexion — situation préexistante, sans rapport avec cette session.
