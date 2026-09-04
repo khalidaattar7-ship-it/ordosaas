@@ -2,6 +2,8 @@
 import pytest
 
 from scheduling.components.impact_analyzer import (
+    DEFAULT_MAX_IMPACTED_JOBS_FRACTION,
+    DEFAULT_SEARCH_HORIZON_FRACTION,
     REASON_CONTENTION,
     REASON_DIRECT,
     REASON_PRECEDENCE,
@@ -271,3 +273,147 @@ def test_sur_instance_reelle_une_panne_courte_reste_locale(example_schedule, exa
     assert zone.ratio_future_jobs_affected < 1.0
     for entry in zone.impacted_entries:
         assert entry.start_time > t_now
+
+
+# -- bornes relatives a l'instance (D7 : unite de temps abstraite) -----------
+def test_les_bornes_par_defaut_sont_des_fractions_pas_des_valeurs_absolues():
+    """Aucun defaut absolu ne subsiste : l'unite de temps du projet est abstraite."""
+    analyzer = ImpactAnalyzer()
+    assert analyzer.search_horizon_fraction == DEFAULT_SEARCH_HORIZON_FRACTION == 0.15
+    assert analyzer.max_impacted_jobs_fraction == DEFAULT_MAX_IMPACTED_JOBS_FRACTION == 0.20
+    # Les surcharges absolues existent, mais ne sont plus le mode par defaut.
+    assert analyzer.search_horizon is None
+    assert analyzer.max_impacted_jobs is None
+
+
+def test_lhorizon_par_defaut_suit_lechelle_du_planning():
+    """La meme fraction donne une fenetre proportionnelle a l'horizon restant.
+
+    Deux plannings identiques a un facteur 10 pres doivent donner deux horizons
+    dans le meme rapport : c'est tout l'interet d'une borne relative.
+    """
+    def zone_pour(echelle):
+        entries = [_entry("J1", "M1", 1, 100 * echelle, 50 * echelle)]
+        jobs = [Job(id="J1", operations=[Operation("J1", "M1", 50 * echelle, 1)],
+                    deadline=1000 * echelle, weight=1.0)]
+        instance = ProblemInstance(jobs=jobs, machines=["M1"], setup_times={}, wr=1)
+        event = make_event("machine_breakdown", timestamp=0, machine_id="M1",
+                           start_time=100 * echelle, end_time=110 * echelle)
+        return ImpactAnalyzer().analyze(event, Schedule(entries=entries), instance)
+
+    petit, grand = zone_pour(1), zone_pour(10)
+    assert grand.search_horizon == 10 * petit.search_horizon
+
+
+def test_le_plancher_de_lhorizon_protege_les_petites_instances():
+    """Sans plancher, 15 % d'un horizon court donnerait une fenetre inutilisable.
+
+    Ici l'horizon restant est de 150 : 15 % font 22, moins que l'operation elle-meme
+    (50). Le plancher par defaut releve la fenetre a la plus longue occupation future,
+    pour qu'elle puisse contenir au moins une operation entiere.
+    """
+    entries = [_entry("J1", "M1", 1, 100, 50)]
+    jobs = [Job(id="J1", operations=[Operation("J1", "M1", 50, 1)], deadline=300, weight=1.0)]
+    instance = ProblemInstance(jobs=jobs, machines=["M1"], setup_times={}, wr=1)
+    event = make_event("machine_breakdown", timestamp=0, machine_id="M1",
+                       start_time=100, end_time=110)
+    zone = ImpactAnalyzer().analyze(event, Schedule(entries=entries), instance)
+
+    assert zone.search_horizon == 50  # le plancher, pas les 22 de la fraction
+
+
+def test_le_plancher_de_lhorizon_est_surchargeable():
+    entries = [_entry("J1", "M1", 1, 100, 50)]
+    jobs = [Job(id="J1", operations=[Operation("J1", "M1", 50, 1)], deadline=300, weight=1.0)]
+    instance = ProblemInstance(jobs=jobs, machines=["M1"], setup_times={}, wr=1)
+    event = make_event("machine_breakdown", timestamp=0, machine_id="M1",
+                       start_time=100, end_time=110)
+    zone = ImpactAnalyzer(min_search_horizon=500).analyze(
+        event, Schedule(entries=entries), instance
+    )
+    assert zone.search_horizon == 500
+
+
+def test_le_plafond_de_jobs_par_defaut_suit_le_nombre_de_jobs_futurs():
+    """20 % de 20 jobs futurs = 4, la ou l'ancien defaut absolu en autorisait 30."""
+    analyzer = ImpactAnalyzer()
+    assert analyzer.resolve_max_impacted_jobs(20) == 4
+    assert analyzer.resolve_max_impacted_jobs(100) == 20
+    # Plancher : une petite instance garde de quoi propager une cascade.
+    assert analyzer.resolve_max_impacted_jobs(4) == 2
+    assert analyzer.resolve_max_impacted_jobs(0) == 2
+
+
+def test_les_surcharges_absolues_court_circuitent_les_fractions(atelier):
+    """Une valeur absolue reste possible pour un appelant qui sait ce qu'il fait."""
+    schedule, instance = atelier
+    event = make_event("machine_breakdown", timestamp=90,
+                       machine_id="M1", start_time=100, end_time=160)
+    zone = ImpactAnalyzer(search_horizon=777, max_impacted_jobs=3).analyze(
+        event, schedule, instance
+    )
+    assert zone.search_horizon == 777
+    assert zone.horizon_end == 90 + 777
+    assert zone.max_impacted_jobs == 3
+
+
+def test_fractions_invalides_refusees():
+    with pytest.raises(ValueError, match="search_horizon_fraction"):
+        ImpactAnalyzer(search_horizon_fraction=0)
+    with pytest.raises(ValueError, match="search_horizon_fraction"):
+        ImpactAnalyzer(search_horizon_fraction=1.5)
+    with pytest.raises(ValueError, match="max_impacted_jobs_fraction"):
+        ImpactAnalyzer(max_impacted_jobs_fraction=0)
+    with pytest.raises(ValueError, match="min_impacted_jobs"):
+        ImpactAnalyzer(min_impacted_jobs=0)
+    with pytest.raises(ValueError, match="min_search_horizon"):
+        ImpactAnalyzer(min_search_horizon=0)
+
+
+def test_les_bornes_relatives_reduisent_le_sur_declenchement_du_repli(
+    example_schedule, example_instance
+):
+    """Sur l'instance reelle, les bornes relatives contiennent un incident local.
+
+    Constat de la session precedente : le planning initial est tres compact, si bien
+    qu'une panne de 10 unites se propageait a une large part des jobs futurs et
+    declenchait le garde-fou de repli — l'incremental se declarait inapplicable la ou
+    il aurait du s'appliquer. La cause n'etait pas la cascade elle-meme mais un
+    horizon absolu (240) couvrant la moitie du planning (horizon ~674).
+
+    Ce test verrouille la correction : a evenement identique, les bornes relatives
+    donnent une zone strictement plus petite que les anciennes bornes absolues.
+    """
+    t_now = 100
+    machine = example_instance.machines[0]
+    suivantes = sorted(
+        (e for e in example_schedule.entries
+         if e.machine_id == machine and e.start_time > t_now),
+        key=lambda e: e.start_time,
+    )
+    debut = suivantes[0].start_time
+    event = make_event("machine_breakdown", timestamp=t_now, machine_id=machine,
+                       start_time=debut, end_time=debut + 10)
+
+    ancien = ImpactAnalyzer(search_horizon=240, max_impacted_jobs=30)
+    nouveau = ImpactAnalyzer()
+    zone_ancienne = ancien.analyze(event, example_schedule, example_instance)
+    zone_nouvelle = nouveau.analyze(event, example_schedule, example_instance)
+
+    # L'horizon suit desormais l'echelle du planning au lieu d'une constante.
+    assert zone_nouvelle.search_horizon < 240
+    # Il vaut le maximum de la fraction et du plancher. Sur cette instance c'est le
+    # plancher qui l'emporte (la plus longue occupation future, 98, contre 86 pour
+    # les 15 %) : la fenetre reste capable de contenir une operation entiere.
+    fraction = int(
+        (max(e.end_time for e in zone_nouvelle.state.future_entries) - t_now)
+        * DEFAULT_SEARCH_HORIZON_FRACTION
+    )
+    plancher = max(
+        e.end_time - min(e.start_time, e.setup.start_time if e.setup else e.start_time)
+        for e in zone_nouvelle.state.future_entries
+    )
+    assert zone_nouvelle.search_horizon == max(fraction, plancher)
+    # La zone est contenue, et le garde-fou ne se declenche plus sur un incident local.
+    assert zone_nouvelle.nb_impacted_jobs <= zone_ancienne.nb_impacted_jobs
+    assert zone_nouvelle.fallback_recommended is False

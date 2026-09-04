@@ -17,9 +17,18 @@ mort qui le precede ne suffit pas a l'absorber, et se propage alors reduit du te
 mort consomme. Un incident court tombant dans un planning aere s'eteint donc de
 lui-meme apres quelques operations.
 
-Le tout est borne par un horizon de recherche configurable (`search_horizon` en
-unites de temps apres T_now, `max_impacted_jobs` en nombre de jobs), pour garantir
-qu'aucune perturbation ne puisse rouvrir tout le planning futur.
+Le tout est borne par un horizon de recherche configurable, pour garantir qu'aucune
+perturbation ne puisse rouvrir tout le planning futur.
+
+UNITE DE TEMPS (decision D7) : les start_time / end_time / duration du projet sont
+des entiers SANS unite physique. Les bornes sont donc exprimees en FRACTIONS de
+l'instance traitee, pas en valeurs absolues :
+
+- `search_horizon_fraction` - part de l'horizon restant depuis T_now (defaut 0.15) ;
+- `max_impacted_jobs_fraction` - part des jobs futurs (defaut 0.20).
+
+Les deux acceptent une surcharge absolue (`search_horizon`, `max_impacted_jobs`) pour
+les appels qui savent ce qu'ils font, mais ce n'est plus le mode par defaut.
 """
 import logging
 from dataclasses import dataclass, field
@@ -34,10 +43,24 @@ REASON_DIRECT = "direct"
 REASON_PRECEDENCE = "precedence"
 REASON_CONTENTION = "machine_contention"
 
-# Valeurs par defaut de l'horizon de recherche. Elles ne sont PAS codees en dur
-# dans la logique : ce sont les defauts du constructeur, surchargeables par appel.
-DEFAULT_SEARCH_HORIZON = 240  # unites de temps apres T_now (cf. Sec. 2.4 : "4 prochaines heures")
-DEFAULT_MAX_IMPACTED_JOBS = 30  # cf. Sec. 2.4 : "30 prochains jobs"
+# Bornes par defaut de l'horizon de recherche, exprimees en fractions de l'instance
+# traitee (cf. D7 : l'unite de temps du projet est abstraite). Ce sont les defauts du
+# constructeur, surchargeables par appel — rien n'est code en dur dans la logique.
+#
+# Ces fractions remplacent les anciennes valeurs absolues DEFAULT_SEARCH_HORIZON = 240
+# et DEFAULT_MAX_IMPACTED_JOBS = 30, qui supposaient implicitement la minute (240 = "4
+# prochaines heures", 30 = "30 prochains jobs", cf. Sec. 2.4). Sur l'instance d'exemple
+# — charge d'environ 460 unites par machine — 240 couvrait la moitie du planning : la
+# borne censee contenir un incident local ne contenait plus rien, ce qui contribuait au
+# sur-declenchement du garde-fou de repli.
+DEFAULT_SEARCH_HORIZON_FRACTION = 0.15  # 15 % de l'horizon restant depuis T_now
+DEFAULT_MAX_IMPACTED_JOBS_FRACTION = 0.20  # 20 % des jobs futurs restants
+
+# Planchers, pour qu'une petite instance ne se retrouve pas avec une fenetre de
+# recherche quasi nulle. Le plancher d'horizon par defaut est lui aussi sans unite :
+# il vaut la plus longue occupation future, afin que la fenetre admette toujours au
+# moins une operation entiere (cf. _plancher_horizon).
+DEFAULT_MIN_IMPACTED_JOBS = 2  # le job perturbe, plus au moins un voisin de cascade
 # Au-dela de cette part de jobs futurs touches, l'incremental perd son sens
 # structurel : mieux vaut relancer un LNS complet (cf. Sec. 2.6).
 DEFAULT_FALLBACK_THRESHOLD = 0.5
@@ -76,6 +99,11 @@ class ImpactZone:
     t_now: int
     state: ScheduleState
     horizon_end: int
+    # Bornes effectivement resolues pour cette analyse (cf. D7). Elles dependent du
+    # planning et de T_now, pas seulement du constructeur : on les trace ici pour que
+    # la zone reste lisible et verifiable apres coup.
+    search_horizon: int = 0
+    max_impacted_jobs: int = 0
     # job_id -> REASON_* (la raison la plus forte rencontree)
     reason_by_job: dict = field(default_factory=dict)
     # Entrees futures appartenant aux jobs impactes : ce sont elles qui redeviennent
@@ -134,32 +162,102 @@ class ImpactAnalyzer:
 
     def __init__(
         self,
-        search_horizon: int = DEFAULT_SEARCH_HORIZON,
-        max_impacted_jobs: int = DEFAULT_MAX_IMPACTED_JOBS,
+        search_horizon_fraction: float = DEFAULT_SEARCH_HORIZON_FRACTION,
+        max_impacted_jobs_fraction: float = DEFAULT_MAX_IMPACTED_JOBS_FRACTION,
         fallback_threshold: float = DEFAULT_FALLBACK_THRESHOLD,
         state_manager: ScheduleStateManager = None,
+        search_horizon: int = None,
+        max_impacted_jobs: int = None,
+        min_search_horizon: int = None,
+        min_impacted_jobs: int = DEFAULT_MIN_IMPACTED_JOBS,
     ):
         """
+        Les deux bornes sont relatives a l'instance traitee (cf. D7 : l'unite de
+        temps du projet est abstraite). Elles sont resolues a chaque `analyze()`,
+        car elles dependent du planning et de T_now, pas seulement du constructeur.
+
         Args:
-            search_horizon: on ne considere aucune operation demarrant apres
-                T_now + search_horizon. Unite : celle des start_time du Schedule.
-            max_impacted_jobs: nombre maximal de jobs dans la zone ; au-dela, la
-                propagation s'arrete et `truncated` passe a True.
+            search_horizon_fraction: part de l'horizon restant depuis T_now
+                couverte par la recherche (defaut 0.15). Dans ]0, 1].
+            max_impacted_jobs_fraction: part des jobs futurs admise dans la zone
+                (defaut 0.20). Dans ]0, 1].
             fallback_threshold: part des jobs futurs au-dela de laquelle
                 l'incremental n'est plus adapte (defaut 0.5, soit 50 %).
+            state_manager: injectable, pour les tests.
+            search_horizon: surcharge ABSOLUE de l'horizon, en unites de temps du
+                Schedule. Court-circuite entierement la fraction et son plancher.
+            max_impacted_jobs: surcharge ABSOLUE du nombre de jobs de la zone.
+                Court-circuite entierement la fraction et son plancher.
+            min_search_horizon: plancher absolu de l'horizon. Par defaut None :
+                le plancher est alors derive du planning (la plus longue occupation
+                future), donc lui aussi sans unite.
+            min_impacted_jobs: plancher du nombre de jobs de la zone (defaut 2).
         """
-        if search_horizon <= 0:
-            raise ValueError(f"search_horizon doit etre > 0, recu {search_horizon}")
-        if max_impacted_jobs <= 0:
-            raise ValueError(f"max_impacted_jobs doit etre > 0, recu {max_impacted_jobs}")
+        if not 0 < search_horizon_fraction <= 1:
+            raise ValueError(
+                "search_horizon_fraction doit etre dans ]0, 1], recu "
+                f"{search_horizon_fraction}"
+            )
+        if not 0 < max_impacted_jobs_fraction <= 1:
+            raise ValueError(
+                "max_impacted_jobs_fraction doit etre dans ]0, 1], recu "
+                f"{max_impacted_jobs_fraction}"
+            )
         if not 0 < fallback_threshold <= 1:
             raise ValueError(
                 f"fallback_threshold doit etre dans ]0, 1], recu {fallback_threshold}"
             )
+        if search_horizon is not None and search_horizon <= 0:
+            raise ValueError(f"search_horizon doit etre > 0, recu {search_horizon}")
+        if max_impacted_jobs is not None and max_impacted_jobs <= 0:
+            raise ValueError(f"max_impacted_jobs doit etre > 0, recu {max_impacted_jobs}")
+        if min_search_horizon is not None and min_search_horizon <= 0:
+            raise ValueError(
+                f"min_search_horizon doit etre > 0, recu {min_search_horizon}"
+            )
+        if min_impacted_jobs < 1:
+            raise ValueError(f"min_impacted_jobs doit etre >= 1, recu {min_impacted_jobs}")
+        self.search_horizon_fraction = search_horizon_fraction
+        self.max_impacted_jobs_fraction = max_impacted_jobs_fraction
+        self.fallback_threshold = fallback_threshold
         self.search_horizon = search_horizon
         self.max_impacted_jobs = max_impacted_jobs
-        self.fallback_threshold = fallback_threshold
+        self.min_search_horizon = min_search_horizon
+        self.min_impacted_jobs = min_impacted_jobs
         self.state_manager = state_manager or ScheduleStateManager()
+
+    # -- resolution des bornes relatives (cf. D7) ---------------------------
+    def resolve_search_horizon(self, state, t_now: int) -> int:
+        """Horizon de recherche effectif, en unites de temps du Schedule.
+
+        Relatif a ce qu'il RESTE a planifier apres T_now : une meme fraction donne
+        une fenetre large sur un planning long et etroite sur un planning court.
+        """
+        if self.search_horizon is not None:
+            return self.search_horizon
+        fin = max((e.end_time for e in state.future_entries), default=t_now)
+        restant = max(0, fin - t_now)
+        return max(int(restant * self.search_horizon_fraction),
+                   self._plancher_horizon(state))
+
+    def _plancher_horizon(self, state) -> int:
+        """Plancher de l'horizon, sans unite physique.
+
+        Par defaut la plus longue occupation future (setup compris) : en dessous,
+        la fenetre ne pourrait meme pas contenir une operation entiere, et la zone
+        serait systematiquement vide sur une petite instance.
+        """
+        if self.min_search_horizon is not None:
+            return self.min_search_horizon
+        return max((e.end_time - _occ_start(e) for e in state.future_entries),
+                   default=1)
+
+    def resolve_max_impacted_jobs(self, nb_future_jobs: int) -> int:
+        """Nombre maximal de jobs admis dans la zone, relatif aux jobs futurs."""
+        if self.max_impacted_jobs is not None:
+            return self.max_impacted_jobs
+        return max(int(nb_future_jobs * self.max_impacted_jobs_fraction),
+                   self.min_impacted_jobs)
 
     # ----------------------------------------------------------------------
     def analyze(self, event, schedule, instance, t_now: int = None) -> ImpactZone:
@@ -173,12 +271,16 @@ class ImpactAnalyzer:
         """
         t_now = event.timestamp if t_now is None else t_now
         state = self.state_manager.split(schedule, t_now)
+        search_horizon = self.resolve_search_horizon(state, t_now)
         zone = ImpactZone(
             event=event,
             t_now=t_now,
             state=state,
-            horizon_end=t_now + self.search_horizon,
+            horizon_end=t_now + search_horizon,
+            search_horizon=search_horizon,
         )
+        # Depend de zone.nb_future_jobs, donc calcule apres la construction.
+        zone.max_impacted_jobs = self.resolve_max_impacted_jobs(zone.nb_future_jobs)
 
         # Entrees futures indexees par machine et par job, triees par debut.
         by_machine, by_job = {}, {}
@@ -208,10 +310,12 @@ class ImpactAnalyzer:
                 100 * zone.ratio_future_jobs_affected, 100 * self.fallback_threshold,
             )
         logger.info(
-            "ImpactZone: %s -> %d job(s) sur %d futurs (%.0f%%), %d entree(s)%s",
+            "ImpactZone: %s -> %d job(s) sur %d futurs (%.0f%%), %d entree(s)%s "
+            "[horizon %d, max %d jobs]",
             event.event_type.value, zone.nb_impacted_jobs, zone.nb_future_jobs,
             100 * zone.ratio_future_jobs_affected, len(zone.impacted_entries),
             " [tronquee]" if zone.truncated else "",
+            zone.search_horizon, zone.max_impacted_jobs,
         )
         return zone
 
@@ -387,4 +491,6 @@ class _Propagation:
             self.push_machine(entry.machine_id, after=entry.end_time, delay=delay)
 
     def _at_capacity(self) -> bool:
-        return len(self.zone.reason_by_job) >= self.analyzer.max_impacted_jobs
+        # La borne est celle resolue pour CETTE analyse (relative aux jobs futurs),
+        # pas un attribut fixe de l'analyzer.
+        return len(self.zone.reason_by_job) >= self.zone.max_impacted_jobs

@@ -45,8 +45,8 @@ def test_seuil_configurable(atelier_serre):
     event = make_event("machine_breakdown", timestamp=90,
                        machine_id="M1", start_time=100, end_time=200)
 
-    tolerant = ImpactAnalyzer(search_horizon=10_000, fallback_threshold=1.0)
-    severe = ImpactAnalyzer(search_horizon=10_000, fallback_threshold=0.1)
+    tolerant = ImpactAnalyzer(search_horizon=10_000, max_impacted_jobs=50, fallback_threshold=1.0)
+    severe = ImpactAnalyzer(search_horizon=10_000, max_impacted_jobs=50, fallback_threshold=0.1)
 
     assert tolerant.analyze(event, schedule, instance).fallback_recommended is False
     assert severe.analyze(event, schedule, instance).fallback_recommended is True
@@ -65,7 +65,7 @@ def test_une_perturbation_massive_est_signalee(atelier_serre):
     schedule, instance = atelier_serre
     event = make_event("machine_breakdown", timestamp=90,
                        machine_id="M1", start_time=100, end_time=400)
-    zone = ImpactAnalyzer(search_horizon=10_000).analyze(event, schedule, instance)
+    zone = ImpactAnalyzer(search_horizon=10_000, max_impacted_jobs=50).analyze(event, schedule, instance)
 
     assert zone.ratio_future_jobs_affected > 0.5
     assert zone.fallback_recommended is True
@@ -87,7 +87,7 @@ def test_une_perturbation_locale_nest_pas_signalee():
     instance = ProblemInstance(jobs=jobs, machines=["M1"], setup_times={}, wr=1)
     event = make_event("machine_breakdown", timestamp=90,
                        machine_id="M1", start_time=100, end_time=160)
-    zone = ImpactAnalyzer(search_horizon=10_000).analyze(
+    zone = ImpactAnalyzer(search_horizon=10_000, max_impacted_jobs=50).analyze(
         event, Schedule(entries=entries), instance
     )
 
@@ -97,7 +97,7 @@ def test_une_perturbation_locale_nest_pas_signalee():
 
 def test_check_suitability_leve_une_exception_dediee(atelier_serre):
     schedule, instance = atelier_serre
-    analyzer = ImpactAnalyzer(search_horizon=10_000, fallback_threshold=0.1)
+    analyzer = ImpactAnalyzer(search_horizon=10_000, max_impacted_jobs=50, fallback_threshold=0.1)
     event = make_event("machine_breakdown", timestamp=90,
                        machine_id="M1", start_time=100, end_time=200)
     zone = analyzer.analyze(event, schedule, instance)
@@ -112,7 +112,7 @@ def test_check_suitability_leve_une_exception_dediee(atelier_serre):
 
 def test_check_suitability_ne_leve_pas_sur_zone_raisonnable(atelier_serre):
     schedule, instance = atelier_serre
-    analyzer = ImpactAnalyzer(search_horizon=10_000, fallback_threshold=1.0)
+    analyzer = ImpactAnalyzer(search_horizon=10_000, max_impacted_jobs=50, fallback_threshold=1.0)
     event = make_event("machine_breakdown", timestamp=90,
                        machine_id="M1", start_time=100, end_time=200)
     zone = analyzer.analyze(event, schedule, instance)
@@ -124,7 +124,7 @@ def test_check_suitability_ne_leve_pas_sur_zone_raisonnable(atelier_serre):
 def test_analyze_ne_leve_jamais_de_lui_meme(atelier_serre):
     """Le drapeau signale, il ne bloque pas : l'appelant reste maitre."""
     schedule, instance = atelier_serre
-    analyzer = ImpactAnalyzer(search_horizon=10_000, fallback_threshold=0.01)
+    analyzer = ImpactAnalyzer(search_horizon=10_000, max_impacted_jobs=50, fallback_threshold=0.01)
     event = make_event("machine_breakdown", timestamp=90,
                        machine_id="M1", start_time=100, end_time=200)
 

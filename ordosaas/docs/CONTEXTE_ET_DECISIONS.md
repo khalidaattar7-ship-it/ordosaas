@@ -147,6 +147,77 @@ Cumulative WR de la zone. Le champ existe déjà dans `BoundaryContext` et
 `CPSATSolver.solve_with_context` sait déjà le consommer — c'est un remplissage, pas un
 écart de structure.
 
+### D7 — L'unité de temps du projet est ABSTRAITE ; les bornes deviennent relatives (2026-09-04) — résout H6
+
+**Méthode : audit du code d'affichage, pas une question posée.** Le raisonnement est que
+le formatage à l'affichage (labels d'axe, tooltips, conversion éventuelle en heures:minutes)
+révèle l'unité que le backend est censé produire. L'audit a porté sur tout le chemin
+d'affichage du diagramme de Gantt, puis sur l'ensemble du dépôt.
+
+**Ce que l'audit a trouvé — vérifiable ligne à ligne :**
+
+| Fichier / ligne | Constat |
+|---|---|
+| `frontend/src/components/gantt/GanttChart.jsx:49` | Libellé du zoom : `{zoom}px/u` — « pixels par **unité** », formulation volontairement agnostique |
+| `frontend/src/components/gantt/GanttChart.jsx:27-32` | Pas des graduations : `10 / 25 / 50`, entiers bruts, aucun pas horaire |
+| `frontend/src/components/gantt/GanttChart.jsx:62-70` | Les graduations sont rendues telles quelles (`{t}`), sans formatage h:mm |
+| `frontend/src/components/gantt/GanttBar.jsx:3-4` | Tooltip : `${entry.start_time} → ${entry.end_time} (durée ${entry.duration})` — valeurs brutes, sans suffixe |
+| `frontend/src/components/gantt/GanttBar.jsx:12-13` | Position et largeur = `start_time * zoom`, `duration * zoom` — multiplication directe, aucune conversion |
+| `frontend/src/components/gantt/SetupBar.jsx:8-9` | Idem pour les setups |
+| `frontend/src/pages/ResolutionDetail.jsx:163-173` | Les seuls `unit=` des KPI sont `"%"` et `"s"` ; le `"s"` porte sur `duration_seconds`, le **temps de calcul du solveur**, pas sur l'échelle du planning |
+| `backend/app/models/{schedule_entry,job,operation}.py` | `Integer` nu ; aucun commentaire ni contrainte ne documente une unité |
+| Balayage global du dépôt | Aucune occurrence de `* 60`, `/ 60` ni de « minute / heure » liée au planning. Les seuls résultats concernent l'expiration des tokens JWT (`ACCESS_TOKEN_EXPIRE_MINUTES`), sans rapport |
+
+**Décision de Khalid, sur la base de cet audit : l'unité de temps est abstraite**, sans
+signification physique. C'est cohérent avec les benchmarks académiques du domaine
+(Avgerinos, Taillard), qui raisonnent en unités de temps abstraites, et avec
+l'architecture multi-tenant où chaque usine fixe sa propre granularité à l'import.
+
+**Conséquence appliquée dans le code — pas seulement documentée.** `search_horizon = 240`
+et `max_impacted_jobs = 30` supposaient implicitement la minute (« 4 prochaines heures »,
+« 30 prochains jobs », cf. §2.4). Elles sont remplacées par des **fractions relatives à
+l'instance traitée**, dans `components/impact_analyzer.py` :
+
+- `search_horizon_fraction = 0.15` — 15 % de l'horizon restant depuis T_now ;
+- `max_impacted_jobs_fraction = 0.20` — 20 % des jobs futurs restants ;
+- planchers, pour qu'une petite instance ne se retrouve pas avec une fenêtre quasi nulle :
+  `min_impacted_jobs = 2` (le job perturbé plus un voisin de cascade) et, pour l'horizon,
+  un plancher **lui-même sans unité** — la plus longue occupation future (setup compris),
+  afin que la fenêtre puisse toujours contenir au moins une opération entière.
+  `min_search_horizon` permet de forcer un plancher absolu si besoin.
+
+Les fractions sont résolues **à chaque `analyze()`**, car elles dépendent du planning et de
+T_now, pas seulement du constructeur ; les valeurs effectivement retenues sont tracées sur
+la zone (`ImpactZone.search_horizon`, `ImpactZone.max_impacted_jobs`) et dans le log. Les
+surcharges absolues `search_horizon=` / `max_impacted_jobs=` restent disponibles pour un
+appelant qui sait ce qu'il fait, mais ce n'est plus le mode par défaut. Les anciennes
+valeurs (240, 30) sont conservées **en commentaire** dans le code, pour tracer l'origine du
+changement.
+
+**Vérification des autres constantes du code incrémental** — aucune autre ne suppose une
+unité physique implicite : `DEFAULT_STABILITY_WEIGHT = 0.1` est un poids sans dimension,
+`WEIGHT_SCALE = 100` un facteur d'échelle entière, `DEFAULT_FALLBACK_THRESHOLD = 0.5` une
+fraction, et `DEFAULT_TIMEOUT_SECONDS = 12` est en **secondes réelles de calcul CP-SAT**,
+ce qui est légitime et sans rapport avec l'échelle du planning.
+
+**Lien avec le constat sur les plannings compacts (voir plus bas).** Ce n'est plus
+seulement une observation produit : elle est en partie corrigée. Sur l'instance d'exemple,
+dont le planning résolu a un horizon de 674 sur 3 machines, l'ancien `search_horizon = 240`
+couvrait environ la moitié du planning — la borne censée contenir un incident local ne
+contenait plus rien, ce qui gonflait mécaniquement la cascade et sur-déclenchait le
+garde-fou. Mesure faite à événement identique (T_now = 100, panne de 10 unités sur M1) :
+
+| Bornes | Horizon | Max jobs | Jobs touchés | Repli |
+|---|---|---|---|---|
+| Anciennes (absolues 240 / 30) | 240 | 30 | 6 / 10 (60 %) | **déclenché** |
+| Nouvelles (relatives 0.15 / 0.20) | 98 | 2 | 2 / 10 (20 %) | non déclenché |
+
+L'incrémental redevient applicable là où il devait l'être. Ce comportement est verrouillé
+par `tests/test_impact_analyzer.py::test_les_bornes_relatives_reduisent_le_sur_declenchement_du_repli`.
+Le constat de fond reste valable — un planning optimisé au plus serré propage les retards —
+mais il n'est plus aggravé par une borne mal dimensionnée.
+
+
 ## Hypothèses en attente de validation par Khalid
 
 ### H4 — Le `schema_bdd.sql` de référence est un document de conception (2026-09-03)
@@ -178,18 +249,10 @@ Le point d'extension livré, dans `scheduling/components/impact_analyzer.py` :
 verrouille l'absence de routage : si ce test tombe un jour, c'est que le branchement a été
 fait, et il faudra retirer cette hypothèse H5 plutôt que contourner le test.
 
-### H6 — Unité de temps et valeurs par défaut de l'horizon de recherche (2026-09-03)
+### H6 — RÉSOLUE le 2026-09-04 → voir D7 ci-dessous
 
-Les `start_time` / `end_time` / `duration` du projet sont des entiers sans unité
-explicite nulle part dans le code. En supposant la **minute** (cohérent avec les durées
-de l'instance d'exemple, 4 à 82 par opération), les valeurs par défaut de `ImpactAnalyzer`
-ont été fixées à `search_horizon = 240` (les 4 prochaines heures, cf. §2.4) et
-`max_impacted_jobs = 30` (les 30 prochains jobs, cf. §2.4). Ce sont des **défauts de
-constructeur, surchargeables à chaque appel** — rien n'est codé en dur dans la logique.
-Si l'unité réelle n'est pas la minute, seuls ces deux défauts sont à revoir.
-
-Note de conception : la borne de l'horizon est **inclusive** — une opération démarrant
-exactement à `T_now + search_horizon` reste dans la zone.
+L'unité de temps a été tranchée par **audit du code frontend**, pas par supposition.
+La conclusion (unité abstraite) et ses conséquences sont consignées en D7.
 
 ### H7 — Les setups aux jonctions zone / futur non touché ne sont pas matérialisés (2026-09-03)
 
