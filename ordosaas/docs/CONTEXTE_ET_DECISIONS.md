@@ -337,6 +337,118 @@ relève de `test_impact_analyzer.py`. Les garder calibrés sur cette instance pr
 rend indépendants d'un futur ajustement des fractions par défaut (D7).
 
 
+### D10 — Garde aval sur les obstacles : correction d'un défaut réel trouvé par le livrable 1 de la Discussion 2 (2026-09-04)
+
+**Ce n'est pas une clarification de limite connue, c'est un bug.** Le livrable 1 devait
+construire un scénario provoquant la limite résiduelle de D8 (zone intercalée entre deux
+entrées non touchées). Ce scénario a confirmé que cette limite-là est bénigne (voir
+« Constat A » ci-dessous), mais il a révélé au passage un **défaut distinct et non
+documenté**, dans l'autre sens de transition.
+
+**Le défaut.** Rien ne réservait la place du setup **entrant** d'une opération de la zone
+placée juste derrière une entrée non touchée. Les obstacles étaient élargis vers l'amont
+(sens `zone → non touchée`) mais jamais vers l'aval (sens `non touchée → zone`). Le
+solveur pouvait donc plaquer une opération de la zone contre la fin d'une entrée non
+touchée, avec un écart nul, alors que la transition exige un temps de setup.
+
+Reproduction déterministe, avant correction (`stability_weight = 0`, deadline serrée sur
+J3 pour que le solveur veuille l'avancer au maximum) :
+
+```
+J1 op [100-150]   setup: AUCUN
+J3 op [150-210]   setup: AUCUN        <- collée à J1, écart = 0
+setup J1->J3 requis physiquement = 40 -> il manque 40 unités
+violations validate_schedule : []     -> le planning passe pourtant la validation
+```
+
+**Gravité.** Le planning fusionné est **infaisable en atelier tout en étant déclaré
+valide**. Il échappe au validateur canonique parce que `scheduling/validation.py` ne
+vérifie que chevauchement, précédence et Cumulative WR — jamais qu'un `SetupEntry`
+corresponde au prédécesseur réel de l'opération, ni que la place d'un setup manquant
+existe.
+
+**Portée.** Le défaut vaut pour **toute** entrée non touchée suivie d'une opération de la
+zone : reproduit sur une entrée de jonction *et* sur une entrée non touchée ordinaire.
+
+**Ce n'est pas une régression de D8.** Avant D8 l'obstacle de la première entrée non
+touchée était élargi vers l'amont ; l'aval n'a jamais été modélisé, ni avant ni après. D8
+n'a donc ni créé ni couvert ce défaut — il était antérieur et simplement jamais atteint
+par les scénarios existants, qui ne poussaient pas le solveur à coller une opération.
+
+**Le correctif (option retenue par Khalid) : réservation conservatrice en aval.** Dans
+`_build_untouched_obstacles`, l'obstacle de chaque entrée non touchée est désormais élargi
+vers l'aval de `garde_aval`, le plus long setup sortant vers un job de la zone :
+
+```python
+garde_aval = max(
+    (sub_instance.get_setup(entry.job_id, job.id, machine_id)
+     for job in sub_instance.jobs),
+    default=0,
+)
+fin = max(entry.end_time + garde_aval, debut)
+```
+
+C'est la correction d'un défaut **dans l'implémentation de la réservation conservatrice
+déjà décidée en D8**, pas une extension de H7/D8. La modélisation explicite en variables
+(symétrique de D8) a été écartée : elle annulerait ce choix architectural sans rapport avec
+le bug constaté, et dépasse le périmètre d'une session de test et validation.
+
+**Les DEUX sens sont désormais couverts par une garde de même nature** — une réservation
+conservatrice bornée par le plus long setup possible, sans émission de `SetupEntry` :
+
+```
+[zone] --garde amont--> [non touchée] --garde aval--> [zone]
+```
+
+| Sens de transition | Garde | Statut |
+|---|---|---|
+| `zone → non touchée` (amont) | `garde` = plus long setup entrant depuis un job de la zone | préexistante, **confirmée en place** |
+| `non touchée → zone` (aval) | `garde_aval` = plus long setup sortant vers un job de la zone | **ajoutée par D10** |
+
+La garde amont s'applique aux entrées non touchées au-delà de la première (la première,
+la jonction, a son setup modélisé en variables par D8). La garde aval s'applique à
+**toutes** les entrées non touchées, jonction comprise, puisque D8 ne traite que le setup
+*entrant* de la jonction et laisse son aval libre.
+
+**Tests de non-régression permanents**, dans `tests/test_incremental_jonctions.py` (et non
+comme outil de diagnostic jeté après usage) : 4 tests couvrent le Constat B et échouent
+effectivement si l'on désactive `garde_aval` — vérifié explicitement. Les scénarios sont
+déterministes : c'est la géométrie du planning (J3 ne peut pas passer avant J1, faute de
+place entre T_now et le début de J1) qui force le placement recherché, pas un aléa CP-SAT.
+
+### Constat A — la limite résiduelle de D8 est confirmée BÉNIGNE pour la validité (2026-09-04)
+
+Résultat du scénario que le livrable 1 visait initialement. Une zone intercalée entre deux
+entrées non touchées ne produit **aucun chevauchement** : la réservation conservatrice fait
+son office, et la place du setup réellement en vigueur existe bien dans le planning fusionné.
+
+Ce qui reste faux est une **métadonnée**, pas la validité. Précisément :
+
+| Élément | Fiabilité après fusion |
+|---|---|
+| **Quelles entrées** | Les entrées non touchées **au-delà de la première de leur machine**. La première (la jonction) est correctement traitée par D8. |
+| `SetupEntry.start_time` / `end_time` | **Fiable.** La position temporelle tombe dans une zone réservée, donc sans chevauchement. |
+| `SetupEntry.from_job_id` | **Peut être périmé.** Il nomme le prédécesseur d'origine, qui n'est plus forcément celui qui précède l'opération après réordonnancement. |
+| `SetupEntry.duration` | **Peut être périmée.** C'est la durée de l'ancienne transition, pas de la nouvelle — elle peut sous-estimer le setup réel. |
+
+Exemple observé : `J2` conserve `setup J1->J2 d=20` alors que `J3` la précède désormais et
+que la transition réelle `J3 → J2` vaut 30.
+
+**Conséquence pour la Discussion 4** (endpoint de diff, consommateurs de ces données) : ne
+pas se fier au `from_job_id` ni à la `duration` d'un `SetupEntry` porté par une entrée non
+touchée au-delà de la première de sa machine — **seule sa position temporelle est fiable**.
+Un KPI de temps de setup total calculé naïvement sur ces champs sera légèrement faux.
+
+**Décision de Khalid : ne pas corriger.** Recalculer ces dates rouvrirait exactement le
+risque tranché en H7/D8 — ne jamais fabriquer une date de setup hors du modèle CP-SAT —
+pour un gain nul, puisqu'aucune invalidité n'en découle. La limite est verrouillée telle
+qu'observée par
+`test_incremental_jonctions.py::test_la_metadonnee_de_setup_peut_rester_perimee_au_dela_de_la_jonction`,
+qui **constate** le comportement au lieu de l'affirmer : le jour où cette limite sera
+levée, ce test échouera et signalera qu'il faut mettre à jour D8/D10 — et non contourner
+le test.
+
+
 ## Hypothèses en attente de validation par Khalid
 
 ### H4 — Le `schema_bdd.sql` de référence est un document de conception (2026-09-03)

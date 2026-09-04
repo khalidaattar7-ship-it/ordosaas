@@ -304,7 +304,7 @@ class IncrementalOptimizer:
         l'absence de chevauchement a la frontiere droite, critere d'acceptation du
         ScheduleMerger.
 
-        Deux regimes, depuis la resolution de H7 (cf. D8) :
+        Deux regimes en AMONT de l'obstacle, depuis la resolution de H7 (cf. D8) :
 
         - La PREMIERE entree non touchee d'une machine ou la zone a des operations
           est la JONCTION : son setup peut changer, puisque la zone peut lui donner
@@ -314,9 +314,26 @@ class IncrementalOptimizer:
         - Toutes les autres entrees non touchees gardent leur predecesseur d'origine :
           leur obstacle couvre l'occupation complete (setup inclus) et reste elargi
           vers l'amont de la duree du setup entrant le plus long qu'un job de la zone
-          pourrait exiger, reservation conservatrice inchangee. L'elargissement est
-          borne par la fin de l'obstacle precedent sur la meme machine, sans quoi deux
-          obstacles se chevaucheraient et rendraient le NoOverlap infaisable.
+          pourrait exiger — reservation conservatrice.
+
+        Un SEUL regime en AVAL, applique a TOUTES les entrees non touchees, jonction
+        comprise (cf. D10) : l'obstacle est elargi vers l'aval de la duree du setup
+        SORTANT le plus long qu'exigerait un job de la zone place juste derriere.
+        Sans cette garde, une operation de la zone pouvait se coller a la fin d'une
+        entree non touchee sans laisser la place a son setup entrant, produisant un
+        planning infaisable en atelier que le validateur canonique ne detectait pas
+        (il ne verifie ni le predecesseur reel d'un setup ni sa duree). C'est le
+        defaut trouve par le livrable 1 de la Discussion 2.
+
+        Les deux gardes sont de meme nature — une reservation conservatrice bornee
+        par le plus long setup possible — et couvrent desormais les deux sens de
+        transition entre la zone et le futur non touche :
+
+            [zone] --garde amont--> [non touchee] --garde aval--> [zone]
+
+        Les elargissements sont bornes par la fin de l'obstacle precedent sur la meme
+        machine, sans quoi deux obstacles se chevaucheraient et rendraient le
+        NoOverlap infaisable.
 
         Returns:
             (obstacles, cibles) ou obstacles = {machine_id: [IntervalVar fixes]} et
@@ -349,8 +366,16 @@ class IncrementalOptimizer:
                          for job in sub_instance.jobs),
                         default=0,
                     )
+                # Garde AVAL (cf. D10), appliquee a tout regime : reserve la place
+                # du setup entrant d'une operation de zone qui se placerait juste
+                # derriere cette entree non touchee.
+                garde_aval = max(
+                    (sub_instance.get_setup(entry.job_id, job.id, machine_id)
+                     for job in sub_instance.jobs),
+                    default=0,
+                )
                 debut = max(fin_precedente, debut_reel - garde, t_now)
-                fin = max(entry.end_time, debut)
+                fin = max(entry.end_time + garde_aval, debut)
                 intervalles.append(model.NewIntervalVar(
                     model.NewConstant(debut), fin - debut, model.NewConstant(fin),
                     f"intouche_{machine_id}_{entry.job_id}_{entry.position_in_job}",
