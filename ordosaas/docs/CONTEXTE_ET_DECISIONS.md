@@ -4,6 +4,93 @@
 > prise, pas en fin de session. En cas de conflit factuel avec un prompt de session,
 > c'est ce fichier qui fait foi sur l'état réel du code.
 
+## ⚠️ ALERTE — Les temps de setup ne sont jamais payés (H8 / H9, découvert le 2026-09-04)
+
+> **À lire avant toute nouvelle construction sur ce socle, en particulier avant la
+> Discussion 3 (worker).** Ce constat est placé en tête parce qu'il ne relève pas des
+> limites bénignes documentées plus bas : il met en cause la validité d'un résultat déjà
+> utilisé comme preuve de performance.
+
+Découvert par le script de validation du livrable 3 de la Discussion 2. **Les setups
+séquence-dépendants ne sont contraints nulle part** : ni dans le solveur initial, ni dans
+l'optimiseur incrémental. Les plannings produits enchaînent des opérations bord à bord
+alors que les transitions exigent des setups non nuls.
+
+### Cause racine, commune aux deux
+
+Le patron de modélisation est le même aux deux endroits : un intervalle **optionnel** de
+setup est créé par couple `(from_job, to_job, machine)`, gouverné par un booléen `b`, avec
+des implications `OnlyEnforceIf(b)` qui placent le setup entre les deux opérations.
+
+**Mais rien ne force jamais `b` à valoir 1 lorsque `from_job` précède réellement `to_job`
+sur la machine.** CP-SAT met donc tous les `b` à zéro — c'est gratuit et cela relâche des
+contraintes — et aucun setup n'est jamais payé.
+
+| # | Où | Fichier | Portée |
+|---|---|---|---|
+| **H8** | `CPSATSolver` (solveur initial) | `scheduling/solvers/cpsat_solver.py:87-133` | Tous les plannings initiaux, donc tout le projet |
+| **H9** | `IncrementalOptimizer._add_setups` | `scheduling/solvers/incremental_optimizer.py` | Setups internes à la zone réoptimisée |
+
+C'est exactement la classe de défaut contre laquelle D8 avait dû se prémunir pour les
+setups de jonction, avec la construction `AddExactlyOne` + prédécesseur immédiat
+(`fin_eff` / `dernier` / `AddMaxEquality`). Cette précaution n'a été appliquée qu'aux
+jonctions ; les setups ordinaires, eux, sont restés sur le patron défaillant.
+
+### Preuve observée
+
+Séquence de M1 dans le planning initial de l'instance d'exemple, avant toute perturbation :
+
+```
+J6  op[0-26]     setup AUCUN
+J8  op[26-27]    setup AUCUN   écart=0  requis=0
+J1  op[27-109]   setup AUCUN   écart=0  requis=8
+J2  op[109-141]  setup AUCUN   écart=0  requis=11
+J4  op[141-196]  setup AUCUN   écart=0  requis=19
+J7  op[196-250]  setup AUCUN   écart=0  requis=11
+J9  op[250-294]  setup AUCUN   écart=0  requis=21
+J5  op[294-324]  setup AUCUN   écart=0  requis=5
+J10 op[324-422]  setup AUCUN   écart=0  requis=20
+J3  op[422-509]  setup AUCUN   écart=0  requis=35
+```
+
+Aucun `SetupEntry` n'est émis et aucune place n'est réservée, alors que `get_setup`
+renvoie des durées non nulles pour chacune de ces transitions.
+
+### Deux conséquences qui dépassent le périmètre technique
+
+1. **Le résultat de référence est probablement invalide.** `TWT = 3012.84`, figé dans
+   `tests/fixtures/expected_output.json` et utilisé comme preuve de performance dans tout
+   le projet, a été obtenu **sans jamais payer un seul setup**. Sur M1 seule, les setups
+   éludés totalisent 130 unités de temps. Un planning qui les respecterait serait
+   nécessairement plus long et plus en retard : le TWT de référence est optimiste, et
+   l'écart reste à quantifier.
+
+2. **Cela contredit la formalisation du PFA soutenu.** D'après Khalid, le §2.1 du document
+   pose le setup comme une **contrainte obligatoire** entre deux jobs consécutifs sur une
+   machine, et non comme une contrainte optionnelle. Le modèle implémenté ne correspond
+   donc pas au modèle défendu. *(Le document PFA n'est pas dans le dépôt : ce point est
+   rapporté d'après Khalid, il n'a pas été vérifié dans cette session.)*
+
+### Recommandation explicite
+
+**Traiter H8 et H9 dans une session dédiée AVANT la Discussion 3.** Le worker
+industrialise l'appel aux solveurs : le brancher maintenant reviendrait à mettre en
+production un défaut de fond, et à rendre plus coûteuse encore la reprise du résultat de
+référence. La correction touche le cœur du modèle CP-SAT initial et la valeur de référence
+du projet — c'est un chantier à part entière, pas un correctif de fin de session.
+
+### Ce qui a été fait dans cette session, et pas fait
+
+- **Fait** : les deux défauts sont identifiés, localisés, prouvés et documentés ici. Le
+  script `python -m tests.validate_incremental` les détecte et **sort en échec** sur
+  l'instance réelle tant qu'ils ne sont pas corrigés — choix délibéré, pour maintenir la
+  pression et éviter qu'ils soient oubliés.
+- **Pas fait, volontairement** : aucune correction. Décision de Khalid, cohérente avec le
+  périmètre d'une session de test et validation. Le script distingue les transitions
+  héritées du planning initial (signalées en INFO, imputables à H8) de celles impliquant
+  la zone réoptimisée (en FAIL, imputables à H9).
+
+
 ## État actuel
 
 *(dernière mise à jour : 2026-09-03, début de la Discussion 1)*
@@ -527,7 +614,71 @@ Tous les plannings fusionnés sont valides dans les 18 cellules de la matrice, r
 densités confondus — y compris sur les zones larges non tronquées.
 
 
+### D11 — Le script de validation incrémental a une portée volontairement plus large que le validateur canonique (2026-09-04)
+
+Livrable 3 de la Discussion 2 : `backend/tests/validate_incremental.py`, exécutable
+indépendamment de pytest (`python -m tests.validate_incremental`, options `--jonction` et
+`--densite`) et utilisable comme bibliothèque via
+`valide_resolution(schedule_initial, event, resolution, instance)`.
+
+Chaque contrôle rend son propre **PASS / FAIL / INFO** : le script ne s'arrête pas à la
+première erreur et ne renvoie pas un booléen global, afin qu'une seule exécution donne un
+diagnostic complet. Il rejoue sans modification les scénarios des livrables 1 et 2 — 22
+scénarios, 198 vérifications.
+
+Contrôles : opérations figées intactes, frontières sans chevauchement, validité globale,
+cohérence des `SetupEntry` de jonction, place réservée pour les transitions de setup,
+absence de dérive hors zone, cohérence du KPI, et respect du contrat de repli.
+
+**Portée plus large que `scheduling/validation.py`, et c'est délibéré.** Le validateur
+canonique vérifie chevauchement, précédence et Cumulative WR — jamais la cohérence d'un
+`SetupEntry` avec le prédécesseur réel de son opération, ni l'existence de la place d'un
+setup manquant. C'est ce trou qui a laissé passer le défaut corrigé en D10 et masqué H8/H9.
+
+Ce trou est comblé **pour l'incrémental uniquement**. Décision de Khalid : ajouter cette
+exigence au validateur canonique l'imposerait rétroactivement au solveur LNS initial,
+jamais conçu ni testé sous cet angle, ce qui sort du périmètre de la Discussion 2. Ce n'est
+donc **pas un oubli à combler plus tard dans `validation.py`**, mais un choix de portée
+assumé — à reconsidérer le jour où H8 sera traitée.
+
+**Deux précisions de méthode**, tirées de deux erreurs commises en écrivant le script et
+corrigées :
+
+1. L'écart disponible pour un setup se mesure jusqu'au début de l'**opération**, pas
+   jusqu'au début d'occupation — mesurer jusqu'à ce dernier inclut le setup dans son propre
+   intervalle et le fait toujours apparaître comme nul.
+2. La responsabilité d'une transition se juge à l'**entrée réoptimisée**, pas au job. Un
+   job peut avoir des opérations figées et d'autres dans la zone ; raisonner par job
+   imputait à l'incrémental des transitions entre deux opérations figées qu'il n'avait
+   jamais touchées.
+
+**Lecture du contrat de repli.** « Signalé mais jamais routé » (H5, précisé par D9)
+signifie qu'aucun basculement automatique vers `LNSRecursiveSolver` n'a lieu — **et non**
+qu'aucune modification du planning n'est appliquée. Par conception, `resolve_incremental`
+poursuit et applique la réoptimisation même au-delà du seuil, en laissant l'appelant maître
+de la décision ; c'est `raise_on_fallback=True` qui donne un échec franc sans planning. Le
+script vérifie donc ce qui est réellement contractuel — drapeau exposé et `method_used`
+resté à `incremental` — et signale en INFO que le planning a tout de même été appliqué.
+
+Les scénarios du livrable 1 vivent désormais dans `tests/scenarios_jonction.py`, source de
+vérité unique consommée à la fois par la suite de tests et par le script, pour qu'ils ne
+puissent pas diverger silencieusement.
+
+`tests/test_validate_incremental.py` (15 tests) porte surtout sur la **sensibilité** du
+script : chaque contrôle est éprouvé en lui présentant un planning délibérément fauté
+(opération figée déplacée, setup de jonction faussé, opération recollée sans place de
+setup, dérive hors zone, routage du garde-fou). Un script de validation qui ne détecte rien
+ne vaut rien.
+
+
 ## Hypothèses en attente de validation par Khalid
+
+### H8 / H9 — Les temps de setup ne sont jamais payés → voir l'ALERTE en tête de document
+
+Défauts réels, non corrigés dans cette session par décision de Khalid. **H8** touche
+`CPSATSolver` (donc tout le projet, y compris le TWT de référence 3012.84), **H9**
+`IncrementalOptimizer._add_setups`. Même cause racine : le booléen des setups optionnels
+n'est jamais forcé. À traiter dans une session dédiée **avant la Discussion 3**.
 
 ### H4 — Le `schema_bdd.sql` de référence est un document de conception (2026-09-03)
 
@@ -613,8 +764,8 @@ Composants livrés dans la Discussion 1 (un commit poussé par composant) :
 | 10 | Setups de jonction en variables (cf. D8) | `solvers/incremental_optimizer.py`, `components/schedule_merger.py` | +6 | livré |
 | 11 | Orchestrateur public `resolve_incremental` (cf. D9) | `scheduling/incremental.py` | 15 | livré |
 
-Suite complète hors tests API : **189 tests verts** (141 à la fin des 8 premiers commits,
-170 à la fin de la Discussion 1).
+Suite complète hors tests API : **204 tests verts** (141 à la fin des 8 premiers commits,
+170 à la fin de la Discussion 1, 189 après le livrable 2 de la Discussion 2).
 `python -m tests.validate_example` passe toujours (TWT 3012.84), donc aucune régression sur
 le solveur initial. Les tests de
 `test_instances.py` / `test_auth.py` / `test_resolutions.py` exigent un PostgreSQL local et

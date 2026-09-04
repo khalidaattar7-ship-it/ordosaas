@@ -25,19 +25,13 @@ non un alea de CP-SAT, force le placement recherche.
 import pytest
 
 from scheduling.incremental import IncrementalConfig, resolve_incremental
-from scheduling.models.job import Job, Operation, ProblemInstance
-from scheduling.models.perturbation import make_event
-from scheduling.models.schedule import Schedule, ScheduleEntry, SetupEntry
 from scheduling.validation import validate_schedule
-
-T_NOW = 50
-
-
-def _entry(job_id, machine_id, position, start, duration, setup=None):
-    return ScheduleEntry(
-        job_id=job_id, machine_id=machine_id, position_in_job=position,
-        start_time=start, end_time=start + duration, duration=duration, setup=setup,
-    )
+from tests.scenarios_jonction import (
+    zone_derriere_une_non_touchee,
+    zone_derriere_une_non_touchee_non_jonction,
+    zone_encadree_par_deux_non_touchees,
+    zone_intercalee_entre_deux_non_touchees,
+)
 
 
 def _sur_machine(schedule, machine_id):
@@ -64,44 +58,18 @@ def _config(**kwargs):
 # Constat B — defaut reel : la place du setup ENTRANT d'une operation de zone
 # ==========================================================================
 @pytest.fixture
-def atelier_zone_derriere_une_non_touchee():
-    """M1 : J1[100-150] non touchee, puis J3 (zone) qui veut se coller derriere.
+def scenario_derriere():
+    """Constat B, cas de base. Defini dans tests/scenarios_jonction.py.
 
-    J3 porte une deadline serree et un poids fort : le solveur a tout interet a
-    l'avancer au maximum, donc a la plaquer contre la fin de J1. Le setup entrant
-    J1 -> J3 vaut 40, volontairement gros, pour que son absence saute aux yeux.
-
-    J3 ne peut pas passer AVANT J1 : il ne reste que 50 unites entre T_now et le
-    debut de J1, pour une operation de 60. Le placement recherche est donc force par
-    la geometrie, pas par un choix arbitraire du solveur.
+    Les scenarios vivent dans un module partage pour que le script de validation
+    (`python -m tests.validate_incremental`) rejoue exactement les memes, sans
+    risque de divergence entre la suite de tests et le script.
     """
-    entries = [
-        _entry("J1", "M1", 1, 100, 50),
-        _entry("J3", "M1", 1, 300, 60),
-    ]
-    jobs = [
-        Job(id="J1", operations=[Operation("J1", "M1", 50, 1)],
-            deadline=900, weight=1.0),
-        Job(id="J3", operations=[Operation("J3", "M1", 60, 1)],
-            deadline=160, weight=50.0),
-    ]
-    setup_times = {
-        ("J1", "J3", "M1"): 40,  # setup entrant de J3 derriere J1
-        ("J3", "J1", "M1"): 12,
-    }
-    instance = ProblemInstance(jobs=jobs, machines=["M1"],
-                               setup_times=setup_times, wr=1)
-    return Schedule(entries=entries), instance
-
-
-def _evenement_j3():
-    """Duree inchangee : l'evenement sert a mettre J3 dans la zone, rien de plus."""
-    return make_event("duration_change", timestamp=T_NOW, job_id="J3",
-                      position_in_job=1, machine_id="M1", new_duration=60)
+    return zone_derriere_une_non_touchee()
 
 
 def test_la_place_du_setup_entrant_est_reservee_derriere_une_non_touchee(
-    atelier_zone_derriere_une_non_touchee
+    scenario_derriere
 ):
     """Non-regression du defaut trouve par le livrable 1 (Constat B, cf. D10).
 
@@ -109,9 +77,9 @@ def test_la_place_du_setup_entrant_est_reservee_derriere_une_non_touchee(
     transition exige 40 unites de setup : le planning etait infaisable en atelier
     tout en passant `validate_schedule`. La garde aval reserve desormais cette place.
     """
-    schedule, instance = atelier_zone_derriere_une_non_touchee
+    schedule, instance, event = scenario_derriere
     resolution = resolve_incremental(
-        schedule, _evenement_j3(), instance,
+        schedule, event, instance,
         # Stabilite neutralisee : rien n'ancre plus J3, le solveur est libre de la
         # coller a J1. C'est la configuration qui revelait le defaut.
         config=_config(stability_weight=0.0),
@@ -129,13 +97,11 @@ def test_la_place_du_setup_entrant_est_reservee_derriere_une_non_touchee(
     )
 
 
-def test_le_planning_reste_valide_et_la_zone_est_bien_derriere(
-    atelier_zone_derriere_une_non_touchee
-):
+def test_le_planning_reste_valide_et_la_zone_est_bien_derriere(scenario_derriere):
     """Le scenario teste bien ce qu'il pretend : J3 est apres J1, et tout est valide."""
-    schedule, instance = atelier_zone_derriere_une_non_touchee
+    schedule, instance, event = scenario_derriere
     resolution = resolve_incremental(
-        schedule, _evenement_j3(), instance, config=_config(stability_weight=0.0)
+        schedule, event, instance, config=_config(stability_weight=0.0)
     )
 
     assert sorted(resolution.zone.impacted_job_ids) == ["J3"]
@@ -152,26 +118,9 @@ def test_la_garde_aval_vaut_aussi_pour_une_non_touchee_non_jonction():
     zone qui veut se coller derriere J1. C'est le second cas ou le defaut avait ete
     reproduit avant correction.
     """
-    entries = [
-        _entry("J0", "M1", 1, 60, 30),
-        _entry("J1", "M1", 1, 100, 50),
-        _entry("J3", "M1", 1, 300, 60),
-    ]
-    jobs = [
-        Job(id="J0", operations=[Operation("J0", "M1", 30, 1)], deadline=900, weight=1.0),
-        Job(id="J1", operations=[Operation("J1", "M1", 50, 1)], deadline=900, weight=1.0),
-        Job(id="J3", operations=[Operation("J3", "M1", 60, 1)], deadline=160, weight=50.0),
-    ]
-    setup_times = {
-        ("J1", "J3", "M1"): 40, ("J0", "J3", "M1"): 40,
-        ("J0", "J1", "M1"): 5, ("J1", "J0", "M1"): 5,
-        ("J3", "J1", "M1"): 12, ("J3", "J0", "M1"): 5,
-    }
-    instance = ProblemInstance(jobs=jobs, machines=["M1"],
-                               setup_times=setup_times, wr=1)
+    schedule, instance, event = zone_derriere_une_non_touchee_non_jonction()
     resolution = resolve_incremental(
-        Schedule(entries=entries), _evenement_j3(), instance,
-        config=_config(stability_weight=0.0),
+        schedule, event, instance, config=_config(stability_weight=0.0)
     )
 
     ordre = _sur_machine(resolution.schedule, "M1")
@@ -187,35 +136,14 @@ def test_la_garde_aval_vaut_aussi_pour_une_non_touchee_non_jonction():
 def test_les_deux_sens_de_transition_sont_gardes():
     """Confirmation explicite que l'amont ET l'aval sont couverts (cf. D10).
 
-    Une seule zone encadree par deux entrees non touchees sur la meme machine :
-    J1 non touchee, J3 de la zone au milieu, J2 non touchee. Les deux transitions
-    exigent un setup non nul, et les deux doivent avoir leur place reservee — celle
-    en amont de J2 par la garde amont preexistante, celle en aval de J1 par la garde
-    aval ajoutee en D10.
+    Une zone encadree par deux entrees non touchees sur la meme machine. Les deux
+    transitions exigent un setup non nul, et les deux doivent avoir leur place
+    reservee — celle en amont de J2 par la garde amont preexistante, celle en aval
+    de J1 par la garde aval ajoutee en D10.
     """
-    entries = [
-        _entry("J1", "M1", 1, 100, 50),
-        _entry("J3", "M1", 1, 200, 60),
-        _entry("J2", "M1", 1, 400, 50,
-               setup=SetupEntry(from_job_id="J1", start_time=380,
-                                end_time=400, duration=20)),
-    ]
-    jobs = [
-        Job(id="J1", operations=[Operation("J1", "M1", 50, 1)], deadline=900, weight=1.0),
-        Job(id="J2", operations=[Operation("J2", "M1", 50, 1)], deadline=900, weight=1.0),
-        Job(id="J3", operations=[Operation("J3", "M1", 60, 1)], deadline=160, weight=50.0),
-    ]
-    setup_times = {
-        ("J1", "J3", "M1"): 25,  # transition AVAL de J1 -> garde aval
-        ("J3", "J2", "M1"): 30,  # transition AMONT de J2 -> garde amont
-        ("J1", "J2", "M1"): 20,
-        ("J2", "J3", "M1"): 15, ("J2", "J1", "M1"): 12, ("J3", "J1", "M1"): 12,
-    }
-    instance = ProblemInstance(jobs=jobs, machines=["M1"],
-                               setup_times=setup_times, wr=1)
+    schedule, instance, event = zone_encadree_par_deux_non_touchees()
     resolution = resolve_incremental(
-        Schedule(entries=entries), _evenement_j3(), instance,
-        config=_config(stability_weight=0.0),
+        schedule, event, instance, config=_config(stability_weight=0.0)
     )
 
     ordre = _sur_machine(resolution.schedule, "M1")
@@ -233,47 +161,16 @@ def test_les_deux_sens_de_transition_sont_gardes():
 # Constat A — limite connue, confirmee benigne
 # ==========================================================================
 @pytest.fixture
-def atelier_zone_intercalee():
-    """Zone intercalee entre deux entrees non touchees, avec setups non nuls.
-
-    M1 : J1[100-150] non touchee (PREMIERE de la machine, donc jonction),
-         J3[200-260] dans la zone,
-         J2[400-450] non touchee AU-DELA de la premiere — c'est elle qui porte la
-         limite du Constat A.
-
-    Le setup d'origine de J2 vient de J1 (duree 20), alors qu'apres replanification
-    c'est J3 qui la precede (duree reelle 30).
-    """
-    entries = [
-        _entry("J1", "M1", 1, 100, 50),
-        _entry("J3", "M1", 1, 200, 60),
-        _entry("J2", "M1", 1, 400, 50,
-               setup=SetupEntry(from_job_id="J1", start_time=380,
-                                end_time=400, duration=20)),
-    ]
-    jobs = [
-        Job(id="J1", operations=[Operation("J1", "M1", 50, 1)], deadline=900, weight=1.0),
-        Job(id="J2", operations=[Operation("J2", "M1", 50, 1)], deadline=900, weight=1.0),
-        Job(id="J3", operations=[Operation("J3", "M1", 60, 1)], deadline=900, weight=1.0),
-    ]
-    setup_times = {
-        ("J1", "J2", "M1"): 20,  # setup d'origine porte par J2
-        ("J3", "J2", "M1"): 30,  # setup reellement en vigueur apres fusion
-        ("J1", "J3", "M1"): 10,
-        ("J2", "J3", "M1"): 15, ("J2", "J1", "M1"): 12, ("J3", "J1", "M1"): 12,
-    }
-    instance = ProblemInstance(jobs=jobs, machines=["M1"],
-                               setup_times=setup_times, wr=1)
-    event = make_event("duration_change", timestamp=T_NOW, job_id="J3",
-                       position_in_job=1, machine_id="M1", new_duration=90)
-    return Schedule(entries=entries), instance, event
+def scenario_intercale():
+    """Constat A. Defini dans tests/scenarios_jonction.py."""
+    return zone_intercalee_entre_deux_non_touchees()
 
 
 def test_la_zone_sintercale_bien_entre_deux_entrees_non_touchees(
-    atelier_zone_intercalee
+    scenario_intercale
 ):
     """Le scenario reproduit bien le cas vise : ni J1 ni J2 ne sont dans la zone."""
-    schedule, instance, event = atelier_zone_intercalee
+    schedule, instance, event = scenario_intercale
     resolution = resolve_incremental(schedule, event, instance, config=_config())
 
     assert sorted(resolution.zone.impacted_job_ids) == ["J3"]
@@ -283,14 +180,14 @@ def test_la_zone_sintercale_bien_entre_deux_entrees_non_touchees(
         ["J1", "J3", "J2"]
 
 
-def test_la_reservation_conservatrice_evite_tout_chevauchement(atelier_zone_intercalee):
+def test_la_reservation_conservatrice_evite_tout_chevauchement(scenario_intercale):
     """Constat A confirme BENIN pour la validite : aucun chevauchement n'apparait.
 
     C'est le coeur du livrable 1 : la limite de D8 laisse une metadonnee perimee,
     mais la reservation conservatrice fait son office et le planning reste valide
     et executable.
     """
-    schedule, instance, event = atelier_zone_intercalee
+    schedule, instance, event = scenario_intercale
     resolution = resolve_incremental(schedule, event, instance, config=_config())
 
     assert validate_schedule(resolution.schedule, instance=instance) == []
@@ -304,7 +201,7 @@ def test_la_reservation_conservatrice_evite_tout_chevauchement(atelier_zone_inte
 
 
 def test_la_metadonnee_de_setup_peut_rester_perimee_au_dela_de_la_jonction(
-    atelier_zone_intercalee
+    scenario_intercale
 ):
     """Constat A verrouille tel qu'observe : `from_job_id` et `duration` perimes.
 
@@ -316,7 +213,7 @@ def test_la_metadonnee_de_setup_peut_rester_perimee_au_dela_de_la_jonction(
     dans une zone reservee, donc sans chevauchement. Ni `from_job_id` ni `duration`
     ne doivent etre consommes tels quels par la Discussion 4 (diff, endpoints).
     """
-    schedule, instance, event = atelier_zone_intercalee
+    schedule, instance, event = scenario_intercale
     resolution = resolve_incremental(schedule, event, instance, config=_config())
 
     j2 = next(e for e in resolution.schedule.entries if e.job_id == "J2")
