@@ -71,6 +71,72 @@ renvoie des durées non nulles pour chacune de ces transitions.
    donc pas au modèle défendu. *(Le document PFA n'est pas dans le dépôt : ce point est
    rapporté d'après Khalid, il n'a pas été vérifié dans cette session.)*
 
+### Cartographie de la portée réelle (établie le 2026-09-05, avant toute correction)
+
+Vérifiée par lecture du code, pas supposée. Deux questions étaient ouvertes.
+
+#### 1. `CPSATSolver.solve_with_context` est-il partagé avec le LNS ?
+
+**Oui — c'est le même code, appelé par quatre chemins.** La portée de H8 est donc bien
+plus large que la seule résolution exacte directe :
+
+| Appelant | Ligne | Ce que ça couvre |
+|---|---|---|
+| `CPSATSolver.solve()` | `cpsat_solver.py:28` | Résolution exacte directe (≤ 50 jobs) |
+| `LNSRecursiveSolver._optimize_window` | `lns_recursive.py:125` | **Chaque fenêtre du LNS** (phase 3) |
+| `LNSRecursiveSolver` (récursion) | `lns_recursive.py:147` | Sous-fenêtres récursives |
+| `InterWindowOptimizer._optimize_junction` | `inter_window_optimizer.py:124` | Micro-optimisations aux jonctions |
+
+**Conséquence en deux sens.** Bonne nouvelle pour le correctif : corriger H8 en un seul
+endroit corrige simultanément la résolution directe, toutes les fenêtres LNS et les
+jonctions inter-fenêtres. Mauvaise nouvelle pour l'ampleur du défaut : **tout résultat
+déjà produit par ce projet est concerné**, y compris les résolutions LNS sur instances
+> 50 jobs, et pas seulement l'instance d'exemple à 10 jobs.
+
+#### 2. Un autre composant construit-il le même piège indépendamment ?
+
+**Non.** Seuls deux fichiers importent `cp_model` : `solvers/cpsat_solver.py` et
+`solvers/incremental_optimizer.py`. Les quatre constructions d'intervalle optionnel du
+projet s'y répartissent ainsi :
+
+| Emplacement | Rôle | État |
+|---|---|---|
+| `cpsat_solver.py:90` | Setups du solveur initial | **H8 — défaillant** |
+| `incremental_optimizer.py:456` | Setups de jonction (D8) | Correct — forcé par `AddExactlyOne` |
+| `incremental_optimizer.py:471` | Setup d'origine de la jonction (D8) | Correct — même `AddExactlyOne` |
+| `incremental_optimizer.py:501` | Setups internes à la zone (`_add_setups`) | **H9 — défaillant** |
+
+`WindowManager` et `ContextPropagator` ne construisent aucun modèle. `InterWindowOptimizer`
+délègue à `CPSATSolver` et hérite donc du correctif. Il n'y a bien que **deux** points à
+corriger.
+
+#### 3. Découverte annexe — `ATCSSolver`, lui, paie les setups
+
+`ATCSSolver` est une heuristique gloutonne, pas un modèle CP-SAT : elle construit la ligne
+de temps séquentiellement et ne *peut pas* oublier un setup
+(`atcs_solver.py:97-99` : `actual_start = earliest_start + s_dur`).
+
+D'où une asymétrie qui fausse un second KPI, mesurée sur l'instance d'exemple :
+
+| Solveur | TWT | Horizon | Temps de setup payé |
+|---|---|---|---|
+| ATCS | 7420.88 | 1010 | **334** |
+| CP-SAT | 3012.84 | 674 | **0** |
+
+L'« amélioration vs ATCS » affichée, **59,4 %**, compare donc un planning qui paie ses
+setups à un planning qui ne les paie pas. Une part indéterminée de cet écart n'est pas une
+amélioration d'ordonnancement mais l'effet du défaut. `improvement_vs_atcs_pct` est donc,
+lui aussi, à re-baseliner.
+
+#### 4. Ampleur chiffrée sur l'instance d'exemple
+
+Mesurée sur les séquences réellement produites par CP-SAT :
+
+- setups **dus** au titre des transitions effectives : **352 unités** ;
+- setups effectivement **payés** (par temps mort fortuit) : **103 unités** ;
+- transitions en violation : **18** ;
+- `Schedule.total_setup_time` rapporté : **0**.
+
 ### Recommandation explicite
 
 **Traiter H8 et H9 dans une session dédiée AVANT la Discussion 3.** Le worker
