@@ -17,6 +17,38 @@ from scheduling.solvers.base import BaseSolver
 logger = logging.getLogger(__name__)
 
 
+def _borne_horizon(instance) -> int:
+    """Majorant du makespan, resserre (cf. D12).
+
+    `ProblemInstance.horizon` majore les setups par la somme de TOUTES les paires
+    declarees. C'est un majorant herite du defaut H8 : tant qu'aucun setup n'etait
+    jamais paye, la largeur du domaine n'avait pas d'incidence. Une fois les setups
+    reellement contraints, elle en a une — sur l'instance d'exemple, ce majorant vaut
+    5022 pour un makespan reellement atteint de 673, soit des domaines de variables
+    7,5 fois plus larges que necessaire.
+
+    La borne retenue s'appuie sur le fait qu'en toute solution, une operation ne peut
+    avoir qu'UN setup entrant. On majore donc, machine par machine, chaque setup
+    entrant par le plus long setup possible vers cette operation, ce qui reste un
+    majorant valide meme dans le pire cas ou tout serait execute sequentiellement.
+    """
+    duree_totale = sum(op.duration for job in instance.jobs for op in job.operations)
+
+    borne_setups = 0
+    for machine_id in instance.machines:
+        jobs_on_m = [
+            j for j in instance.jobs
+            if any(op.machine_id == machine_id for op in j.operations)
+        ]
+        for to_job in jobs_on_m:
+            entrants = [
+                instance.get_setup(from_job.id, to_job.id, machine_id)
+                for from_job in jobs_on_m if from_job.id != to_job.id
+            ]
+            borne_setups += max(entrants, default=0)
+    return duree_totale + borne_setups
+
+
 class CPSATSolver(BaseSolver):
     """Solveur exact CP-SAT pour instances <= SEUIL_EXACT jobs."""
 
@@ -39,7 +71,7 @@ class CPSATSolver(BaseSolver):
 
         jobs = instance.jobs
         machines = instance.machines
-        horizon = max(1, instance.horizon)
+        horizon = max(1, _borne_horizon(instance))
 
         # Account for left-context machine loads in the horizon.
         if left_context.machine_loads:
@@ -71,26 +103,71 @@ class CPSATSolver(BaseSolver):
                         s, _, _, _, _ = op_vars[(job.id, machine_id)]
                         model.Add(s >= last_end_time)
 
-        # Setup variables between consecutive jobs on each machine
+        # ------------------------------------------------------------------
+        # Sequencement par machine et setups sequence-dependants (cf. D12)
+        # ------------------------------------------------------------------
+        # Une contrainte de CIRCUIT par machine. Les noeuds sont le depot (0) et
+        # les jobs presents sur la machine ; un arc i -> j porte le litteral
+        # "j suit IMMEDIATEMENT i sur cette machine".
+        #
+        # AddCircuit garantit STRUCTURELLEMENT que chaque job a exactement un
+        # predecesseur et un successeur : le litteral d'arc de la paire reellement
+        # consecutive vaut donc necessairement 1, et le setup correspondant est
+        # necessairement paye.
+        #
+        # C'est ce qui manquait et qui constituait le defaut H8 : les booleens de
+        # setup existaient mais rien ne les forcait, si bien que CP-SAT les mettait
+        # tous a zero et ne payait jamais aucun setup. Voir docs/CONTEXTE_ET_DECISIONS.md.
+        #
+        # Un arc est cree pour CHAQUE paire ordonnee, y compris a setup nul : le
+        # circuit ne serait pas hamiltonien sinon, et la garantie tomberait.
         setup_vars = {}
         for machine_id in machines:
             jobs_on_m = [
                 j for j in jobs if any(op.machine_id == machine_id for op in j.operations)
             ]
-            for from_job in jobs_on_m:
-                for to_job in jobs_on_m:
-                    if from_job.id == to_job.id:
-                        continue
-                    s_dur = instance.get_setup(from_job.id, to_job.id, machine_id)
-                    if s_dur == 0:
+            if len(jobs_on_m) < 2:
+                continue  # pas de sequencement a arbitrer sur cette machine
+
+            # Indices de noeud : 0 = depot, k + 1 = jobs_on_m[k].
+            arcs = []
+            for k, job in enumerate(jobs_on_m):
+                arcs.append((0, k + 1, model.NewBoolVar(f"debut_{job.id}_{machine_id}")))
+                arcs.append((k + 1, 0, model.NewBoolVar(f"fin_{job.id}_{machine_id}")))
+
+            for i, from_job in enumerate(jobs_on_m):
+                for j, to_job in enumerate(jobs_on_m):
+                    if i == j:
                         continue
                     b = model.NewBoolVar(f"b_{from_job.id}_{to_job.id}_{machine_id}")
+                    arcs.append((i + 1, j + 1, b))
+
+                    s_dur = instance.get_setup(from_job.id, to_job.id, machine_id)
+                    ef = op_vars[(from_job.id, machine_id)][1]
+                    st = op_vars[(to_job.id, machine_id)][0]
+
+                    # Le setup separe les deux operations des qu'elles se suivent.
+                    # Vrai aussi quand s_dur vaut 0 : l'arc impose alors le simple
+                    # ordre, ce qui renforce la propagation du NoOverlap.
+                    model.Add(st >= ef + s_dur).OnlyEnforceIf(b)
+
+                    if s_dur == 0:
+                        continue
+
+                    # L'intervalle de setup reste OPTIONNEL, mais il est desormais
+                    # gouverne par le litteral d'arc et non par un booleen libre.
+                    # Il continue d'alimenter le NoOverlap machine et la Cumulative
+                    # WR sans changement en aval.
                     ss = model.NewIntVar(0, horizon, f"ss_{from_job.id}_{to_job.id}_{machine_id}")
                     se = model.NewIntVar(0, horizon, f"se_{from_job.id}_{to_job.id}_{machine_id}")
                     siv = model.NewOptionalIntervalVar(
                         ss, s_dur, se, b, f"siv_{from_job.id}_{to_job.id}_{machine_id}"
                     )
+                    model.Add(ss >= ef).OnlyEnforceIf(b)
+                    model.Add(se <= st).OnlyEnforceIf(b)
                     setup_vars[(from_job.id, to_job.id, machine_id)] = (ss, se, siv, b, s_dur)
+
+            model.AddCircuit(arcs)
 
         # Setups from the left context (last job on each machine)
         for machine_id, last_job_id in left_context.last_job_per_machine.items():
@@ -115,24 +192,6 @@ class CPSATSolver(BaseSolver):
                     intervals.append(siv)
             if intervals:
                 model.AddNoOverlap(intervals)
-
-        # Link setups to operations
-        for machine_id in machines:
-            jobs_on_m = [
-                j for j in jobs if any(op.machine_id == machine_id for op in j.operations)
-            ]
-            for from_job in jobs_on_m:
-                for to_job in jobs_on_m:
-                    if from_job.id == to_job.id:
-                        continue
-                    key = (from_job.id, to_job.id, machine_id)
-                    if key not in setup_vars:
-                        continue
-                    ss, se, _, b, _ = setup_vars[key]
-                    ef = op_vars[(from_job.id, machine_id)][1]
-                    st = op_vars[(to_job.id, machine_id)][0]
-                    model.Add(ss >= ef).OnlyEnforceIf(b)
-                    model.Add(st >= se).OnlyEnforceIf(b)
 
         # Cumulative constraint on setups (WR technicians)
         all_setup_intervals = []
