@@ -180,3 +180,167 @@ def test_la_borne_dhorizon_majore_meme_un_cas_degenere():
     assert schedule.horizon == 150
     assert schedule.horizon <= _borne_horizon(instance)
     assert transitions_non_payees(schedule, instance) == []
+
+
+# ==========================================================================
+# H9 — l'optimiseur incremental
+# ==========================================================================
+def _resolution_incrementale(example_schedule, example_instance):
+    """Une re-optimisation incrementale reelle, sur une zone non triviale."""
+    from scheduling.incremental import IncrementalConfig, resolve_incremental
+    from scheduling.models.perturbation import make_event
+
+    t_now = example_schedule.horizon // 3
+    machine = example_instance.machines[0]
+    suivantes = sorted(
+        (e for e in example_schedule.entries
+         if e.machine_id == machine and e.start_time > t_now),
+        key=lambda e: e.start_time,
+    )
+    event = make_event("machine_breakdown", timestamp=t_now, machine_id=machine,
+                       start_time=suivantes[0].start_time,
+                       end_time=suivantes[0].start_time + 20)
+    return resolve_incremental(
+        example_schedule, event, example_instance, t_now=t_now,
+        config=IncrementalConfig(search_horizon=10_000, max_impacted_jobs=50,
+                                 timeout_seconds=15),
+    )
+
+
+def test_lincremental_paie_les_setups_entre_operations_de_la_zone(
+    example_schedule, example_instance
+):
+    """Critere d'acceptation de la correction de H9.
+
+    Les transitions entre deux operations REOPTIMISEES doivent porter leur setup.
+    On restreint l'assertion a ces transitions-la : celles impliquant une operation
+    figee relevent du planning de depart, pas de la re-optimisation.
+    """
+    resolution = _resolution_incrementale(example_schedule, example_instance)
+    reoptimisees = {
+        (e.job_id, e.position_in_job)
+        for e in resolution.window_result.schedule.entries
+    }
+
+    manques = []
+    par_machine = {}
+    for entry in resolution.schedule.entries:
+        par_machine.setdefault(entry.machine_id, []).append(entry)
+    for machine_id, entrees in par_machine.items():
+        entrees.sort(key=lambda e: e.start_time)
+        for precedente, suivante in zip(entrees, entrees[1:]):
+            concerne = (
+                (precedente.job_id, precedente.position_in_job) in reoptimisees
+                or (suivante.job_id, suivante.position_in_job) in reoptimisees
+            )
+            if not concerne:
+                continue
+            requis = example_instance.get_setup(
+                precedente.job_id, suivante.job_id, machine_id
+            )
+            ecart = suivante.start_time - precedente.end_time
+            if ecart < requis:
+                manques.append(
+                    f"{machine_id} : {precedente.job_id}->{suivante.job_id} "
+                    f"exige {requis}, ecart de {ecart}"
+                )
+
+    assert manques == [], (
+        f"{len(manques)} transition(s) de zone sans setup paye :\n  - "
+        + "\n  - ".join(manques)
+    )
+
+
+# ==========================================================================
+# Canari — commun aux DEUX solveurs
+# ==========================================================================
+@pytest.fixture
+def atelier_canari():
+    """Instance ou tout ordonnancement paie forcement des setups.
+
+    Trois jobs sur une machine commune, tous les setups strictement positifs : quel
+    que soit le sequencement retenu, le temps de setup total ne peut pas etre nul.
+    C'est ce qui rend le canari infaillible — il n'existe aucune solution valide a
+    setup nul, donc un total nul ne peut signifier qu'une chose : le defaut est revenu.
+    """
+    jobs = [
+        Job(id=f"K{i}",
+            operations=[Operation(f"K{i}", "MA", 12, 1), Operation(f"K{i}", "MB", 8, 2)],
+            deadline=500, weight=2.0)
+        for i in range(1, 4)
+    ]
+    ids = [j.id for j in jobs]
+    setups = {
+        (a, b, m): 6 for a in ids for b in ids if a != b for m in ("MA", "MB")
+    }
+    return ProblemInstance(jobs=jobs, machines=["MA", "MB"],
+                           setup_times=setups, wr=2)
+
+
+def test_canari_le_solveur_initial_paie_toujours_des_setups(atelier_canari):
+    """CANARI H8 : un temps de setup nul est impossible ici, donc revelateur.
+
+    Ce test aurait detecte le defaut des son introduction. Il ne verifie pas
+    l'absence de chevauchement — le planning bugue n'en avait aucun — mais que le
+    temps de setup PAYE correspond aux transitions reellement produites.
+    """
+    schedule = CPSATSolver(timeout_seconds=15).solve(atelier_canari)
+
+    assert schedule is not None
+    assert schedule.total_setup_time > 0, "le defaut H8 est revenu"
+    assert schedule.total_setup_time == setup_theorique(schedule, atelier_canari)
+    assert transitions_non_payees(schedule, atelier_canari) == []
+    # Deux machines, trois jobs chacune : au moins deux transitions par machine.
+    assert schedule.total_setup_time >= 4 * 6
+
+
+def test_canari_lincremental_paie_toujours_des_setups(atelier_canari):
+    """CANARI H9 : meme controle sur le modele incremental.
+
+    Le canari doit exister pour les DEUX solveurs : corriger l'un sans surveiller
+    l'autre est exactement ce qui a permis a H9 de survivre a la vigilance de D8.
+    """
+    from scheduling.incremental import IncrementalConfig, resolve_incremental
+    from scheduling.models.perturbation import make_event
+
+    initial = CPSATSolver(timeout_seconds=15).solve(atelier_canari)
+    cible = min(initial.entries, key=lambda e: e.start_time)
+    event = make_event("duration_change", timestamp=0, job_id=cible.job_id,
+                       position_in_job=cible.position_in_job,
+                       machine_id=cible.machine_id,
+                       new_duration=cible.duration + 5)
+
+    resolution = resolve_incremental(
+        initial, event, atelier_canari, t_now=0,
+        config=IncrementalConfig(search_horizon=10_000, max_impacted_jobs=50,
+                                 timeout_seconds=15),
+    )
+    zone_schedule = resolution.window_result.schedule
+    assert zone_schedule.entries, "la zone devrait contenir des operations"
+    assert zone_schedule.total_setup_time > 0, "le defaut H9 est revenu"
+
+
+def test_le_validateur_canonique_ne_detecte_toujours_pas_ce_defaut(atelier_canari):
+    """Pourquoi ce canari doit exister a part (cf. D11).
+
+    `validate_schedule` ne verifie ni le predecesseur reel d'un setup ni sa duree :
+    un planning ou aucun setup n'est paye lui parait parfaitement valide. C'est
+    exactement ce qui a laisse H8/H9 passer inapercus pendant tout le projet. Ce test
+    fige cette limite, pour que personne ne suppose que le validateur couvre le sujet.
+    """
+    from dataclasses import replace
+
+    from scheduling.validation import validate_schedule
+
+    schedule = CPSATSolver(timeout_seconds=15).solve(atelier_canari)
+    # On retire tous les setups sans toucher aux dates : le planning devient
+    # physiquement infaisable, mais le validateur n'y voit rien.
+    sans_setups = replace(
+        schedule, entries=[replace(e, setup=None) for e in schedule.entries]
+    )
+
+    assert validate_schedule(sans_setups, instance=atelier_canari) == [], (
+        "si ce test echoue, le validateur canonique a gagne cette verification : "
+        "mettre a jour D11 et ce test plutot que de le contourner"
+    )
+    assert sans_setups.total_setup_time == 0
