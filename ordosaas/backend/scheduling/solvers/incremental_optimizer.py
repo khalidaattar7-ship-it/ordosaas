@@ -227,11 +227,21 @@ class IncrementalOptimizer:
         for entry in zone.untouched_future_entries:
             base = max(base, entry.end_time)
         travail = sum(op.duration for _, op in pending_ops)
-        jobs_zone = {j.id for j in sub_instance.jobs}
-        setups = sum(
-            duree for (from_j, to_j, _), duree in sub_instance.setup_times.items()
-            if from_j in jobs_zone and to_j in jobs_zone
-        )
+        # Majoration des setups resserree, comme cote CPSATSolver (cf. D12) : une
+        # operation n'a qu'UN setup entrant, on majore donc chaque entree par le plus
+        # long setup possible vers elle plutot que de sommer toutes les paires.
+        setups = 0
+        for machine_id in sub_instance.machines:
+            jobs_on_m = [
+                j for j in sub_instance.jobs
+                if any(op.machine_id == machine_id for op in j.operations)
+            ]
+            for to_job in jobs_on_m:
+                entrants = [
+                    sub_instance.get_setup(from_job.id, to_job.id, machine_id)
+                    for from_job in jobs_on_m if from_job.id != to_job.id
+                ]
+                setups += max(entrants, default=0)
         return base + travail + setups + 1
 
     # -- construction du modele ---------------------------------------------
@@ -479,21 +489,65 @@ class IncrementalOptimizer:
 
     @staticmethod
     def _add_setups(model, sub_instance, op_vars, t_now, horizon) -> dict:
-        """Setups sequence-dependants entre operations de la zone sur une machine."""
+        """Setups sequence-dependants entre operations de la zone (cf. D12).
+
+        Meme technique que `CPSATSolver` depuis la correction de H8 : une contrainte
+        AddCircuit par machine, dont les litteraux d'arc gouvernent les intervalles de
+        setup. Cette symetrie est voulue — les deux modeles ne doivent pas diverger
+        sur ce point precis.
+
+        Avant correction, le booleen de chaque setup optionnel n'etait jamais force :
+        CP-SAT le laissait a zero et aucun setup interne a la zone n'etait paye
+        (defaut H9).
+
+        LIMITE ASSUMEE — le circuit ne porte que les jobs de la ZONE. Quand une
+        operation non touchee s'intercale entre deux operations de zone sur la meme
+        machine, le circuit impose malgre tout le setup direct zone -> zone, alors
+        que les transitions reelles passent par l'operation non touchee. C'est une
+        SUR-reservation, jamais une sous-estimation : elle ne peut pas produire un
+        planning infaisable en atelier, seulement une solution un peu moins bonne.
+
+        Faire porter le circuit sur l'ensemble des occupants de la machine (zone et
+        non touchees) donnerait un modele exact, et rendrait du meme coup redondantes
+        les gardes de D8 et D10 — mais entrerait en conflit direct avec les setups de
+        jonction de D8, qui creeraient alors un second intervalle actif sur la meme
+        transition et rendraient le NoOverlap infaisable. Ce chantier depasse le
+        perimetre d'une correction de validite ; il est consigne dans
+        docs/CONTEXTE_ET_DECISIONS.md.
+        """
         setup_vars = {}
         for machine_id in sub_instance.machines:
             jobs_on_m = [
                 j for j in sub_instance.jobs
                 if any(op.machine_id == machine_id for op in j.operations)
             ]
-            for from_job in jobs_on_m:
-                for to_job in jobs_on_m:
-                    if from_job.id == to_job.id:
-                        continue
-                    s_dur = sub_instance.get_setup(from_job.id, to_job.id, machine_id)
-                    if s_dur == 0:
+            if len(jobs_on_m) < 2:
+                continue  # pas de sequencement a arbitrer sur cette machine
+
+            # Indices de noeud : 0 = depot, k + 1 = jobs_on_m[k].
+            arcs = []
+            for k, job in enumerate(jobs_on_m):
+                arcs.append((0, k + 1, model.NewBoolVar(f"zdebut_{job.id}_{machine_id}")))
+                arcs.append((k + 1, 0, model.NewBoolVar(f"zfin_{job.id}_{machine_id}")))
+
+            for i, from_job in enumerate(jobs_on_m):
+                for j, to_job in enumerate(jobs_on_m):
+                    if i == j:
                         continue
                     b = model.NewBoolVar(f"b_{from_job.id}_{to_job.id}_{machine_id}")
+                    arcs.append((i + 1, j + 1, b))
+
+                    ef = _var_on_machine(op_vars, from_job.id, machine_id, index=1)
+                    st = _var_on_machine(op_vars, to_job.id, machine_id, index=0)
+                    if ef is None or st is None:
+                        continue
+
+                    s_dur = sub_instance.get_setup(from_job.id, to_job.id, machine_id)
+                    model.Add(st >= ef + s_dur).OnlyEnforceIf(b)
+
+                    if s_dur == 0:
+                        continue
+
                     ss = model.NewIntVar(t_now, horizon,
                                          f"ss_{from_job.id}_{to_job.id}_{machine_id}")
                     se = model.NewIntVar(t_now, horizon,
@@ -501,13 +555,13 @@ class IncrementalOptimizer:
                     siv = model.NewOptionalIntervalVar(
                         ss, s_dur, se, b, f"siv_{from_job.id}_{to_job.id}_{machine_id}"
                     )
-                    setup_vars[(from_job.id, to_job.id, machine_id)] = (ss, se, siv, b, s_dur)
+                    model.Add(ss >= ef).OnlyEnforceIf(b)
+                    model.Add(se <= st).OnlyEnforceIf(b)
+                    setup_vars[(from_job.id, to_job.id, machine_id)] = (
+                        ss, se, siv, b, s_dur
+                    )
 
-                    ef = _var_on_machine(op_vars, from_job.id, machine_id, index=1)
-                    st = _var_on_machine(op_vars, to_job.id, machine_id, index=0)
-                    if ef is not None and st is not None:
-                        model.Add(ss >= ef).OnlyEnforceIf(b)
-                        model.Add(st >= se).OnlyEnforceIf(b)
+            model.AddCircuit(arcs)
         return setup_vars
 
     @staticmethod
