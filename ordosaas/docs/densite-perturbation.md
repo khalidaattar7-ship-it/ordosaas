@@ -16,8 +16,8 @@ instance, et réduire le nombre de jobs fausserait les pourcentages.
 | Densité | Facteur `s` | Horizon | Utilisation machine | Temps mort interne | Détail par machine | TWT | Jobs en retard |
 |---|---|---|---|---|---|---|---|
 | dense | 1.0 | 673 | 88.3 % | 45 | M1:0 M2:43 M3:2 | 4422.64 | 8/10 |
-| moderee | 1.4 | 937 | 69.1 % | 553 | M1:162 M2:246 M3:145 | 5619.86 | 8/10 |
-| detendue | 2.0 | 1332 | 54.5 % | 1322 | M1:411 M2:550 M3:361 | 7415.40 | 8/10 |
+| moderee | 1.7 | 1134 | 52.4 % | 1215 | M1:362 M2:473 M3:380 | 6520.71 | 8/10 |
+| detendue | 2.5 | 1662 | 35.7 % | 2552 | M1:775 M2:965 M3:812 | 8908.76 | 8/10 |
 
 Le temps mort compté est **interne** — les trous entre deux occupations
 consécutives d'une machine. C'est lui, et lui seul, qui peut absorber un retard.
@@ -47,12 +47,12 @@ des jobs futurs.
 | dense | 88.3 % | panne machine (M1, 20 u.) | 2 | 7 | 29 % | **oui** | non | 2 | oui |
 | dense | 88.3 % | job urgent (2 op.) | 1 | 8 | 12 % | non | non | 1 | oui |
 | dense | 88.3 % | depassement duree (x1.5) | 2 | 7 | 29 % | **oui** | non | 2 | oui |
-| moderee | 69.1 % | panne machine (M1, 20 u.) | 2 | 7 | 29 % | **oui** | non | 2 | oui |
-| moderee | 69.1 % | job urgent (2 op.) | 1 | 8 | 12 % | non | non | 1 | oui |
-| moderee | 69.1 % | depassement duree (x1.5) | 2 | 7 | 29 % | **oui** | non | 2 | oui |
-| detendue | 54.5 % | panne machine (M1, 20 u.) | 1 | 7 | 14 % | **oui** | non | 1 | oui |
-| detendue | 54.5 % | job urgent (2 op.) | 1 | 8 | 12 % | non | non | 1 | oui |
-| detendue | 54.5 % | depassement duree (x1.5) | 1 | 7 | 14 % | **oui** | non | 1 | oui |
+| moderee | 52.4 % | panne machine (M1, 20 u.) | 1 | 7 | 14 % | **oui** | non | 1 | oui |
+| moderee | 52.4 % | job urgent (2 op.) | 2 | 8 | 25 % | **oui** | non | 2 | oui |
+| moderee | 52.4 % | depassement duree (x1.5) | 1 | 7 | 14 % | **oui** | non | 1 | oui |
+| detendue | 35.7 % | panne machine (M1, 20 u.) | 1 | 7 | 14 % | **oui** | non | 1 | oui |
+| detendue | 35.7 % | job urgent (2 op.) | 2 | 8 | 25 % | **oui** | non | 2 | oui |
+| detendue | 35.7 % | depassement duree (x1.5) | 1 | 7 | 14 % | **oui** | non | 1 | oui |
 
 **Lecture — attention au piège.** Avec 8 à 9 jobs futurs, le plafond relatif de
 0.20 vaut 1 à 2 jobs. La zone est donc **tronquée par le plafond dans presque
@@ -73,28 +73,28 @@ qui détermine si le seuil de repli serait franchi sans plafond.
 | dense | 88.3 % | panne machine (M1, 20 u.) | 5 | 7 | 71 % | non | **oui** | 5 | oui |
 | dense | 88.3 % | job urgent (2 op.) | 1 | 8 | 12 % | non | non | 1 | oui |
 | dense | 88.3 % | depassement duree (x1.5) | 7 | 7 | 100 % | non | **oui** | 5 | oui |
-| moderee | 69.1 % | panne machine (M1, 20 u.) | 3 | 7 | 43 % | non | non | 3 | oui |
-| moderee | 69.1 % | job urgent (2 op.) | 1 | 8 | 12 % | non | non | 1 | oui |
-| moderee | 69.1 % | depassement duree (x1.5) | 3 | 7 | 43 % | non | non | 3 | oui |
-| detendue | 54.5 % | panne machine (M1, 20 u.) | 3 | 7 | 43 % | non | non | 3 | oui |
-| detendue | 54.5 % | job urgent (2 op.) | 1 | 8 | 12 % | non | non | 1 | oui |
-| detendue | 54.5 % | depassement duree (x1.5) | 1 | 7 | 14 % | non | non | 1 | oui |
+| moderee | 52.4 % | panne machine (M1, 20 u.) | 2 | 7 | 29 % | non | non | 2 | oui |
+| moderee | 52.4 % | job urgent (2 op.) | 3 | 8 | 38 % | non | non | 3 | oui |
+| moderee | 52.4 % | depassement duree (x1.5) | 2 | 7 | 29 % | non | non | 2 | oui |
+| detendue | 35.7 % | panne machine (M1, 20 u.) | 1 | 7 | 14 % | non | non | 1 | oui |
+| detendue | 35.7 % | job urgent (2 op.) | 2 | 8 | 25 % | non | non | 2 | oui |
+| detendue | 35.7 % | depassement duree (x1.5) | 1 | 7 | 14 % | non | non | 1 | oui |
 
 ## Lecture
 
 **Régime production** :
 
 - **dense** (88.3 % d'utilisation) : part des jobs futurs touchés de 12 % à 29 %, 0 repli(s) et 2 zone(s) tronquée(s) sur 3 perturbation(s).
-- **moderee** (69.1 % d'utilisation) : part des jobs futurs touchés de 12 % à 29 %, 0 repli(s) et 2 zone(s) tronquée(s) sur 3 perturbation(s).
-- **detendue** (54.5 % d'utilisation) : part des jobs futurs touchés de 12 % à 14 %, 0 repli(s) et 2 zone(s) tronquée(s) sur 3 perturbation(s).
+- **moderee** (52.4 % d'utilisation) : part des jobs futurs touchés de 14 % à 25 %, 0 repli(s) et 3 zone(s) tronquée(s) sur 3 perturbation(s).
+- **detendue** (35.7 % d'utilisation) : part des jobs futurs touchés de 14 % à 25 %, 0 repli(s) et 3 zone(s) tronquée(s) sur 3 perturbation(s).
 
 **Régime cascade_naturelle** :
 
 - **dense** (88.3 % d'utilisation) : part des jobs futurs touchés de 12 % à 100 %, 2 repli(s) et 0 zone(s) tronquée(s) sur 3 perturbation(s).
-- **moderee** (69.1 % d'utilisation) : part des jobs futurs touchés de 12 % à 43 %, 0 repli(s) et 0 zone(s) tronquée(s) sur 3 perturbation(s).
-- **detendue** (54.5 % d'utilisation) : part des jobs futurs touchés de 12 % à 43 %, 0 repli(s) et 0 zone(s) tronquée(s) sur 3 perturbation(s).
+- **moderee** (52.4 % d'utilisation) : part des jobs futurs touchés de 29 % à 38 %, 0 repli(s) et 0 zone(s) tronquée(s) sur 3 perturbation(s).
+- **detendue** (35.7 % d'utilisation) : part des jobs futurs touchés de 14 % à 25 %, 0 repli(s) et 0 zone(s) tronquée(s) sur 3 perturbation(s).
 
-- En cascade naturelle, la part moyenne des jobs futurs touchés diminue entre la variante *dense* (61 %) et la variante *detendue* (23 %).
+- En cascade naturelle, la part moyenne des jobs futurs touchés diminue entre la variante *dense* (61 %) et la variante *detendue* (18 %).
 - Tous les plannings fusionnés sont valides, dans les deux régimes et à toutes les densités : la cascade reste correcte y compris sur des zones larges non tronquées.
 
 ## Ce que ce rapport ne dit pas

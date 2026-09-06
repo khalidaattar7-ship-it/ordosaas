@@ -526,56 +526,84 @@ marge »), il conserve les 10 jobs donc évite tout biais de dénominateur, et i
 validité **par construction**. Le levier lui-même n'est pas remis en cause par la
 correction de H8 — seules les valeurs mesurées le sont.
 
-#### Les trois variantes, après correction
+#### Les trois variantes, après correction et recalibrage
+
+Les facteurs d'étirement ont été recalibrés le 2026-09-06. `dense` reste **délibérément**
+à `s = 1.0` : c'est le planning que CP-SAT produit réellement, et c'est lui que la question
+produit met en balance avec l'option « garder de la marge ». Le ramener artificiellement à
+69 % pour retrouver le chiffre d'avant correction reviendrait à retirer de la comparaison
+le cas qu'elle existe pour éclairer. `modérée` et `détendue` sont recalibrées sur les cibles
+d'origine (~51 % et ~36 %), ce qui les rend **directement comparables à densité égale** avec
+la première version.
 
 | Densité | `s` | Horizon | Utilisation | Temps mort interne | Par machine | TWT | Jobs en retard |
 |---|---|---|---|---|---|---|---|
 | dense | 1.0 | 673 | 88.3 % | **45** | M1:**0** M2:43 M3:2 | 4422.64 | 8/10 |
-| modérée | 1.4 | 937 | 69.1 % | 553 | M1:162 M2:246 M3:145 | 5619.86 | 8/10 |
-| détendue | 2.0 | 1332 | 54.5 % | 1322 | M1:411 M2:550 M3:361 | 7415.40 | 8/10 |
+| modérée | 1.7 | 1134 | 52.4 % | 1215 | M1:362 M2:473 M3:380 | 6520.71 | 8/10 |
+| détendue | 2.5 | 1662 | 35.7 % | 2552 | M1:775 M2:965 M3:812 | 8908.76 | 8/10 |
 
-Pour mémoire, avant correction : 68.6 % / 50.5 % / 36.2 %, avec **240** de temps mort sur
-la variante dense. Les setups occupant désormais du temps machine réel, le planning optimal
-est bien plus serré : **il ne reste que 45 unités de temps mort au total, dont zéro sur la
-machine goulot**. C'est le fait structurel qui explique tout le reste.
+La plage couverte (88 → 36 %, soit 53 points) est plus large que celle d'origine (69 → 36 %,
+soit 32 points). La progression n'est pas régulière — 36 points entre dense et modérée,
+17 entre modérée et détendue — conséquence assumée de garder `dense` sur le planning réel.
 
-#### Cascade naturelle — cellule par cellule, avant → après
+**Un artefact de mesure a été corrigé au passage.** La première version de l'étirement
+multipliait la date de début du setup par `s` indépendamment de son opération, ce qui
+détachait progressivement l'un de l'autre et creusait un écart vide croissant — **862 unités
+fictives à `s = 3.0`** — comptabilisé comme de l'occupation machine. L'utilisation plafonnait
+ainsi à 43 % au lieu des ~30 % réels. Le setup suit désormais son opération, l'écart
+d'origine étant préservé et toute la marge ajoutée placée **avant** le setup. Cet artefact
+était invisible avant la correction de H8/H9, puisque aucun planning ne portait alors de setup.
+
+#### Cascade naturelle — la matrice recalibrée
 
 Bornes relâchées, perturbations en valeur absolue identiques d'une variante à l'autre.
-C'est ce régime qui répond à la question, le régime de production étant tronqué par le
-plafond relatif (cf. plus bas).
 
-| Perturbation | dense | modérée | détendue |
+| Perturbation | dense (88.3 %) | modérée (52.4 %) | détendue (35.7 %) |
 |---|---|---|---|
-| Panne machine (M1, 20 u.) | 50 % → **71 %** (repli) | 25 % → 43 % | 12 % → **43 %** |
-| Job urgent (2 op.) | **78 % (repli) → 12 %** | 33 % → 12 % | 11 % → 12 % |
-| Dépassement de durée (×1.5) | 75 % → **100 %** (repli) | 25 % → 43 % | 12 % → 14 % |
-| **Moyenne** | **68 % → 61 %** | 27,7 % → 32,7 % | 11,7 % → **23 %** |
+| Panne machine (M1, 20 u.) | 5/7 — **71 %** → repli | 2/7 — 29 % | 1/7 — **14 %** |
+| Job urgent (2 op.) | 1/8 — **12 %** | 3/8 — **38 %** | 2/8 — 25 % |
+| Dépassement de durée (×1.5) | 7/7 — **100 %** → repli | 2/7 — 29 % | 1/7 — **14 %** |
+| **Moyenne** | **61 %** | **32 %** | **18 %** |
 
-#### Ce qui a changé qualitativement — et ce n'est pas un détail
+#### Le résultat le plus important : la marge n'aide pas tous les types de perturbation
 
-**La cellule « job urgent / dense » s'est inversée : 78 % → 12 %.** C'était la
-démonstration la plus forte du lien densité → repli dans la version d'origine : un job
-urgent inséré dans un planning dense touchait 78 % des jobs futurs et déclenchait le
-garde-fou. **Cette démonstration a disparu.** Sur le planning corrigé, la même insertion ne
-touche plus qu'un seul job, à toutes les densités.
+Le recalibrage sépare nettement deux comportements que la moyenne agrégée confondait :
 
-Deux autres dégradations de la démonstration, moins spectaculaires mais réelles :
+- **Panne machine et dépassement de durée — la marge fonctionne, et proprement.** Les deux
+  lignes sont monotones et l'effet est fort : 71 % → 29 % → 14 % et 100 % → 29 % → 14 %.
+  C'est le mécanisme attendu : le temps mort absorbe le retard.
+- **Job urgent — la marge n'aide pas, et peut nuire.** La ligne est **non monotone et
+  inversée par rapport à l'intuition** : 12 % en dense, **38 % en modérée**, 25 % en
+  détendue. Le pire cas n'est pas le planning le plus serré, c'est le planning intermédiaire.
 
-- **Sur la panne machine, modérée et détendue sont désormais à égalité** (43 % toutes les
-  deux). Entre ces deux variantes, ajouter de la marge n'apporte plus rien pour ce type de
-  perturbation.
-- **La variante détendue s'est dégradée en absolu** : de 11,7 % à 23 % de jobs touchés en
-  moyenne. Le régime « structurellement favorable à l'incrémental » l'est moins qu'annoncé.
+L'explication tient à la nature de la perturbation. Une panne ou un dépassement **subissent**
+le planning : le temps mort les absorbe. Une insertion, elle, **exploite** le planning : sur
+un planning saturé, le job urgent n'a nulle part où se glisser et se place en fin d'horizon,
+où il ne décale rien ; dès qu'il y a de la marge, il s'insère plus tôt et déplace tout ce qui
+suit. **La marge, qui protège des aléas subis, ouvre des possibilités d'insertion qui
+cascadent.**
 
-**Ce qui subsiste** : la tendance agrégée reste monotone (61 % → 32,7 % → 23 %) et le
-garde-fou ne se déclenche toujours que sur le planning dense. La conclusion d'ensemble
-« plus de marge → moins de jobs impactés → repli moins souvent déclenché » tient donc.
+Ce résultat n'apparaissait pas dans la version d'origine, où la ligne « job urgent » semblait
+au contraire la plus démonstrative (78 % en dense). Il n'est visible qu'après la correction
+de H8/H9 et le recalibrage.
 
-**Mais la robustesse au détail ne tient pas.** Le récit ligne par ligne de la version
-d'origine est obsolète : une cellule s'est inversée, une autre a perdu sa monotonie. La
-conclusion agrégée survit à un changement structurel du planning ; les mécanismes
-individuels qu'on croyait avoir démontrés, non.
+#### Comparaison à densité comparable, avant → après correction
+
+Les variantes `modérée` et `détendue` ayant été recalibrées sur les densités d'origine, la
+comparaison est à périmètre constant pour elles. Pour `dense`, la densité elle-même a changé
+(68.6 % → 88.3 %) : les deux effets s'y mélangent, et la colonne n'est donc pas comparable
+terme à terme.
+
+| Perturbation | modérée (50.5 % → 52.4 %) | détendue (36.2 % → 35.7 %) |
+|---|---|---|
+| Panne machine | 25 % → 29 % | 12 % → 14 % |
+| Job urgent | 33 % → **38 %** | 11 % → **25 %** |
+| Dépassement de durée | 25 % → 29 % | 12 % → 14 % |
+
+**À densité égale, la cascade est systématiquement plus large après correction.** L'écart est
+modeste pour la panne et le dépassement (+4 et +2 points), mais important pour le job urgent
+en variante détendue (11 % → 25 %, soit plus du double). Les setups occupant du temps machine
+réel, les marges apparentes sont en partie consommées.
 
 #### Régime de production — le piège de lecture, inchangé
 
@@ -587,29 +615,42 @@ mais il ne dit rien de l'effet de la densité, qu'il masque entièrement.
 | Densité | Panne machine | Job urgent | Dépassement durée |
 |---|---|---|---|
 | dense (88.3 %) | 29 % (tronquée) | 12 % | 29 % (tronquée) |
-| modérée (69.1 %) | 29 % (tronquée) | 12 % | 29 % (tronquée) |
-| détendue (54.5 %) | 14 % (tronquée) | 12 % | 14 % (tronquée) |
+| modérée (52.4 %) | 14 % (tronquée) | 25 % (tronquée) | 14 % (tronquée) |
+| détendue (35.7 %) | 14 % (tronquée) | 25 % (tronquée) | 14 % (tronquée) |
 
-#### La question produit, à la lumière de ce qui a disparu
+Modérée et détendue y sont **indiscernables** : le plafond relatif les ramène aux mêmes
+valeurs. En production, sur cette instance, la densité du planning n'a donc aucun effet
+observable sur l'ampleur de la zone.
+
+#### La question produit — ce que ces données disent, et ce qu'elles ne disent pas
 
 La question reste **ouverte et non tranchée** : conserver de la marge à l'optimisation
-initiale, ou relever le seuil de repli. Mais elle doit désormais être posée en tenant
-compte de trois choses, et non de la seule conclusion d'ensemble.
+initiale, ou relever le seuil de repli. Quatre éléments doivent désormais entrer dans
+l'arbitrage.
 
-1. **L'argument le plus convaincant en faveur de la marge a disparu.** Il reposait sur le
-   job urgent en planning dense (78 % → repli). Il n'existe plus. Ce qui subsiste est une
-   tendance agrégée réelle mais moins démonstrative, portée surtout par la panne machine et
-   le dépassement de durée.
-2. **Le coût de la marge a augmenté.** Avant correction, passer de dense à détendue coûtait
-   +65 % de TWT (3012.84 → 4961.98). Après correction, c'est **+68 %** (4422.64 → 7415.40)
-   pour un bénéfice moindre — la détendue touche 23 % des jobs futurs au lieu des 11,7 %
-   annoncés. **Le rapport coût/bénéfice de l'option « garder de la marge » s'est donc
-   dégradé des deux côtés à la fois.**
-3. **La troisième lecture, signalée en Discussion 2, prend du poids.** Le plafond relatif de
-   D7 borne déjà la zone bien avant que le seuil de repli n'entre en jeu : en production, le
-   garde-fou ne se déclenche jamais sur cette instance. Arbitrer entre « marge » et « seuil
-   de repli » suppose que le seuil ait un rôle effectif — ce que les mesures ne montrent
-   pas. Ce point mérite d'être tranché **avant** les deux autres.
+1. **La marge fonctionne pour les aléas subis, pas pour les insertions.** C'est le résultat
+   central du recalibrage. Sur une panne ou un dépassement, la marge divise la cascade par
+   cinq (71 % → 14 %). Sur un job urgent, elle ne l'améliore pas et peut la tripler
+   (12 % → 38 %). Une décision « on garde de la marge » n'a donc pas le même sens selon ce
+   que l'atelier subit le plus souvent — c'est une question métier, pas une question
+   d'ordonnancement.
+
+2. **L'argument le plus démonstratif de la version d'origine a disparu.** Il reposait sur le
+   job urgent en planning dense (78 % → repli). Non seulement il n'existe plus, mais la
+   ligne s'est inversée. Ce qui subsiste repose entièrement sur la panne machine et le
+   dépassement de durée.
+
+3. **Le coût de la marge a doublé.** Avant correction, passer de dense à détendue coûtait
+   +65 % de TWT (3012.84 → 4961.98). Après correction et recalibrage, c'est
+   **+101 %** (4422.64 → 8908.76) — pour un bénéfice réel mais limité à deux des trois types
+   de perturbation.
+
+4. **Le seuil de repli n'a aucun rôle observable en production.** Le plafond relatif de D7
+   borne déjà la zone bien avant que le seuil n'entre en jeu : sur cette instance, le
+   garde-fou ne se déclenche jamais en régime de production, et modérée et détendue y sont
+   même indiscernables. Arbitrer entre « marge » et « seuil de repli » suppose que le seuil
+   ait un effet — ce que les mesures ne montrent pas. **Ce point mérite d'être tranché avant
+   les trois autres**, faute de quoi l'arbitrage porterait sur un levier inopérant.
 
 Ce constat ne tranche aucune de ces questions ; il fournit les données pour le faire.
 

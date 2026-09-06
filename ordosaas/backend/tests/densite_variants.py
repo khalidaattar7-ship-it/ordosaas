@@ -61,8 +61,11 @@ Ce levier a trois proprietes qui le rendent exploitable :
 3. **Il preserve la validite par construction**, ce qui se demontre :
    - precedence `a -> b` d'un job : `da <= b.start - a.start` dans l'original,
      donc `da <= (b.start - a.start) * s` pour tout `s >= 1` ;
-   - NoOverlap machine et placement des setups : meme argument, chaque ecart etant
-     multiplie par `s` alors que les durees restent constantes.
+   - NoOverlap machine : meme argument, chaque ecart etant multiplie par `s` alors
+     que les durees restent constantes ;
+   - setups : le nouveau debut vaut `setup_start + (s - 1) * op_start`, qui domine
+     la fin de l'operation precedente des lors que `op_start >= prev_start` — vrai
+     par construction puisque l'une precede l'autre.
 
 Les deadlines sont etirees du meme facteur, sans quoi la variante detendue serait
 un planning absurde ou tous les jobs sont massivement en retard.
@@ -83,13 +86,27 @@ from tests.validate_example import (
 
 # Les trois variantes retenues, avec leur facteur d'etirement.
 # Les taux d'utilisation indiques sont ceux mesures sur l'instance d'exemple.
-# Taux d'utilisation mesures APRES la correction de H8/H9 : les setups occupent
-# desormais du temps machine reel, ce qui rend tous les plannings plus denses
-# qu'avant (la variante dense passe de 69 % a 90 %).
+# Facteurs calibres le 2026-09-06, apres la correction de H8/H9.
+#
+# `dense` reste a 1.0 DELIBEREMENT : c'est le planning que CP-SAT produit reellement,
+# et c'est lui que la question produit met en balance avec l'option "garder de la
+# marge". Le ramener artificiellement a 69 % pour retrouver le chiffre d'avant
+# correction reviendrait a retirer de la comparaison le cas qu'elle existe pour
+# eclairer. Les setups occupant desormais du temps machine reel, ce planning est
+# simplement plus dense qu'avant : 88 % contre 69 %.
+#
+# `moderee` et `detendue` sont recalibrees sur les cibles d'origine (~51 % et ~36 %),
+# ce qui rend ces deux variantes directement comparables a la premiere version de la
+# matrice. La plage couverte (88 -> 36 %, soit 53 points) est plus large que celle
+# d'origine (69 -> 36 %, soit 32 points).
+#
+# L'ecart entre dense et moderee (36 points) est plus grand qu'entre moderee et
+# detendue (17 points) : la progression n'est pas reguliere, consequence de garder
+# dense sur le planning reel plutot que sur une cible choisie.
 DENSITES = {
-    "dense": 1.0,      # ~90 % d'utilisation — le planning CP-SAT tel quel
-    "moderee": 1.4,    # ~71 % d'utilisation — du temps mort sur les trois machines
-    "detendue": 2.0,   # ~57 % d'utilisation — marge large
+    "dense": 1.0,      # 88.3 % d'utilisation — le planning CP-SAT reel, non etire
+    "moderee": 1.7,    # 52.4 % — cible d'origine ~51 %
+    "detendue": 2.5,   # 35.7 % — cible d'origine ~36 %
 }
 
 
@@ -127,9 +144,21 @@ def etire(schedule, instance, facteur: float):
         debut = int(round(e.start_time * facteur))
         setup = None
         if e.setup and e.setup.duration > 0:
-            s_debut = int(round(e.setup.start_time * facteur))
-            setup = replace(e.setup, start_time=s_debut,
-                            end_time=s_debut + e.setup.duration)
+            # Le setup suit son operation au lieu d'etre etire independamment :
+            # l'ecart d'origine entre la fin du setup et le debut de l'operation est
+            # PRESERVE, et toute la marge ajoutee se place AVANT le setup — la ou
+            # elle a un sens, la machine attendant avant de se preparer.
+            #
+            # Etirer la date de debut du setup, comme le faisait la premiere version,
+            # detachait le setup de son operation et creusait un ecart vide croissant.
+            # Cet ecart etait compte comme de l'occupation machine et faussait la
+            # mesure de densite : 862 unites fictives a s = 3.0, soit une utilisation
+            # bloquee a 43 % au lieu des ~30 % reels. Invisible avant la correction de
+            # H8/H9, puisque aucun planning ne portait alors de setup.
+            ecart = e.start_time - e.setup.end_time
+            s_fin = debut - ecart
+            setup = replace(e.setup, start_time=s_fin - e.setup.duration,
+                            end_time=s_fin)
         entrees.append(replace(e, start_time=debut, end_time=debut + e.duration,
                                setup=setup))
 
