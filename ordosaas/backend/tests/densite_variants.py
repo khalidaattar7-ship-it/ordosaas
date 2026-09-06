@@ -8,21 +8,39 @@ de repli — la question produit restee ouverte en fin de Discussion 1.
 ## Pourquoi ce levier, et pas ceux qu'on essaie d'abord
 
 Deux leviers plus evidents ont ete mesures et **ne fonctionnent pas** sur cette
-instance. Ces mesures datent d'avant la correction de H8 (les setups n'etaient alors
-jamais payes) ; les taux absolus ont change depuis, mais la conclusion tient : ces
-deux leviers agissent sur le retard ou sur l'echelle, pas sur l'occupation machine.
+instance. Mesures refaites le 2026-09-06 avec le solveur CORRIGE (post-H8/H9), les
+mesures d'origine datant d'un solveur qui ne payait aucun setup.
 
-- **Desserrer les deadlines** (x1.5, x2.5, x4) : l'utilisation machine reste a
-  68-70 % dans tous les cas. Les deadlines pilotent le retard, pas l'occupation :
-  CP-SAT compacte de la meme facon, il place simplement les memes operations avec
-  moins de retard.
-- **Raccourcir les durees** (x0.7, x0.5, x0.3) : l'horizon se contracte dans la
-  meme proportion, donc la densite ne bouge pas (elle remonte meme a 80 % a x0.5).
+**Levier 1 — desserrer les deadlines** (durees inchangees) :
 
-Dans les deux cas, **M1 reste saturee a 100 %** (aucun temps mort entre deux
-operations consecutives). C'est une propriete structurelle de l'instance : la
-machine goulot porte une charge de 509 unites que CP-SAT tasse au plus serre, et
-aucun reglage de deadline ou de duree ne l'aere.
+    deadlines x1.0   util 88.3 %   temps mort  45   (M1:0 M2:43 M3:2)
+    deadlines x1.5   util 85.2 %   temps mort  71   (M1:0 M2:41 M3:30)
+    deadlines x2.5   util 85.8 %   temps mort   3   (M1:0 M2:2  M3:1)
+    deadlines x4.0   util 73.2 %   temps mort  16   (M1:0 M2:15 M3:1)
+
+L'utilisation ne descend qu'a 73 % en desserrant les deadlines d'un facteur QUATRE, et
+le temps mort interne reste derisoire — il DIMINUE meme a x2.5. Les deadlines pilotent
+le retard, pas l'occupation : CP-SAT place les memes operations avec moins de retard.
+
+**Levier 2 — reduire les durees** (deadlines inchangees) :
+
+    durees x1.0   util 88.3 %   temps mort 45   (M1:0 M2:43 M3:2)
+    durees x0.7   util 88.2 %   temps mort 45   (M1:0 M2:24 M3:21)
+    durees x0.5   util 77.6 %   temps mort  7   (M1:0 M2:2  M3:5)
+    durees x0.3   util 66.4 %   temps mort  0   (M1:0 M2:0  M3:0)
+
+L'horizon se contracte dans la meme proportion que les durees, donc la densite bouge
+peu — et le temps mort tombe a ZERO a x0.3, soit l'inverse de l'effet recherche.
+
+**Dans les huit configurations mesurees, M1 n'a AUCUN temps mort.** C'est une propriete
+structurelle de l'instance : la machine goulot est saturee, et aucun reglage de deadline
+ou de duree ne l'aere. La correction de H8/H9 a renforce ce constat plutot que de
+l'infirmer, les setups occupant desormais du temps machine reel.
+
+**Un troisieme levier, ecarte pour une autre raison** — reduire le nombre de jobs aere
+bien le planning (39 % d'utilisation a 4 jobs, mesure avant correction), mais change le
+denominateur du ratio "part des jobs futurs touches" sur lequel porte le garde-fou : les
+variantes ne seraient plus comparables entre elles.
 
 ## Le levier retenu : l'etirement du planning
 

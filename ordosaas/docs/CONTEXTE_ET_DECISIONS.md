@@ -498,6 +498,25 @@ produit** — il fournit les chiffres pour que Khalid le fasse.
 > ajustement numérique : la structure du planning sous-jacent a changé, et une conclusion
 > de la version d'origine a disparu (voir « Ce qui a changé qualitativement »).
 
+#### Les deux leviers écartés — re-mesurés avec le solveur corrigé
+
+Les mesures qui justifiaient d'écarter les leviers évidents dataient de l'ancien solveur.
+Refaites le 2026-09-06 avec le solveur corrigé, elles **confirment** la conclusion :
+
+| Levier | Plage balayée | Utilisation obtenue | Temps mort interne |
+|---|---|---|---|
+| Desserrer les deadlines | ×1.0 → ×4.0 | 88.3 % → 73.2 % | 45 → 16 (**diminue** à ×2.5 : 3) |
+| Raccourcir les durées | ×1.0 → ×0.3 | 88.3 % → 66.4 % | 45 → **0** |
+
+Desserrer les deadlines d'un facteur quatre ne fait descendre l'utilisation qu'à 73 %, loin
+des ~36 % visés, et le temps mort interne reste dérisoire. Raccourcir les durées contracte
+l'horizon d'autant, et fait même tomber le temps mort à **zéro**, soit l'inverse de l'effet
+recherché.
+
+**Dans les huit configurations mesurées, la machine goulot M1 n'a aucun temps mort.** La
+correction de H8/H9 renforce ce constat au lieu de l'infirmer, les setups occupant
+désormais du temps machine réel.
+
 #### Le levier retenu : l'étirement du planning
 
 Toutes les dates de début (opérations **et** setups) sont multipliées par `s ≥ 1`, les
