@@ -486,83 +486,116 @@ levée, ce test échouera et signalera qu'il faut mettre à jour D8/D10 — et n
 le test.
 
 
-### Constat — densité du planning × perturbation : les données de la question produit (2026-09-04)
+### Constat — densité du planning × perturbation : les données de la question produit (2026-09-04, **re-mesuré le 2026-09-06**)
 
 Livrable 2 de la Discussion 2. Rapport reproductible : `python -m tests.densite_report`,
 qui régénère `docs/densite-perturbation.md`. **Descriptif, il ne tranche pas la question
 produit** — il fournit les chiffres pour que Khalid le fasse.
 
-#### Deux leviers de densité mesurés et écartés
-
-Avant de retenir un levier, deux candidats plus évidents ont été mesurés sur l'instance —
-et aucun ne fonctionne :
-
-| Levier essayé | Résultat | Pourquoi |
-|---|---|---|
-| Desserrer les deadlines (×1.5, ×2.5, ×4) | Utilisation **inchangée**, 68-70 % partout | Les deadlines pilotent le retard, pas l'occupation. CP-SAT compacte pareil, avec moins de retard. |
-| Raccourcir les durées (×0.7, ×0.5, ×0.3) | Densité stable, remonte même à 80 % à ×0.5 | L'horizon se contracte dans la même proportion. |
-| Réduire le nombre de jobs (10 → 4) | Fonctionne (69 % → 39 %) mais **écarté** | Change le dénominateur du ratio « part des jobs futurs » sur lequel porte le garde-fou : les variantes ne seraient plus comparables. |
-
-Dans les deux premiers cas, **M1 reste saturée à 100 %** : la machine goulot porte 509
-unités que CP-SAT tasse au plus serré, et aucun réglage de deadline ou de durée ne l'aère.
+> ⚠️ **Les chiffres ci-dessous sont ceux d'APRÈS la correction de H8/H9 (cf. D12).** La
+> première version de cette matrice avait été mesurée en étirant un planning produit par
+> l'ancien solveur, qui ne payait aucun setup. Le changement n'est **pas** un simple
+> ajustement numérique : la structure du planning sous-jacent a changé, et une conclusion
+> de la version d'origine a disparu (voir « Ce qui a changé qualitativement »).
 
 #### Le levier retenu : l'étirement du planning
 
 Toutes les dates de début (opérations **et** setups) sont multipliées par `s ≥ 1`, les
 durées restent inchangées, les deadlines suivent. Trois propriétés le rendent exploitable :
 il modélise directement l'un des deux termes de la question produit (« conserver de la
-marge »), il conserve les 10 jobs donc évite le biais de dénominateur, et il préserve la
-validité **par construction** — la preuve tient en deux lignes et est vérifiée par
-`test_densite_variants.py::test_letirement_preserve_la_validite`.
+marge »), il conserve les 10 jobs donc évite tout biais de dénominateur, et il préserve la
+validité **par construction**. Le levier lui-même n'est pas remis en cause par la
+correction de H8 — seules les valeurs mesurées le sont.
+
+#### Les trois variantes, après correction
 
 | Densité | `s` | Horizon | Utilisation | Temps mort interne | Par machine | TWT | Jobs en retard |
 |---|---|---|---|---|---|---|---|
-| dense | 1.0 | 674 | 68.6 % | 240 | M1:**0** M2:70 M3:170 | 3012.84 | 8/10 |
-| modérée | 1.4 | 916 | 50.5 % | 792 | M1:169 M2:264 M3:359 | 3764.71 | 7/10 |
-| détendue | 2.0 | 1278 | 36.2 % | 1616 | M1:422 M2:553 M3:641 | 4961.98 | 7/10 |
+| dense | 1.0 | 673 | 88.3 % | **45** | M1:**0** M2:43 M3:2 | 4422.64 | 8/10 |
+| modérée | 1.4 | 937 | 69.1 % | 553 | M1:162 M2:246 M3:145 | 5619.86 | 8/10 |
+| détendue | 2.0 | 1332 | 54.5 % | 1322 | M1:411 M2:550 M3:361 | 7415.40 | 8/10 |
 
-#### Le résultat central — mesuré en deux régimes, ce qui est indispensable
+Pour mémoire, avant correction : 68.6 % / 50.5 % / 36.2 %, avec **240** de temps mort sur
+la variante dense. Les setups occupant désormais du temps machine réel, le planning optimal
+est bien plus serré : **il ne reste que 45 unités de temps mort au total, dont zéro sur la
+machine goulot**. C'est le fait structurel qui explique tout le reste.
 
-Perturbations en valeur **absolue**, identiques d'une variante à l'autre (une panne de 20
-unités reste une panne de 20 unités, quelle que soit la marge que le planificateur s'est
-gardée). T_now = un tiers de l'horizon.
+#### Cascade naturelle — cellule par cellule, avant → après
 
-**Régime « cascade naturelle »** (bornes relâchées) — c'est lui qui répond à la question,
-car il montre jusqu'où la perturbation se propage réellement :
+Bornes relâchées, perturbations en valeur absolue identiques d'une variante à l'autre.
+C'est ce régime qui répond à la question, le régime de production étant tronqué par le
+plafond relatif (cf. plus bas).
 
-| Perturbation | dense (69 %) | modérée (51 %) | détendue (36 %) |
+| Perturbation | dense | modérée | détendue |
 |---|---|---|---|
-| Panne machine (M1, 20 u.) | 4/8 — **50 %** | 2/8 — 25 % | 1/8 — 12 % |
-| Job urgent (2 op.) | 7/9 — **78 %** → repli | 3/9 — 33 % | 1/9 — 11 % |
-| Dépassement de durée (×1.5) | 6/8 — **75 %** → repli | 2/8 — 25 % | 1/8 — 12 % |
+| Panne machine (M1, 20 u.) | 50 % → **71 %** (repli) | 25 % → 43 % | 12 % → **43 %** |
+| Job urgent (2 op.) | **78 % (repli) → 12 %** | 33 % → 12 % | 11 % → 12 % |
+| Dépassement de durée (×1.5) | 75 % → **100 %** (repli) | 25 % → 43 % | 12 % → 14 % |
+| **Moyenne** | **68 % → 61 %** | 27,7 % → 32,7 % | 11,7 % → **23 %** |
 
-L'effet est net et monotone : la part moyenne des jobs futurs touchés passe de **68 % en
-dense à 12 % en détendue**. Le garde-fou de repli ne se déclenche que sur le planning
-dense, et jamais sur les deux autres. La marge absorbe donc bien la perturbation, et le
-constat de fin de Discussion 1 est confirmé quantitativement.
+#### Ce qui a changé qualitativement — et ce n'est pas un détail
 
-**Régime « production »** (bornes relatives par défaut de D7) — et c'est un piège de
-lecture qu'il faut connaître :
+**La cellule « job urgent / dense » s'est inversée : 78 % → 12 %.** C'était la
+démonstration la plus forte du lien densité → repli dans la version d'origine : un job
+urgent inséré dans un planning dense touchait 78 % des jobs futurs et déclenchait le
+garde-fou. **Cette démonstration a disparu.** Sur le planning corrigé, la même insertion ne
+touche plus qu'un seul job, à toutes les densités.
 
-Avec 8 à 9 jobs futurs, le plafond relatif de 0.20 vaut **1 à 2 jobs**. La zone est donc
-tronquée par le plafond dans presque toutes les cellules, à toutes les densités, et **le
-garde-fou de repli ne se déclenche jamais**. Ce régime montre que l'incrémental reste
-borné, mais il ne dit rien de l'effet de la densité, qu'il masque entièrement.
+Deux autres dégradations de la démonstration, moins spectaculaires mais réelles :
 
-#### Une troisième lecture apparue dans les chiffres
+- **Sur la panne machine, modérée et détendue sont désormais à égalité** (43 % toutes les
+  deux). Entre ces deux variantes, ajouter de la marge n'apporte plus rien pour ce type de
+  perturbation.
+- **La variante détendue s'est dégradée en absolu** : de 11,7 % à 23 % de jobs touchés en
+  moyenne. Le régime « structurellement favorable à l'incrémental » l'est moins qu'annoncé.
 
-La question produit était posée comme un choix binaire — conserver de la marge à
-l'optimisation initiale, ou relever le seuil de repli. Les mesures en font apparaître une
-troisième : **sur cette instance, le plafond relatif de D7 borne déjà la zone bien avant
-que le seuil de repli n'entre en jeu**, ce qui interroge le rôle réel du garde-fou en
-production. Ce point est signalé, pas tranché.
+**Ce qui subsiste** : la tendance agrégée reste monotone (61 % → 32,7 % → 23 %) et le
+garde-fou ne se déclenche toujours que sur le planning dense. La conclusion d'ensemble
+« plus de marge → moins de jobs impactés → repli moins souvent déclenché » tient donc.
 
-Coût chiffré de l'option « garder de la marge », pour l'arbitrage : le TWT passe de
-3012.84 (dense) à 4961.98 (détendue), soit environ +65 %, et l'horizon de 674 à 1278.
+**Mais la robustesse au détail ne tient pas.** Le récit ligne par ligne de la version
+d'origine est obsolète : une cellule s'est inversée, une autre a perdu sa monotonie. La
+conclusion agrégée survit à un changement structurel du planning ; les mécanismes
+individuels qu'on croyait avoir démontrés, non.
 
-Tous les plannings fusionnés sont valides dans les 18 cellules de la matrice, régimes et
-densités confondus — y compris sur les zones larges non tronquées.
+#### Régime de production — le piège de lecture, inchangé
 
+Avec les bornes relatives par défaut (D7), le plafond de 0.20 vaut 1 à 2 jobs sur 7-8
+futurs : la zone est tronquée dans presque toutes les cellules, à toutes les densités, et
+**le garde-fou ne se déclenche jamais**. Ce régime montre que l'incrémental reste borné,
+mais il ne dit rien de l'effet de la densité, qu'il masque entièrement.
+
+| Densité | Panne machine | Job urgent | Dépassement durée |
+|---|---|---|---|
+| dense (88.3 %) | 29 % (tronquée) | 12 % | 29 % (tronquée) |
+| modérée (69.1 %) | 29 % (tronquée) | 12 % | 29 % (tronquée) |
+| détendue (54.5 %) | 14 % (tronquée) | 12 % | 14 % (tronquée) |
+
+#### La question produit, à la lumière de ce qui a disparu
+
+La question reste **ouverte et non tranchée** : conserver de la marge à l'optimisation
+initiale, ou relever le seuil de repli. Mais elle doit désormais être posée en tenant
+compte de trois choses, et non de la seule conclusion d'ensemble.
+
+1. **L'argument le plus convaincant en faveur de la marge a disparu.** Il reposait sur le
+   job urgent en planning dense (78 % → repli). Il n'existe plus. Ce qui subsiste est une
+   tendance agrégée réelle mais moins démonstrative, portée surtout par la panne machine et
+   le dépassement de durée.
+2. **Le coût de la marge a augmenté.** Avant correction, passer de dense à détendue coûtait
+   +65 % de TWT (3012.84 → 4961.98). Après correction, c'est **+68 %** (4422.64 → 7415.40)
+   pour un bénéfice moindre — la détendue touche 23 % des jobs futurs au lieu des 11,7 %
+   annoncés. **Le rapport coût/bénéfice de l'option « garder de la marge » s'est donc
+   dégradé des deux côtés à la fois.**
+3. **La troisième lecture, signalée en Discussion 2, prend du poids.** Le plafond relatif de
+   D7 borne déjà la zone bien avant que le seuil de repli n'entre en jeu : en production, le
+   garde-fou ne se déclenche jamais sur cette instance. Arbitrer entre « marge » et « seuil
+   de repli » suppose que le seuil ait un rôle effectif — ce que les mesures ne montrent
+   pas. Ce point mérite d'être tranché **avant** les deux autres.
+
+Ce constat ne tranche aucune de ces questions ; il fournit les données pour le faire.
+
+Tous les plannings fusionnés restent valides dans les 18 cellules de la matrice, régimes et
+densités confondus.
 
 ### D11 — Le script de validation incrémental a une portée volontairement plus large que le validateur canonique (2026-09-04)
 
