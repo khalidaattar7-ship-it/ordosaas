@@ -52,8 +52,37 @@ def _borne_horizon(instance) -> int:
 class CPSATSolver(BaseSolver):
     """Solveur exact CP-SAT pour instances <= SEUIL_EXACT jobs."""
 
-    def __init__(self, timeout_seconds: int = 30):
+    # Filet de securite en temps d'horloge quand l'arret deterministe est actif.
+    # Il ne doit jamais se declencher : s'il le fait, le resultat cesse d'etre
+    # reproductible et la valeur obtenue ne vaut pas comme reference.
+    PLAFOND_HORLOGE_DETERMINISTE = 900
+
+    def __init__(
+        self,
+        timeout_seconds: int = 30,
+        num_search_workers: int = 4,
+        random_seed: int = None,
+        max_deterministic_time: float = None,
+    ):
+        """
+        Args:
+            timeout_seconds: budget d'horloge, mode par defaut.
+            num_search_workers: nombre de workers CP-SAT.
+            random_seed: graine fixe. Sans effet seul — il faut aussi un worker
+                unique et un arret deterministe pour que le resultat soit reproductible.
+            max_deterministic_time: budget DETERMINISTE. Quand il est fourni, l'arret
+                ne depend plus de l'horloge et le resultat devient reproductible
+                bit-a-bit, au prix d'un temps d'execution variable.
+
+        Les trois derniers parametres n'existent que pour rendre un resultat
+        REPRODUCTIBLE, typiquement pour le test de reference du projet. Ils sont
+        optionnels et leurs defauts laissent le comportement de production
+        strictement inchange : 4 workers, arret a l'horloge, aucune graine imposee.
+        """
         self.timeout_seconds = timeout_seconds
+        self.num_search_workers = num_search_workers
+        self.random_seed = random_seed
+        self.max_deterministic_time = max_deterministic_time
 
     def solve(self, instance: ProblemInstance) -> Schedule:
         """Resolution complete sans contexte."""
@@ -230,8 +259,18 @@ class CPSATSolver(BaseSolver):
 
         # Solve
         solver = cp_model.CpSolver()
-        solver.parameters.max_time_in_seconds = float(self.timeout_seconds)
-        solver.parameters.num_search_workers = 4
+        solver.parameters.num_search_workers = self.num_search_workers
+        if self.random_seed is not None:
+            solver.parameters.random_seed = self.random_seed
+        if self.max_deterministic_time is None:
+            solver.parameters.max_time_in_seconds = float(self.timeout_seconds)
+        else:
+            # L'arret devient deterministe. Le plafond d'horloge ne subsiste que
+            # comme filet de securite contre un blocage.
+            solver.parameters.max_deterministic_time = float(self.max_deterministic_time)
+            solver.parameters.max_time_in_seconds = float(
+                max(self.timeout_seconds, self.PLAFOND_HORLOGE_DETERMINISTE)
+            )
         status = solver.Solve(model)
 
         elapsed = time.time() - start_time

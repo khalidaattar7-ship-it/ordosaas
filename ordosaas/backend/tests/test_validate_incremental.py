@@ -176,14 +176,19 @@ def test_il_detecte_un_routage_du_garde_fou():
 
 
 # -- distinction entre defaut de l'incremental et heritage -------------------
-def test_les_transitions_heritees_ne_sont_pas_imputees_a_lincremental(
+def test_plus_aucune_transition_heritee_depuis_la_correction_de_h8(
     example_schedule, example_instance
 ):
-    """Cadrage de perimetre : H8 n'est pas un echec de l'incremental.
+    """H8 corrige : le planning initial paie desormais tous ses setups.
 
-    Le planning initial ne reserve aucune place aux setups (H8). Ces transitions
-    heritees doivent apparaitre en INFO et ne jamais faire echouer la validation de
-    l'incremental, qui n'en est pas responsable.
+    Ce test verrouillait auparavant le CADRAGE de perimetre — les transitions
+    heritees du planning initial etaient signalees en INFO, jamais en FAIL, parce
+    que l'incremental n'en etait pas responsable. Depuis la correction de H8 il n'y
+    a tout simplement plus de transition heritee fautive : le mecanisme de cadrage
+    subsiste dans le script, mais il n'a plus rien a signaler sur cette instance.
+
+    C'est donc l'inverse de l'assertion d'origine qui est verifiee ici, et c'est un
+    progres, pas un contournement.
     """
     t_now = example_schedule.horizon // 3
     machine = example_instance.machines[0]
@@ -203,9 +208,11 @@ def test_les_transitions_heritees_ne_sont_pas_imputees_a_lincremental(
         example_schedule, event, resolution, example_instance, t_now=t_now
     )
 
-    heritees = _verif(rapport, "heritees du planning initial")
-    assert heritees.statut == INFO
-    assert any("H8" in d for d in heritees.details)
+    noms = [v.nom for v in rapport.verifications]
+    assert not any("heritees du planning initial" in n for n in noms), (
+        "des transitions heritees sans setup subsistent : H8 serait revenu"
+    )
+    assert rapport.ok, [v.nom for v in rapport.verifications if v.echoue]
 
 
 def test_le_rapport_saffiche_sans_erreur(capsys):

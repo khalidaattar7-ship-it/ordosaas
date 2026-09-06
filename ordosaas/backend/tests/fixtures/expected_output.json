@@ -5,11 +5,30 @@
     "wr": 2
   },
   "kpis": {
-    "total_weighted_tardiness": 3012.84,
+    "total_weighted_tardiness": 4422.64,
     "nb_jobs_late": 8,
     "nb_jobs_on_time": 2,
-    "max_tardiness": 449,
-    "total_setup_time": 0,
-    "method_used": "optimal"
+    "max_tardiness": 421,
+    "total_setup_time": 320,
+    "makespan": 673,
+    "method_used": "cpsat"
+  },
+  "solver_status": "feasible",
+  "best_objective_bound": 2130.72,
+  "reproducibility": {
+    "note": "Valeur reproductible bit-a-bit UNIQUEMENT avec la configuration ci-dessous. La configuration de PRODUCTION reste inchangee (4 workers, arret a l'horloge) et ne garantit pas ce resultat exact.",
+    "num_search_workers": 1,
+    "random_seed": 42,
+    "max_deterministic_time": 10.0
+  },
+  "correction": {
+    "previous_total_weighted_tardiness": 3012.84,
+    "previous_total_setup_time": 0,
+    "previous_solver_status": "optimal",
+    "correction_reason": "setups jamais forces a 1 dans le modele CP-SAT (H8/H9), corrige via AddCircuit",
+    "correction_date": "2026-09-06",
+    "ecart_pct": 46.8,
+    "details": "L'ancienne valeur a ete obtenue par un modele ou les intervalles de setup etaient gouvernes par un booleen que rien ne forcait : CP-SAT ne payait aucun setup. Sur cette instance, 352 unites de setup etaient dues et 0 payee, pour 18 transitions en violation. L'ancienne valeur 3012.84 est donc invalide comme mesure de performance, bien qu'elle ait ete presentee comme telle.",
+    "optimalite": "La nouvelle valeur n'est PAS prouvee optimale : CP-SAT n'y parvient pas, meme a 300 s. best_objective_bound donne la borne inferieure, donc un ecart maximal de 51.8 % a l'optimum. Voir docs/CONTEXTE_ET_DECISIONS.md."
   }
 }

@@ -8,7 +8,9 @@ de repli — la question produit restee ouverte en fin de Discussion 1.
 ## Pourquoi ce levier, et pas ceux qu'on essaie d'abord
 
 Deux leviers plus evidents ont ete mesures et **ne fonctionnent pas** sur cette
-instance :
+instance. Ces mesures datent d'avant la correction de H8 (les setups n'etaient alors
+jamais payes) ; les taux absolus ont change depuis, mais la conclusion tient : ces
+deux leviers agissent sur le retard ou sur l'echelle, pas sur l'occupation machine.
 
 - **Desserrer les deadlines** (x1.5, x2.5, x4) : l'utilisation machine reste a
   68-70 % dans tous les cas. Les deadlines pilotent le retard, pas l'occupation :
@@ -63,10 +65,13 @@ from tests.validate_example import (
 
 # Les trois variantes retenues, avec leur facteur d'etirement.
 # Les taux d'utilisation indiques sont ceux mesures sur l'instance d'exemple.
+# Taux d'utilisation mesures APRES la correction de H8/H9 : les setups occupent
+# desormais du temps machine reel, ce qui rend tous les plannings plus denses
+# qu'avant (la variante dense passe de 69 % a 90 %).
 DENSITES = {
-    "dense": 1.0,      # ~69 % d'utilisation — le planning CP-SAT tel quel, M1 saturee
-    "moderee": 1.4,    # ~51 % d'utilisation — du temps mort sur les trois machines
-    "detendue": 2.0,   # ~36 % d'utilisation — marge large
+    "dense": 1.0,      # ~90 % d'utilisation — le planning CP-SAT tel quel
+    "moderee": 1.4,    # ~71 % d'utilisation — du temps mort sur les trois machines
+    "detendue": 2.0,   # ~57 % d'utilisation — marge large
 }
 
 
@@ -126,11 +131,25 @@ def etire(schedule, instance, facteur: float):
 def construit_variantes(timeout_seconds: int = 30) -> dict:
     """Les trois variantes de densite, resolues puis etirees.
 
+    Le planning de depart est resolu avec la configuration DETERMINISTE du fichier
+    de reference. Sans elle il change d'une execution a l'autre — le probleme est
+    trop dur pour converger dans le budget depuis la correction de H8 — et les
+    mesures de ce rapport cessent d'etre reproductibles (cf. D12).
+
     Returns:
         {nom: (Schedule, ProblemInstance)}
     """
+    import json
+
     base = charge_instance_exemple()
-    optimal = CPSATSolver(timeout_seconds=timeout_seconds).solve(base)
+    with open(os.path.join(FIXTURES_DIR, "expected_output.json")) as f:
+        repro = json.load(f)["reproducibility"]
+    optimal = CPSATSolver(
+        timeout_seconds=timeout_seconds,
+        num_search_workers=repro["num_search_workers"],
+        random_seed=repro["random_seed"],
+        max_deterministic_time=repro["max_deterministic_time"],
+    ).solve(base)
     if optimal is None:
         raise RuntimeError("le solveur initial n'a pas trouve de solution")
     return {nom: etire(optimal, base, facteur) for nom, facteur in DENSITES.items()}

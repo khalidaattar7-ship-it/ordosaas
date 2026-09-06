@@ -129,12 +129,18 @@ class ScheduleMerger:
         setup en variables, donc ses dates sont sures et sans chevauchement — il
         suffit de le substituer.
 
+        Une valeur `None` est une substitution a part entiere : elle signifie que la
+        transition retenue n'exige aucun setup, et que le setup d'origine doit donc
+        etre EFFACE. Le conserver laisserait une plage occupee par un setup qui n'a
+        plus lieu d'etre, et que la zone a pu se voir attribuer (cf. D12).
+
         La substitution passe par `dataclasses.replace` : les entrees non touchees
         appartiennent au Schedule de la resolution precedente, que la fusion n'a
         aucune raison de muter.
         """
         if not junction_setups:
             return list(untouched)
+        # `in` et non une comparaison de valeur : None est une substitution valide.
         return [
             replace(entry, setup=junction_setups[(entry.job_id, entry.position_in_job)])
             if (entry.job_id, entry.position_in_job) in junction_setups

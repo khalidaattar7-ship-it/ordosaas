@@ -22,9 +22,25 @@ def _load_example():
 
 
 def test_cpsat_example_instance_twt():
-    """The 10-job/3-machine example must match expected_output.json within 1%."""
+    """L'instance a 10 jobs doit retrouver expected_output.json a 1 % pres.
+
+    La configuration DETERMINISTE du fichier de reference est reprise ici : un seul
+    worker, graine fixe et arret deterministe. Sans elle, le resultat varie d'une
+    execution a l'autre (2,56 % d'ecart mesure avec 4 workers et un arret a
+    l'horloge), ce qui rendrait cette assertion instable a 1 %.
+
+    Cette configuration ne sert QUE la reproductibilite du test : la production garde
+    4 workers et l'arret a l'horloge.
+    """
     instance = _load_example()
-    schedule = CPSATSolver(timeout_seconds=30).solve(instance)
+    with open(os.path.join(FIXTURES, "expected_output.json")) as f:
+        config = json.load(f)["reproducibility"]
+    schedule = CPSATSolver(
+        timeout_seconds=30,
+        num_search_workers=config["num_search_workers"],
+        random_seed=config["random_seed"],
+        max_deterministic_time=config["max_deterministic_time"],
+    ).solve(instance)
     assert schedule is not None
 
     with open(os.path.join(FIXTURES, "expected_output.json")) as f:

@@ -176,6 +176,8 @@ def verifie_setups(rapport, resolution, instance) -> None:
 
     # -- 1. les setups de jonction emis --------------------------------------
     for (job_id, position), setup in resolution.junction_setups.items():
+        if setup is None:
+            continue  # le predecesseur a change sans exiger de setup : rien a verifier
         cible = next(
             (e for e in resolution.schedule.entries
              if e.job_id == job_id and e.position_in_job == position),
@@ -206,7 +208,7 @@ def verifie_setups(rapport, resolution, instance) -> None:
         if cible.setup is None or cible.setup.start_time != setup.start_time:
             problemes.append(f"{etiquette} : non rattache a l'entree cible apres fusion")
 
-    nb = len(resolution.junction_setups)
+    nb = sum(1 for v in resolution.junction_setups.values() if v is not None)
     rapport.ajoute(
         f"Setups de jonction coherents ({nb} emis)",
         FAIL if problemes else PASS,

@@ -93,6 +93,34 @@ def validate_no_overlap(schedule, instance):
     print("[PASS] NoOverlap constraints satisfied")
 
 
+def validate_setups(schedule, instance):
+    """Chaque transition consecutive sur une machine paie-t-elle son setup ?
+
+    Verification absente du validateur canonique, et c'est precisement ce qui a
+    laisse passer le defaut H8/H9 : un planning ou aucun setup n'est paye ne
+    presente ni chevauchement ni violation de precedence.
+    """
+    manques = []
+    par_machine = {}
+    for entry in schedule.entries:
+        par_machine.setdefault(entry.machine_id, []).append(entry)
+    for machine_id, entrees in par_machine.items():
+        entrees.sort(key=lambda e: e.start_time)
+        for precedente, suivante in zip(entrees, entrees[1:]):
+            requis = instance.get_setup(precedente.job_id, suivante.job_id, machine_id)
+            ecart = suivante.start_time - precedente.end_time
+            if ecart < requis:
+                manques.append(
+                    f"{machine_id} : {precedente.job_id}->{suivante.job_id} "
+                    f"exige {requis}, ecart de {ecart}"
+                )
+    if manques:
+        for m in manques:
+            print(f"[FAIL] {m}")
+        sys.exit(1)
+    print("[PASS] Setup times paid on every transition")
+
+
 def main():
     jobs = parse_jobs_csv(os.path.join(FIXTURES_DIR, "jobs.csv"))
     ops = parse_ops_csv(os.path.join(FIXTURES_DIR, "operations.csv"))
@@ -103,14 +131,24 @@ def main():
     machines = sorted({o["machine_id"] for o in ops})
     instance = ProblemInstance(jobs=jobs_list, machines=machines, setup_times=setup_dict, wr=2)
 
-    print("Solving...")
-    schedule = CPSATSolver(timeout_seconds=30).solve(instance)
+    with open(os.path.join(FIXTURES_DIR, "expected_output.json")) as f:
+        expected = json.load(f)
+
+    # Configuration DETERMINISTE de la reference : sans elle, le TWT varie d'une
+    # execution a l'autre et la comparaison a 1 % serait instable. La production,
+    # elle, garde 4 workers et l'arret a l'horloge.
+    repro = expected["reproducibility"]
+    print(f"Solving (deterministe : {repro['num_search_workers']} worker, "
+          f"seed={repro['random_seed']}, det_time={repro['max_deterministic_time']})...")
+    schedule = CPSATSolver(
+        timeout_seconds=30,
+        num_search_workers=repro["num_search_workers"],
+        random_seed=repro["random_seed"],
+        max_deterministic_time=repro["max_deterministic_time"],
+    ).solve(instance)
     if schedule is None:
         print("[FAIL] No solution found")
         sys.exit(1)
-
-    with open(os.path.join(FIXTURES_DIR, "expected_output.json")) as f:
-        expected = json.load(f)
 
     exp_twt = expected["kpis"]["total_weighted_tardiness"]
     act_twt = schedule.total_weighted_tardiness
@@ -120,7 +158,11 @@ def main():
     print(f"Expected TWT : {exp_twt}")
     print(f"Actual TWT   : {act_twt}")
     print(f"Jobs late    : {schedule.nb_jobs_late} (expected {expected['kpis']['nb_jobs_late']})")
+    print(f"Setup time   : {schedule.total_setup_time} "
+          f"(expected {expected['kpis']['total_setup_time']})")
     print(f"Method       : {schedule.method_used}")
+    print(f"Status       : {schedule.solver_status} "
+          f"(reference : {expected['solver_status']}, optimalite non prouvee)")
 
     delta = abs(act_twt - exp_twt) / max(exp_twt, 1)
     if delta <= tolerance:
@@ -131,6 +173,7 @@ def main():
 
     validate_precedence(schedule, instance)
     validate_no_overlap(schedule, instance)
+    validate_setups(schedule, instance)
 
     print("\n[PASS] ALL VALIDATIONS PASSED")
     sys.exit(0)

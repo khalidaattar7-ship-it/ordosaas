@@ -126,11 +126,24 @@ def test_scenario_panne_machine_sur_planning_dense(example_schedule, example_ins
 def test_le_garde_fou_ne_se_declenche_pas_sur_une_perturbation_ciblee(
     example_schedule, example_instance, t_now
 ):
-    """Une annulation de job ne touche qu'une part limitee du planning futur."""
-    futurs = sorted({
-        e.job_id for e in example_schedule.entries if e.start_time > t_now
-    })
-    event = make_event("job_cancel", timestamp=t_now, job_id=futurs[-1])
+    """Annuler le job qui finit en DERNIER ne touche qu'une part limitee du futur.
+
+    Le job choisi est celui dont la derniere operation se termine le plus tard : son
+    annulation ne libere que des creneaux de fin d'horizon, sans rien a decaler
+    derriere. C'est le cas le plus favorable, et donc le bon test du garde-fou —
+    verifier qu'il ne se declenche PAS la ou l'incremental est clairement pertinent.
+
+    Le critere etait auparavant le job alphabetiquement dernier, un choix arbitraire
+    qui ne garantissait pas la localite : sur le planning corrige (les setups y sont
+    desormais payes, ce qui le compacte nettement), une telle annulation cascade sur
+    86 % des jobs futurs.
+    """
+    fins = {}
+    for e in example_schedule.entries:
+        if e.start_time > t_now:
+            fins[e.job_id] = max(fins.get(e.job_id, 0), e.end_time)
+    dernier = max(fins, key=fins.get)
+    event = make_event("job_cancel", timestamp=t_now, job_id=dernier)
     zone, _, _, _ = _replanifie(event, example_schedule, example_instance)
 
     assert zone.ratio_future_jobs_affected <= 0.5

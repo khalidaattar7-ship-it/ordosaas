@@ -476,15 +476,23 @@ class IncrementalOptimizer:
             # ou celui d'origine.
             model.AddExactlyOne([b for _, b, _, _, _, _ in choix] + [b_origine])
 
-            # Le setup d'origine n'occupe la machine que s'il subsiste.
+            # Le setup d'origine n'occupe la machine que s'il subsiste. L'intervalle
+            # est CONSERVE : il doit rejoindre le NoOverlap de la machine, sans quoi
+            # une operation de la zone pourrait se placer par-dessus.
+            #
+            # Ce trou n'etait pas atteignable avant la correction de H8 : les entrees
+            # non touchees ne portaient alors jamais de setup, l'obstacle de jonction
+            # ne liberait donc aucun temps reel. Corriger H8 l'a rendu atteignable, et
+            # le re-baselining l'a fait apparaitre (cf. D12).
+            iv_origine = None
             if cible.setup and cible.setup.duration > 0:
-                model.NewOptionalIntervalVar(
+                iv_origine = model.NewOptionalIntervalVar(
                     model.NewConstant(cible.setup.start_time),
                     cible.setup.duration,
                     model.NewConstant(cible.setup.end_time),
                     b_origine, f"jonction_setup_origine_{machine_id}",
                 )
-            junction_vars[machine_id] = (cible, choix, b_origine)
+            junction_vars[machine_id] = (cible, choix, b_origine, iv_origine)
         return junction_vars
 
     @staticmethod
@@ -604,9 +612,10 @@ class IncrementalOptimizer:
                            junction_vars=None) -> None:
         """Contrainte Cumulative sur les setups (WR techniciens).
 
-        Quatre sources de demande : les setups de la zone, les setups de jonction
-        vers le futur non touche (cf. D8), les setups figes encore actifs a T_now
-        (contexte gauche exact), et — pour un evenement
+        Cinq sources de demande : les setups de la zone, les setups de jonction vers
+        le futur non touche (cf. D8), les setups des entrees non touchees (cf. D12),
+        les setups figes encore actifs a T_now (contexte gauche exact), et — pour un
+        evenement
         resource_change — un intervalle fixe qui consomme la capacite retiree
         pendant la fenetre, ce qui revient exactement a abaisser le WR sur cette
         periode sans avoir a rendre la capacite variable dans le temps.
@@ -620,6 +629,35 @@ class IncrementalOptimizer:
             for iv in _junction_intervals(model, junction_vars, machine_id):
                 intervals.append(iv)
                 demands.append(1)
+
+        # Setups des entrees NON TOUCHEES : ils consomment un technicien pendant
+        # toute leur duree, exactement comme ceux de la zone. Les omettre laissait
+        # la zone programmer des setups en parallele de setups deja prevus, au-dela
+        # de la capacite WR.
+        #
+        # Ce trou n'etait pas atteignable avant la correction de H8 : aucun planning
+        # ne portait alors de setup, donc les entrees non touchees n'en avaient pas.
+        # Il est apparu au re-baselining (cf. D12).
+        #
+        # Les entrees de jonction sont exclues : leur setup est deja represente par
+        # junction_vars, soit comme nouveau setup, soit comme setup d'origine
+        # optionnel. Le compter ici le compterait deux fois.
+        jonctions = {
+            (cible.job_id, cible.position_in_job)
+            for cible, _choix, _b, _iv in (junction_vars or {}).values()
+        }
+        for entry in zone.untouched_future_entries:
+            if entry.setup is None or entry.setup.duration <= 0:
+                continue
+            if (entry.job_id, entry.position_in_job) in jonctions:
+                continue
+            intervals.append(model.NewIntervalVar(
+                model.NewConstant(entry.setup.start_time),
+                entry.setup.duration,
+                model.NewConstant(entry.setup.end_time),
+                f"setup_intouche_{entry.machine_id}_{entry.job_id}_{entry.position_in_job}",
+            ))
+            demands.append(1)
 
         for machine_id, from_j, to_j, s_time, e_time in left.active_setups:
             if e_time > s_time:
@@ -781,17 +819,27 @@ class IncrementalOptimizer:
         que les entrees reoptimisees. Ils remontent par le WindowResult, et c'est le
         ScheduleMerger qui les rattache a l'entree non touchee correspondante.
 
-        Rien n'est emis quand le predecesseur d'origine subsiste (b_origine) ou
-        quand la transition retenue a un setup de duree nulle.
+        Rien n'est emis quand le predecesseur d'origine subsiste (b_origine). En
+        revanche, quand le predecesseur CHANGE, une entree est publiee meme si la
+        nouvelle transition a une duree nulle : la valeur vaut alors None, ce qui
+        signifie "cette entree ne porte plus de setup" et permet au ScheduleMerger
+        d'effacer le setup d'origine devenu faux.
         """
         junction_setups = {}
-        for _machine_id, (cible, choix, b_origine) in junction_vars.items():
+        for _machine_id, (cible, choix, b_origine, _iv) in junction_vars.items():
             if solver.Value(b_origine) == 1:
-                continue
+                continue  # predecesseur inchange : son setup d'origine reste valable
+            cle = (cible.job_id, cible.position_in_job)
+            # Le predecesseur a change : le setup d'origine n'a PLUS lieu d'etre,
+            # meme si le nouveau est de duree nulle. On publie donc une entree dans
+            # tous les cas — un SetupEntry, ou None pour dire "plus aucun setup".
+            # Omettre le cas nul laissait l'entree non touchee conserver un setup
+            # perime qui chevauchait la zone (cf. D12).
+            junction_setups[cle] = None
             for job_id, b, ss, se, duree, _iv in choix:
                 if solver.Value(b) != 1 or duree <= 0:
                     continue
-                junction_setups[(cible.job_id, cible.position_in_job)] = SetupEntry(
+                junction_setups[cle] = SetupEntry(
                     from_job_id=job_id,
                     start_time=solver.Value(ss),
                     end_time=solver.Value(se),
@@ -869,8 +917,13 @@ def _junction_intervals(model, junction_vars, machine_id) -> list:
     """
     if not junction_vars or machine_id not in junction_vars:
         return []
-    _cible, choix, _b_origine = junction_vars[machine_id]
-    return [iv for _jid, _b, _ss, _se, _duree, iv in choix if iv is not None]
+    _cible, choix, _b_origine, iv_origine = junction_vars[machine_id]
+    intervalles = [iv for _jid, _b, _ss, _se, _duree, iv in choix if iv is not None]
+    if iv_origine is not None:
+        # Le setup d'origine occupe la machine des lors qu'il subsiste : l'omettre
+        # laisserait la zone s'y placer par-dessus.
+        intervalles.append(iv_origine)
+    return intervalles
 
 
 def _var_on_machine(op_vars, job_id, machine_id, index):

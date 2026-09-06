@@ -171,6 +171,29 @@ def test_contextes_coherents_sur_instance_reelle(example_schedule, example_insta
     fins_figees = zone.state.last_frozen_end_per_machine()
     for machine_id, charge in contexts.left.machine_loads.items():
         assert charge <= fins_figees[machine_id]
-    # Toute borne droite est posterieure a T_now : elle delimite bien du futur.
-    for borne in contexts.right.machine_loads.values():
-        assert borne > t_now
+    # Chaque borne droite marque le debut REEL d'occupation de sa machine par la
+    # premiere entree non touchee, setup compris.
+    #
+    # Cette borne peut preceder T_now, et c'est correct : un setup peut avoir demarre
+    # avant l'instant present et se poursuivre au-dela, l'operation qu'il prepare
+    # restant future. L'assertion d'origine exigeait `borne > t_now` — elle datait de
+    # l'epoque ou aucun planning ne portait de setup (defaut H8), cas ou le debut
+    # d'occupation coincidait toujours avec le debut de l'operation.
+    occupations = {}
+    for entry in zone.untouched_future_entries:
+        debut = entry.start_time
+        if entry.setup and entry.setup.duration > 0:
+            debut = min(debut, entry.setup.start_time)
+        actuel = occupations.get(entry.machine_id)
+        if actuel is None or debut < actuel:
+            occupations[entry.machine_id] = debut
+
+    assert contexts.right.machine_loads == occupations
+    # Et l'operation elle-meme, elle, est bien future.
+    for machine_id, borne in contexts.right.machine_loads.items():
+        premieres = [
+            e.start_time for e in zone.untouched_future_entries
+            if e.machine_id == machine_id
+        ]
+        assert min(premieres) > t_now
+        assert borne <= min(premieres)

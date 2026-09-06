@@ -82,9 +82,23 @@ def example_schedule(example_instance):
     Point de depart de tous les scenarios de reordonnancement incremental : on
     part d'un planning deja resolu, comme en production.
     """
-    from scheduling.solvers.cpsat_solver import CPSATSolver
+    import json
 
-    schedule = CPSATSolver(timeout_seconds=30).solve(example_instance)
+    from scheduling.solvers.cpsat_solver import CPSATSolver
+    from tests.validate_example import FIXTURES_DIR
+
+    # Configuration DETERMINISTE, la meme que celle du fichier de reference. Sans
+    # elle le planning de depart change d'une execution a l'autre — le probleme est
+    # trop dur pour converger dans le budget — et tous les scenarios batis dessus
+    # deviennent instables. Voir D12 dans docs/CONTEXTE_ET_DECISIONS.md.
+    with open(os.path.join(FIXTURES_DIR, "expected_output.json")) as f:
+        repro = json.load(f)["reproducibility"]
+    schedule = CPSATSolver(
+        timeout_seconds=30,
+        num_search_workers=repro["num_search_workers"],
+        random_seed=repro["random_seed"],
+        max_deterministic_time=repro["max_deterministic_time"],
+    ).solve(example_instance)
     assert schedule is not None, "Le solveur n'a pas trouve de solution initiale"
     return schedule
 
