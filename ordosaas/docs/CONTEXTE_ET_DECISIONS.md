@@ -4,158 +4,42 @@
 > prise, pas en fin de session. En cas de conflit factuel avec un prompt de session,
 > c'est ce fichier qui fait foi sur l'état réel du code.
 
-## ⚠️ ALERTE — Les temps de setup ne sont jamais payés (H8 / H9, découvert le 2026-09-04)
+## ✅ RÉSOLU — Les temps de setup sont désormais payés (H8 / H9 → D12)
 
-> **À lire avant toute nouvelle construction sur ce socle, en particulier avant la
-> Discussion 3 (worker).** Ce constat est placé en tête parce qu'il ne relève pas des
-> limites bénignes documentées plus bas : il met en cause la validité d'un résultat déjà
-> utilisé comme preuve de performance.
+> Session dédiée du 2026-09-05/06, insérée en urgence avant la Discussion 3. Le défaut
+> décrit ici est **corrigé** ; la section est conservée parce qu'elle documente une
+> correction qui change un résultat présenté comme preuve de performance.
 
-Découvert par le script de validation du livrable 3 de la Discussion 2. **Les setups
-séquence-dépendants ne sont contraints nulle part** : ni dans le solveur initial, ni dans
-l'optimiseur incrémental. Les plannings produits enchaînent des opérations bord à bord
-alors que les transitions exigent des setups non nuls.
+**Le défaut.** Les intervalles de setup séquence-dépendants étaient optionnels, gouvernés
+par un booléen que **rien ne forçait jamais à 1**. CP-SAT les mettait donc tous à zéro —
+c'est gratuit et cela relâche des contraintes — et aucun setup n'était jamais payé. Deux
+emplacements, même cause racine : `CPSATSolver` (H8) et `IncrementalOptimizer._add_setups`
+(H9).
 
-### Cause racine, commune aux deux
+**Ce que ça changeait, chiffré.** Sur l'instance d'exemple : 352 unités de setup dues sur
+les séquences réellement produites, **0 payée**, 18 transitions en violation,
+`total_setup_time` rapporté à 0.
 
-Le patron de modélisation est le même aux deux endroits : un intervalle **optionnel** de
-setup est créé par couple `(from_job, to_job, machine)`, gouverné par un booléen `b`, avec
-des implications `OnlyEnforceIf(b)` qui placent le setup entre les deux opérations.
-
-**Mais rien ne force jamais `b` à valoir 1 lorsque `from_job` précède réellement `to_job`
-sur la machine.** CP-SAT met donc tous les `b` à zéro — c'est gratuit et cela relâche des
-contraintes — et aucun setup n'est jamais payé.
-
-| # | Où | Fichier | Portée |
-|---|---|---|---|
-| **H8** | `CPSATSolver` (solveur initial) | `scheduling/solvers/cpsat_solver.py:87-133` | Tous les plannings initiaux, donc tout le projet |
-| **H9** | `IncrementalOptimizer._add_setups` | `scheduling/solvers/incremental_optimizer.py` | Setups internes à la zone réoptimisée |
-
-C'est exactement la classe de défaut contre laquelle D8 avait dû se prémunir pour les
-setups de jonction, avec la construction `AddExactlyOne` + prédécesseur immédiat
-(`fin_eff` / `dernier` / `AddMaxEquality`). Cette précaution n'a été appliquée qu'aux
-jonctions ; les setups ordinaires, eux, sont restés sur le patron défaillant.
-
-### Preuve observée
-
-Séquence de M1 dans le planning initial de l'instance d'exemple, avant toute perturbation :
-
-```
-J6  op[0-26]     setup AUCUN
-J8  op[26-27]    setup AUCUN   écart=0  requis=0
-J1  op[27-109]   setup AUCUN   écart=0  requis=8
-J2  op[109-141]  setup AUCUN   écart=0  requis=11
-J4  op[141-196]  setup AUCUN   écart=0  requis=19
-J7  op[196-250]  setup AUCUN   écart=0  requis=11
-J9  op[250-294]  setup AUCUN   écart=0  requis=21
-J5  op[294-324]  setup AUCUN   écart=0  requis=5
-J10 op[324-422]  setup AUCUN   écart=0  requis=20
-J3  op[422-509]  setup AUCUN   écart=0  requis=35
-```
-
-Aucun `SetupEntry` n'est émis et aucune place n'est réservée, alors que `get_setup`
-renvoie des durées non nulles pour chacune de ces transitions.
-
-### Deux conséquences qui dépassent le périmètre technique
-
-1. **Le résultat de référence est probablement invalide.** `TWT = 3012.84`, figé dans
-   `tests/fixtures/expected_output.json` et utilisé comme preuve de performance dans tout
-   le projet, a été obtenu **sans jamais payer un seul setup**. Sur M1 seule, les setups
-   éludés totalisent 130 unités de temps. Un planning qui les respecterait serait
-   nécessairement plus long et plus en retard : le TWT de référence est optimiste, et
-   l'écart reste à quantifier.
-
-2. **Cela contredit la formalisation du PFA soutenu.** D'après Khalid, le §2.1 du document
-   pose le setup comme une **contrainte obligatoire** entre deux jobs consécutifs sur une
-   machine, et non comme une contrainte optionnelle. Le modèle implémenté ne correspond
-   donc pas au modèle défendu. *(Le document PFA n'est pas dans le dépôt : ce point est
-   rapporté d'après Khalid, il n'a pas été vérifié dans cette session.)*
-
-### Cartographie de la portée réelle (établie le 2026-09-05, avant toute correction)
-
-Vérifiée par lecture du code, pas supposée. Deux questions étaient ouvertes.
-
-#### 1. `CPSATSolver.solve_with_context` est-il partagé avec le LNS ?
-
-**Oui — c'est le même code, appelé par quatre chemins.** La portée de H8 est donc bien
-plus large que la seule résolution exacte directe :
-
-| Appelant | Ligne | Ce que ça couvre |
+| | Avant | Après |
 |---|---|---|
-| `CPSATSolver.solve()` | `cpsat_solver.py:28` | Résolution exacte directe (≤ 50 jobs) |
-| `LNSRecursiveSolver._optimize_window` | `lns_recursive.py:125` | **Chaque fenêtre du LNS** (phase 3) |
-| `LNSRecursiveSolver` (récursion) | `lns_recursive.py:147` | Sous-fenêtres récursives |
-| `InterWindowOptimizer._optimize_junction` | `inter_window_optimizer.py:124` | Micro-optimisations aux jonctions |
+| TWT de référence | **3012.84** | **4422.64** (+46,8 %) |
+| Temps de setup payé | 0 | 320 |
+| Statut du solveur | `optimal` | `feasible` (optimalité non prouvée) |
+| Transitions en violation | 18 | 0 |
 
-**Conséquence en deux sens.** Bonne nouvelle pour le correctif : corriger H8 en un seul
-endroit corrige simultanément la résolution directe, toutes les fenêtres LNS et les
-jonctions inter-fenêtres. Mauvaise nouvelle pour l'ampleur du défaut : **tout résultat
-déjà produit par ce projet est concerné**, y compris les résolutions LNS sur instances
-> 50 jobs, et pas seulement l'instance d'exemple à 10 jobs.
+**Le résultat de référence a été présenté comme preuve de performance avant correction.**
+`TWT = 3012.84` figurait dans `expected_output.json` et servait de mesure de performance du
+projet. Il a été obtenu par un modèle qui ne payait aucun setup : il n'est donc pas une
+mesure valide de l'ordonnancement produit. C'est un fait, consigné ici sans préjuger de ce
+qu'il convient d'en faire — la décision (informer, corriger une communication, republier)
+appartient à Khalid.
 
-#### 2. Un autre composant construit-il le même piège indépendamment ?
+**Le KPI d'amélioration vs ATCS est concerné aussi.** `ATCSSolver`, heuristique gloutonne,
+payait bien ses setups (334 unités) là où CP-SAT n'en payait aucun. L'amélioration affichée
+de **59,4 %** comparait donc un planning honnête à un planning qui trichait. Elle est à
+recalculer.
 
-**Non.** Seuls deux fichiers importent `cp_model` : `solvers/cpsat_solver.py` et
-`solvers/incremental_optimizer.py`. Les quatre constructions d'intervalle optionnel du
-projet s'y répartissent ainsi :
-
-| Emplacement | Rôle | État |
-|---|---|---|
-| `cpsat_solver.py:90` | Setups du solveur initial | **H8 — défaillant** |
-| `incremental_optimizer.py:456` | Setups de jonction (D8) | Correct — forcé par `AddExactlyOne` |
-| `incremental_optimizer.py:471` | Setup d'origine de la jonction (D8) | Correct — même `AddExactlyOne` |
-| `incremental_optimizer.py:501` | Setups internes à la zone (`_add_setups`) | **H9 — défaillant** |
-
-`WindowManager` et `ContextPropagator` ne construisent aucun modèle. `InterWindowOptimizer`
-délègue à `CPSATSolver` et hérite donc du correctif. Il n'y a bien que **deux** points à
-corriger.
-
-#### 3. Découverte annexe — `ATCSSolver`, lui, paie les setups
-
-`ATCSSolver` est une heuristique gloutonne, pas un modèle CP-SAT : elle construit la ligne
-de temps séquentiellement et ne *peut pas* oublier un setup
-(`atcs_solver.py:97-99` : `actual_start = earliest_start + s_dur`).
-
-D'où une asymétrie qui fausse un second KPI, mesurée sur l'instance d'exemple :
-
-| Solveur | TWT | Horizon | Temps de setup payé |
-|---|---|---|---|
-| ATCS | 7420.88 | 1010 | **334** |
-| CP-SAT | 3012.84 | 674 | **0** |
-
-L'« amélioration vs ATCS » affichée, **59,4 %**, compare donc un planning qui paie ses
-setups à un planning qui ne les paie pas. Une part indéterminée de cet écart n'est pas une
-amélioration d'ordonnancement mais l'effet du défaut. `improvement_vs_atcs_pct` est donc,
-lui aussi, à re-baseliner.
-
-#### 4. Ampleur chiffrée sur l'instance d'exemple
-
-Mesurée sur les séquences réellement produites par CP-SAT :
-
-- setups **dus** au titre des transitions effectives : **352 unités** ;
-- setups effectivement **payés** (par temps mort fortuit) : **103 unités** ;
-- transitions en violation : **18** ;
-- `Schedule.total_setup_time` rapporté : **0**.
-
-### Recommandation explicite
-
-**Traiter H8 et H9 dans une session dédiée AVANT la Discussion 3.** Le worker
-industrialise l'appel aux solveurs : le brancher maintenant reviendrait à mettre en
-production un défaut de fond, et à rendre plus coûteuse encore la reprise du résultat de
-référence. La correction touche le cœur du modèle CP-SAT initial et la valeur de référence
-du projet — c'est un chantier à part entière, pas un correctif de fin de session.
-
-### Ce qui a été fait dans cette session, et pas fait
-
-- **Fait** : les deux défauts sont identifiés, localisés, prouvés et documentés ici. Le
-  script `python -m tests.validate_incremental` les détecte et **sort en échec** sur
-  l'instance réelle tant qu'ils ne sont pas corrigés — choix délibéré, pour maintenir la
-  pression et éviter qu'ils soient oubliés.
-- **Pas fait, volontairement** : aucune correction. Décision de Khalid, cohérente avec le
-  périmètre d'une session de test et validation. Le script distingue les transitions
-  héritées du planning initial (signalées en INFO, imputables à H8) de celles impliquant
-  la zone réoptimisée (en FAIL, imputables à H9).
-
+Le détail complet — cartographie de la portée, technique retenue, coût mesuré — est en D12.
 
 ## État actuel
 
@@ -737,14 +621,179 @@ setup, dérive hors zone, routage du garde-fou). Un script de validation qui ne 
 ne vaut rien.
 
 
+### D12 — `AddCircuit` force le paiement des setups (2026-09-06) — résout H8 et H9
+
+#### La technique retenue, et pourquoi les deux autres ont été écartées
+
+Une contrainte **`AddCircuit` par machine**. Les nœuds sont le dépôt et les jobs présents
+sur la machine ; un arc `i → j` porte le littéral « j suit immédiatement i ». `AddCircuit`
+garantit **structurellement** un prédécesseur et un successeur uniques, donc le littéral de
+la paire réellement consécutive vaut nécessairement 1 et son setup est nécessairement payé.
+La classe de bug disparaît par construction au lieu d'être colmatée.
+
+Les deux alternatives ont été écartées pour des raisons de **correction**, pas de
+préférence :
+
+- **Liaison disjonctive par paire** — imposerait le setup entre *toutes* les paires d'une
+  machine, pas seulement les consécutives. Ce n'est exact que si la matrice de setups
+  respecte l'**inégalité triangulaire**, ce que rien ne garantit sur des données réelles
+  issues d'un CSV. Inacceptable dans une correction dont l'objet même est la validité.
+- **Liaison par successeur immédiat explicite** — réintroduirait la famille de risque déjà
+  rencontrée en H7/D8, où CP-SAT économisait un setup via un candidat dégénéré.
+
+Un arc est créé pour **chaque** paire ordonnée, y compris à setup nul : sans cela le
+circuit ne serait pas hamiltonien et la garantie tomberait. Les intervalles de setup restent
+optionnels mais sont gouvernés par le littéral d'arc, si bien que le `NoOverlap` machine et
+la `Cumulative` WR continuent de les consommer sans changement.
+
+#### Portée réelle confirmée : bien au-delà de l'instance à 10 jobs
+
+`CPSATSolver.solve_with_context` est le code **partagé**, appelé par quatre chemins :
+`CPSATSolver.solve` (résolution directe), `LNSRecursiveSolver` (lignes 125 et 147 — chaque
+fenêtre du LNS et ses sous-fenêtres récursives) et `InterWindowOptimizer` (ligne 124). Une
+seule correction couvre donc les quatre. Mais cela signifie aussi que **tout résultat déjà
+produit par le projet est concerné**, y compris les résolutions LNS sur instances > 50 jobs.
+
+Aucun autre composant ne reconstruit le piège : seuls `cpsat_solver.py` et
+`incremental_optimizer.py` importent `cp_model`. `WindowManager` et `ContextPropagator` ne
+construisent aucun modèle, `InterWindowOptimizer` délègue, et `ATCSSolver` est une
+heuristique séquentielle qui ne peut pas omettre un setup.
+
+#### La borne d'horizon, resserrée — partie intégrante de la correction
+
+L'ancien calcul (`ProblemInstance.horizon`) majorait les setups par la somme de **toutes**
+les paires déclarées : 5022 sur l'instance d'exemple, pour un makespan réellement atteint de
+673 — des domaines de variables 7,5 fois trop larges. C'était un **artefact du défaut
+lui-même** : tant qu'aucun setup n'était payé, la largeur du domaine n'avait aucune
+incidence. La borne retenue s'appuie sur le fait qu'une opération n'a qu'**un** setup
+entrant, et la majore par le plus long possible : **2020**. Elle est conservée comme partie
+de la correction, pas comme un ajout séparé — c'est la première borne correcte une fois la
+classe de bug éliminée. Elle est mathématiquement démontrée majorante et vérifiée par test.
+
+#### Le coût en performance, mesuré et assumé
+
+`AddCircuit` ajoute O(n²) booléens par machine et des contraintes de séquencement réelles.
+Le problème corrigé — job-shop à setups séquence-dépendants — est **structurellement plus
+dur** que celui, faux, que résolvait l'ancien modèle. Mesures sur fenêtres synthétiques
+(matrice de setups creuse, budget 30 s) :
+
+| n | Avant | Après |
+|---|---|---|
+| 10 | 0,08 s — **optimal** | 0,13 s — **optimal** |
+| 20 | 0,26 s — **optimal** | 0,67 s — **optimal** |
+| 30 | **1,39 s — optimal** | **30,7 s — feasible** |
+| 40 | 30,5 s — feasible | 30,8 s — feasible |
+| 50 | 30,7 s — feasible | 31,5 s — feasible |
+
+**Aucune régression de faisabilité** : une solution valide est toujours rendue dans le
+budget, de 10 à 50 jobs. En revanche la preuve d'optimalité est perdue à partir de n = 30,
+là où l'ancien modèle l'obtenait en 1,4 s. Ce n'est pas un ralentissement du même problème,
+c'est le prix d'en résoudre un correct.
+
+**Deux leviers identifiés, explicitement renvoyés à une session de performance dédiée :**
+`max_jobs_per_window` (défaut 50) et `CPSAT_TIMEOUT` (défaut 30 s). Cette session doit être
+située **après la Discussion 3**, car `CPSAT_TIMEOUT` doit s'arbitrer avec le budget de
+temps du worker en tête, pas isolément.
+
+#### Reproductibilité de la référence
+
+Avec la configuration de production (4 workers, arrêt à l'horloge), le TWT variait de
+4568.71 à 4685.49 selon l'exécution — **2,56 %**, au-delà de la tolérance de 1 % du projet.
+Le problème ne convergeant plus dans le budget, aucune valeur figée n'était stable.
+
+`CPSATSolver` accepte désormais `num_search_workers`, `random_seed` et
+`max_deterministic_time` en **option**. Aucune signature de méthode publique ne change :
+seuls les défauts d'`__init__` sont complétés, et **la configuration de production reste
+strictement inchangée** (4 workers, arrêt à l'horloge, aucune graine imposée). Ces
+paramètres ne servent **que** la reproductibilité des références et des tests.
+
+Avec `1 worker, seed=42, max_deterministic_time=10`, le résultat est **bit-à-bit
+reproductible** : TWT 4422.64, makespan 673, setup 320. Le temps d'horloge varie (73 à
+114 s) — c'est le principe d'un arrêt déterministe.
+
+`expected_output.json`, `tests/conftest.py::example_schedule` et
+`densite_variants.construit_variantes` utilisent tous cette configuration : sans elle, le
+planning de départ changeait à chaque exécution et rendait instables tous les scénarios
+bâtis dessus.
+
+#### L'optimalité n'est PAS prouvée, et le fichier le dit
+
+Aucun budget testé ne prouve l'optimalité : `feasible` à 30, 60, 120 et **300 s**. La
+valeur 4422.64 est atteinte de façon reproductible à 60 s et à 300 s, avec le même makespan
+(673) et le même temps de setup — **indice fort de qualité, qui ne remplace pas une preuve
+formelle**. `best_objective_bound = 2130.72` donne la borne inférieure, soit un écart
+maximal de **51,8 %** à l'optimum.
+
+`expected_output.json` porte donc `solver_status: "feasible"`, `best_objective_bound`, et la
+traçabilité de la correction dans le fichier lui-même
+(`previous_total_weighted_tardiness`, `previous_total_setup_time`, `correction_reason`) —
+afin que sa correction reste visible pour quiconque le consulte isolément, hors dépôt et
+hors `git log`. La méthodologie de test du projet (tolérance symétrique à 1 %) est
+inchangée.
+
+#### Trois défauts latents révélés par le re-baselining
+
+Tous inatteignables tant qu'aucun planning ne portait de setup — corriger H8 les a rendus
+atteignables, et la re-mesure les a fait apparaître :
+
+1. **Setup d'origine de jonction hors du `NoOverlap`.** L'intervalle optionnel créé par D8
+   quand le prédécesseur reste inchangé n'était ajouté à aucun `NoOverlap` : la zone
+   pouvait se placer par-dessus.
+2. **Setups des entrées non touchées absents de la `Cumulative` WR.** Ils consomment un
+   technicien comme les autres ; les omettre autorisait des dépassements de capacité.
+3. **Setup périmé non effacé.** Quand le prédécesseur d'une jonction changeait pour une
+   transition de durée nulle, aucun `SetupEntry` n'était émis et l'entrée conservait son
+   setup d'origine, qui chevauchait alors la zone. `_collect_junction_setups` publie
+   désormais `None` dans ce cas, ce que `ScheduleMerger` interprète comme « effacer ».
+
+#### Limite assumée côté incrémental
+
+Le circuit de `_add_setups` ne porte que les jobs de la **zone**. Quand une opération non
+touchée s'intercale entre deux opérations de zone sur la même machine, le circuit impose
+malgré tout le setup direct zone → zone. C'est une **sur-réservation, jamais une
+sous-estimation** : elle ne peut pas produire un planning infaisable en atelier, seulement
+une solution un peu moins bonne.
+
+Faire porter le circuit sur tous les occupants de la machine donnerait un modèle exact et
+rendrait redondantes les gardes de D8 et D10 — mais entrerait en conflit direct avec les
+setups de jonction de D8, deux intervalles actifs sur la même transition rendant le
+`NoOverlap` infaisable. Chantier hors périmètre d'une correction de validité.
+
+#### Le canari
+
+`tests/test_setups_payes.py` verrouille la propriété **observable** (l'écart entre deux
+opérations consécutives couvre le setup dû), pas la technique employée : les tests
+resteraient valides si la modélisation changeait à nouveau. Le canari couvre les **deux**
+solveurs — corriger l'un sans surveiller l'autre est exactement ce qui a permis à H9 de
+survivre à la vigilance déployée en D8. Un test y fige aussi la limite du validateur
+canonique : un planning dont on retire tous les setups sans toucher aux dates lui paraît
+parfaitement valide.
+
+### Amélioration de qualité identifiée mais DIFFÉRÉE — setup du contexte gauche sur l'arc du dépôt
+
+Le contexte gauche (dernier job figé d'une machine) est traité par une contrainte
+**inconditionnelle** : *tout* job de la machine doit démarrer après `charge + setup(dernier
+figé, job)`. C'est sûr mais sur-contraignant, puisqu'un seul job est réellement le premier.
+
+`AddCircuit` permettrait de rattacher ce setup au seul arc `dépôt → premier job`, ce qui
+serait à la fois plus correct et moins contraignant, **au bénéfice du LNS comme de
+l'incrémental**.
+
+**Volontairement non fait dans cette session**, pour que le nouveau TWT de référence soit
+attribuable à un seul changement et ne mélange pas une correction de validité à une
+amélioration de qualité distincte et non bloquante — même principe que le traitement du
+Constat A en Discussion 2. À traiter dans une session séparée, **après** que la référence
+issue de cette session soit stabilisée et validée.
+
+
 ## Hypothèses en attente de validation par Khalid
 
-### H8 / H9 — Les temps de setup ne sont jamais payés → voir l'ALERTE en tête de document
+### H8 / H9 — RÉSOLUES le 2026-09-06 → voir D12
 
-Défauts réels, non corrigés dans cette session par décision de Khalid. **H8** touche
-`CPSATSolver` (donc tout le projet, y compris le TWT de référence 3012.84), **H9**
-`IncrementalOptimizer._add_setups`. Même cause racine : le booléen des setups optionnels
-n'est jamais forcé. À traiter dans une session dédiée **avant la Discussion 3**.
+Corrigées par `AddCircuit` dans les deux solveurs, lors de la session dédiée tenue avant la
+Discussion 3 comme recommandé. Le TWT de référence passe de 3012.84 à 4422.64 (+46,8 %).
+Reste ouvert, et qui appartient à Khalid : que faire du fait que l'ancienne valeur ait été
+présentée comme preuve de performance.
 
 ### H4 — Le `schema_bdd.sql` de référence est un document de conception (2026-09-03)
 
@@ -830,7 +879,7 @@ Composants livrés dans la Discussion 1 (un commit poussé par composant) :
 | 10 | Setups de jonction en variables (cf. D8) | `solvers/incremental_optimizer.py`, `components/schedule_merger.py` | +6 | livré |
 | 11 | Orchestrateur public `resolve_incremental` (cf. D9) | `scheduling/incremental.py` | 15 | livré |
 
-Suite complète hors tests API : **204 tests verts** (141 à la fin des 8 premiers commits,
+Suite complète hors tests API : **214 tests verts** (141 à la fin des 8 premiers commits,
 170 à la fin de la Discussion 1, 189 après le livrable 2 de la Discussion 2).
 `python -m tests.validate_example` passe toujours (TWT 3012.84), donc aucune régression sur
 le solveur initial. Les tests de
