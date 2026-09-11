@@ -10,12 +10,19 @@ Trois sources d'impact, cumulees (cf. docs/architecture-incremental.md Sec. 2.4)
                        repoussee, les suivantes du job le sont aussi.
 3. Cascade CONTENTION - les jobs qui devront se decaler sur une machine partagee.
 
-La cascade de contention n'est pas une fermeture transitive aveugle (qui rouvrirait
-tout le planning pour un incident local) : elle simule l'absorption du retard. Un
-retard de D unites se propage au job suivant sur la machine uniquement si le temps
-mort qui le precede ne suffit pas a l'absorber, et se propage alors reduit du temps
-mort consomme. Un incident court tombant dans un planning aere s'eteint donc de
-lui-meme apres quelques operations.
+Aucune des deux cascades n'est une fermeture transitive aveugle (qui rouvrirait tout
+le planning pour un incident local) : toutes deux simulent l'absorption du retard.
+
+- CONTENTION : un retard de D unites se propage au job suivant sur la machine
+  uniquement si le temps mort qui le precede ne suffit pas a l'absorber, et se
+  propage alors reduit du temps mort consomme.
+- PRECEDENCE : meme principe le long de la chaine du job, le trou etant cette fois le
+  temps mort entre la fin d'une operation et le debut de la suivante du MEME job
+  (cf. D14). Avant cette correction, la precedence propageait tout retard sans
+  jamais l'absorber.
+
+Un incident court tombant dans un planning aere s'eteint donc de lui-meme apres
+quelques operations, par l'un ou l'autre mecanisme.
 
 Le tout est borne par un horizon de recherche configurable, pour garantir qu'aucune
 perturbation ne puisse rouvrir tout le planning futur.
@@ -542,9 +549,52 @@ class _Propagation:
         self.mark(entry, REASON_DIRECT, delay)
         self.run()
 
+    def propagate_precedence(self, entry, delay: int) -> None:
+        """Propage un retard aux operations SUIVANTES du meme job, avec absorption.
+
+        Transposition du principe deja applique a la contention (cf. D14) : on
+        descend la chaine du job en soustrayant le temps mort rencontre, et on
+        s'arrete des que le retard est epuise.
+
+        Le "trou" est mesure sur les bornes d'OPERATION pures
+        (`suivant.start_time - curseur`), jamais sur l'occupation incluant le setup.
+        C'est l'analogue exact de la contrainte posee dans le modele
+        (`_add_precedences` : `s2 >= e1`), et le setup releve de la contention
+        machine, pas de la chaine du job.
+
+        Avant D14, cette cascade marquait TOUTES les operations en aval d'un coup,
+        avec le meme retard non reduit : elle ne convergeait donc jamais d'elle-meme
+        et surestimait systematiquement la propagation.
+        """
+        if delay <= 0:
+            return
+        restant = delay
+        curseur = entry.end_time
+        for suivant in self.by_job.get(entry.job_id, []):
+            if suivant.position_in_job <= entry.position_in_job:
+                continue
+            # Le temps mort du JOB entre deux operations consecutives absorbe une
+            # partie du decalage.
+            restant -= max(0, suivant.start_time - curseur)
+            if restant <= 0:
+                break  # le job absorbe le retard : rien ne se propage plus loin
+            self.mark(suivant, REASON_PRECEDENCE, restant)
+            curseur = suivant.end_time
+
     def propagate_downstream_of_job(self, job_id: str, delay: int) -> None:
-        for suivant in self.by_job.get(job_id, []):
-            self.mark(suivant, REASON_PRECEDENCE, delay)
+        """Propage depuis la DERNIERE operation figee d'un job.
+
+        Utilisee quand l'operation modifiee est deja figee : la chaine repart de la
+        premiere operation future du job, sans operation de reference dans
+        `by_job`. On prend donc la premiere entree future comme point de depart et
+        on lui applique le retard plein, l'absorption commencant a la suivante.
+        """
+        suivantes = self.by_job.get(job_id, [])
+        if not suivantes:
+            return
+        premiere = suivantes[0]
+        if self.mark(premiere, REASON_PRECEDENCE, delay):
+            self.propagate_precedence(premiere, delay)
 
     # -- boucle principale ---------------------------------------------------
     def run(self) -> None:
@@ -552,10 +602,9 @@ class _Propagation:
             entry, delay = self.queue.pop()
             if self.delays.get(id(entry)) != delay:
                 continue  # retard perime, une valeur plus grande a ete traitee
-            # Cascade par precedence : les operations en aval du meme job.
-            for suivant in self.by_job.get(entry.job_id, []):
-                if suivant.position_in_job > entry.position_in_job:
-                    self.mark(suivant, REASON_PRECEDENCE, delay)
+            # Cascade par precedence : les operations en aval du meme job,
+            # avec absorption du temps mort interne au job (cf. D14).
+            self.propagate_precedence(entry, delay)
             # Cascade par contention : le reste de la machine derriere cette operation.
             self.push_machine(entry.machine_id, after=entry.end_time, delay=delay)
 

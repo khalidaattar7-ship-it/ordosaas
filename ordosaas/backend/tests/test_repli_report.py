@@ -68,20 +68,25 @@ def test_le_signal_reste_discriminant(lignes):
     )
 
 
-def test_la_troncature_seule_ne_suffit_pas_a_declencher(lignes):
-    """`truncated` et `truncated_before_convergence` ne sont pas interchangeables.
+def test_labsorption_a_supprime_les_troncatures_parasites(lignes):
+    """Effet mesurable de D14 sur la matrice : il ne reste que les vraies coupes.
 
-    Les bornes de D7 tronquent presque partout ; seule une coupe sur propagation
-    ACTIVE recommande le repli. Ce test verifie qu'il existe bien des cellules
-    tronquees qui ne declenchent pas — sans quoi la distinction serait vide.
+    Avant l'absorption sur la precedence, les bornes de D7 tronquaient 8 cellules
+    sur 9 — dont 6 ou rien n'etait reellement perdu, la cascade etant simplement
+    trop conservatrice faute de converger. Depuis D14, seules les cellules dont la
+    propagation est reellement coupee restent tronquees, et toutes declenchent le
+    repli.
+
+    La distinction entre `truncated` et `truncated_before_convergence` reste donc
+    utile — elle est verrouillee au niveau unitaire par
+    tests/test_signal_troncature.py — mais elle n'a plus d'occurrence sur cette
+    matrice : c'est le signe que les troncatures parasites ont disparu.
     """
-    tronquees_sans_repli = [
-        l for l in lignes
-        if l["production"]["tronquee"] and not l["production"]["repli"]
-    ]
-    assert tronquees_sans_repli, (
-        "aucune cellule tronquee sans repli : la distinction entre troncature et "
-        "troncature active n'apporterait alors rien"
+    tronquees = [l for l in lignes if l["production"]["tronquee"]]
+    assert tronquees, "la matrice doit conserver au moins une vraie troncature"
+    assert all(l["production"]["repli"] for l in tronquees), (
+        "toute cellule encore tronquee doit desormais correspondre a une coupe "
+        "sur propagation active"
     )
 
 

@@ -121,11 +121,17 @@ def test_un_facteur_inferieur_a_un_est_refuse():
 
 # -- le rapport --------------------------------------------------------------
 def test_la_cascade_naturelle_se_reduit_quand_la_densite_baisse(rapport):
-    """LE constat du livrable 2, verrouille.
+    """LE constat du livrable 2, verrouille — avec une nuance depuis D14.
 
     A perturbation identique en valeur absolue, la part des jobs futurs touchee par
-    la cascade diminue nettement quand le planning est plus aere. C'est la donnee
-    factuelle de la question produit.
+    la cascade diminue nettement quand le planning est plus aere.
+
+    La monotonie STRICTE entre modere et detendue n'est plus exigee : depuis que la
+    precedence absorbe le temps mort du job (D14), ces deux variantes donnent des
+    cascades identiques sur cette instance. Des que le planning comporte assez de
+    marge pour que la cascade converge d'elle-meme, en rajouter ne change plus rien
+    — la convergence est deja atteinte. L'effet de la densite reste net la ou il
+    compte : entre le planning sature et les autres.
     """
     par_densite = {}
     for ligne in lignes_du_regime(rapport, "cascade_naturelle"):
@@ -135,8 +141,12 @@ def test_la_cascade_naturelle_se_reduit_quand_la_densite_baisse(rapport):
     moyennes = {
         nom: sum(v) / len(v) for nom, v in par_densite.items()
     }
-    assert moyennes["dense"] > moyennes["moderee"] > moyennes["detendue"], (
-        f"la cascade devrait se reduire avec la densite, obtenu {moyennes}"
+    assert moyennes["dense"] > moyennes["moderee"], (
+        f"la marge doit reduire la cascade par rapport au planning sature, "
+        f"obtenu {moyennes}"
+    )
+    assert moyennes["moderee"] >= moyennes["detendue"], (
+        f"ajouter encore de la marge ne doit jamais aggraver, obtenu {moyennes}"
     )
 
 

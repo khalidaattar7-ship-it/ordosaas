@@ -146,10 +146,16 @@ def test_le_plafond_de_jobs_est_une_coupe_active(machine_saturee):
 # ==========================================================================
 @pytest.fixture
 def job_en_trois_operations():
-    """Un job dont les trois operations s'etalent loin : J1 sur M1, M2, M3.
+    """Un job dont les trois operations s'enchainent BOUT A BOUT : J1 sur M1, M2, M3.
 
-    M1[100-150], M2[600-650], M3[1100-1150]. Les deux dernieres sont tres au-dela
-    d'un horizon court.
+    M1[100-150], M2[150-200], M3[200-250]. Aucun temps mort entre elles : le retard
+    traverse donc toute la chaine, et la coupe d'horizon intervient bien sur une
+    propagation en cours.
+
+    Les operations etaient auparavant tres espacees (600, 1100). Depuis que la
+    precedence absorbe le temps mort du job (cf. D14), un tel espacement fait
+    converger la cascade AVANT que l'horizon ne la coupe : le scenario ne testait
+    plus rien. C'est un progres du modele, pas une regression du test.
 
     Deux jobs temoins (J2, J3) occupent une machine M4 que rien ne perturbe. Leur
     seul role est de porter le nombre de jobs futurs a trois, pour que J1 seul
@@ -159,8 +165,8 @@ def job_en_trois_operations():
     """
     entries = [
         _entry("J1", "M1", 1, 100, 50),
-        _entry("J1", "M2", 2, 600, 50),
-        _entry("J1", "M3", 3, 1100, 50),
+        _entry("J1", "M2", 2, 150, 50),
+        _entry("J1", "M3", 3, 200, 50),
         _entry("J2", "M4", 1, 100, 50),
         _entry("J3", "M4", 1, 160, 50),
     ]
@@ -195,11 +201,13 @@ def test_precedence_coupee_signale_la_troncature_mais_pas_le_repli(
     schedule, instance = job_en_trois_operations
     event = make_event("duration_change", timestamp=50, job_id="J1",
                        position_in_job=1, machine_id="M1", new_duration=90)
-    zone = ImpactAnalyzer(search_horizon=200, max_impacted_jobs=50).analyze(
+    # Horizon a 120 depuis T_now = 50, soit une borne a 170 : l'operation 2 (150)
+    # passe, l'operation 3 (200) est coupee alors que le retard progresse encore.
+    zone = ImpactAnalyzer(search_horizon=120, max_impacted_jobs=50).analyze(
         event, schedule, instance
     )
 
-    assert zone.truncated is True, "les operations 2 et 3 sont hors horizon"
+    assert zone.truncated is True, "l'operation 3 est hors horizon"
     assert zone.truncated_before_convergence is False
     # Un seul job touche sur trois futurs : la regle de ratio ne se declenche pas
     # non plus, donc l'absence de repli vient bien de l'exclusion de la precedence.
