@@ -879,6 +879,72 @@ Constat A en Discussion 2. À traiter dans une session séparée, **après** que
 issue de cette session soit stabilisée et validée.
 
 
+### Cartographie — comment la propagation de cascade s'arrête aujourd'hui (2026-09-11, avant correction)
+
+Établie par lecture du code, préalable à la correction du défaut d'articulation D7 / H5.
+
+#### Le défaut à corriger
+
+Deux garde-fous conçus séparément ne s'articulent pas :
+
+- **D7** borne la recherche : `search_horizon_fraction = 0.15`, `max_impacted_jobs_fraction = 0.20` ;
+- **H5** est le seuil de repli : `fallback_threshold = 0.5`.
+
+**20 % < 50 %.** Le plafond de recherche coupe la zone *avant* qu'elle puisse atteindre le
+seuil de repli, quelle que soit l'ampleur réelle de la perturbation. Mesuré en Discussion 2 :
+des cascades réelles de 71 % et 100 % des jobs futurs, tronquées à 29 % en production, sans
+que rien ne le signale. Le résultat reste **valide** — `ScheduleMerger` garantit toujours
+l'absence de chevauchement — mais une partie de la cascade n'est jamais réoptimisée, en
+silence.
+
+#### Les quatre points de sortie de la boucle
+
+Tous dans `_Propagation` (`components/impact_analyzer.py`) :
+
+| Point de sortie | Emplacement | Nature |
+|---|---|---|
+| `restant <= 0` après soustraction du temps mort | `push_machine`, l. 467-468 | **Convergence naturelle** — seul cas qui ne lève aucun drapeau |
+| `debut > horizon_end` | `push_machine`, l. 462-464 | Troncature contention, `restant` encore > 0 |
+| `_occ_start(entry) > horizon_end` | `mark`, l. 437-439 | Troncature précédence (successeur hors horizon) |
+| `_at_capacity()` | `mark` l. 444-446, `mark_job` l. 430-432 | Troncature par le plafond de jobs |
+
+**Les deux cas ne sont PAS distinguables aujourd'hui.** Les trois troncatures écrivent dans
+le même `zone.truncated`, et la convergence n'écrit rien. On sait donc qu'il y a eu coupe,
+jamais laquelle ni si le retard progressait encore. Le signal doit être introduit.
+
+#### Précédence et contention : file commune, logiques distinctes
+
+Elles **partagent la file de travail** — `run()` dépile une entrée et déclenche les deux —
+mais leurs logiques de propagation diffèrent :
+
+- **contention** → `push_machine()`, qui **modélise l'absorption** (`restant -= temps_mort`) ;
+- **précédence** → `mark()` direct, qui propage `delay` **inchangé**, sans aucune absorption.
+
+Le correctif doit donc intervenir à deux endroits, pas un.
+
+#### Mesure des points de coupe, cellule par cellule
+
+Instrumentation des trois branches sur les 9 cellules de la matrice, en configuration de
+production :
+
+| Cellule | Cascade naturelle | Points de coupe observés |
+|---|---|---|
+| dense / panne | 71 % | capacité ×1, horizon-précédence ×2, **contention active ×3**, contention absorbée ×2 |
+| dense / dépassement | 100 % | **capacité ×10**, **contention active ×2**, contention absorbée ×2 |
+| dense / job urgent | 12 % | **aucun** |
+| modérée × 3, détendue × 3 | 14 à 38 % | horizon-précédence ×1-2 **uniquement** |
+
+**Ce que cette mesure impose au correctif.** Appliquer littéralement « tronqué alors que la
+propagation était encore active » ferait déclencher le repli sur **8 cellules sur 9**, la
+coupe de précédence se produisant partout. On remplacerait un faux négatif systématique par
+un faux positif systématique — c'est-à-dire qu'on reproduirait, à l'envers, le
+sur-déclenchement que D7 avait précisément été créé pour corriger.
+
+La discrimination se trouve dans les deux autres branches : le refus par plafond de jobs et
+la coupe en contention avec résiduel non absorbable isolent **exactement** dense/panne et
+dense/dépassement, et rien d'autre.
+
+
 ## Hypothèses en attente de validation par Khalid
 
 ### H8 / H9 — RÉSOLUES le 2026-09-06 → voir D12
