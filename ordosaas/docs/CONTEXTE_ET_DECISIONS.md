@@ -1086,6 +1086,85 @@ disparu au re-baselining. La décision appartient toujours à Khalid.
   est signalé, jamais appliqué.
 
 
+### Cartographie — absorption sur la cascade de précédence (2026-09-11, avant correction)
+
+Établie par lecture du code, préalable à D14.
+
+#### Le principe d'absorption de la contention, à transposer
+
+Dans `push_machine()`, un curseur suit la fin de l'occupant précédent de la machine.
+Pour chaque entrée suivante : `trou = max(0, debut - curseur)`, puis `restant -= trou`,
+et si `restant <= 0` la propagation s'arrête — le planning a absorbé la perturbation. Le
+retard décroît **cumulativement** en descendant la machine.
+
+#### La donnée existe-t-elle pour la précédence ?
+
+Oui. Le temps mort interne d'un job est `suivant.start_time - entry.end_time`, calculable
+sur les entrées du planning d'origine.
+
+**Règle de séparation à appliquer par défaut** : le trou de précédence se mesure sur les
+bornes d'**opération pures** (`start_time` / `end_time`), **jamais** sur l'occupation
+incluant le setup (`_occ_start`). Deux raisons :
+
+1. c'est l'analogue exact de la contrainte réellement posée dans le modèle
+   (`_add_precedences` : `s2 >= e1`) — c'est le début de l'*opération* qui est contraint
+   par la fin de la précédente ;
+2. le setup relève de la **contention machine**, pas de la chaîne du job. Mélanger les
+   deux ferait qu'un job doté d'un gros setup entrant — dû à un tiers sur sa machine —
+   verrait sa propre précédence faussement moins absorbante, pour une raison sans rapport
+   avec sa séquence d'opérations.
+
+Cette séparation vaut comme principe pour tout mécanisme de cascade ajouté ultérieurement.
+
+#### Les deux cascades partagent-elles une structure ?
+
+**Non.** La contention vit dans `push_machine()`, qui parcourt séquentiellement avec
+absorption. La précédence tient en trois lignes de `run()` qui marquent **toutes** les
+opérations en aval d'un coup, avec le **même** retard non réduit. Deux défauts distincts,
+pas un : absence d'absorption **et** absence de parcours séquentiel.
+
+#### Pourquoi la précédence ne pourra JAMAIS contribuer au signal de troncature
+
+Cette session devait, dans un second temps, inclure la précédence dans
+`truncated_before_convergence` une fois qu'elle serait capable de converger. **Le code
+invalide cette prémisse, et pour une raison indépendante de l'absorption.**
+
+Il s'agit d'une **incompatibilité de granularité** entre le plafond et le mécanisme :
+`max_impacted_jobs_fraction` opère à la granularité du **job**, tandis que la cascade de
+précédence reste entièrement **à l'intérieur des opérations d'un job déjà marqué**, que la
+zone retient en totalité. D'où :
+
+- **le plafond de jobs ne peut jamais couper la précédence** — la garde est
+  `if entry.job_id not in self.zone.reason_by_job`, et le job y est toujours ;
+- **une coupe d'horizon ne fait rien perdre** — `analyze()` compose la zone avec
+  `[e for e in state.future_entries if e.job_id in zone.reason_by_job]`, donc *toutes* les
+  opérations du job, horizon ou pas.
+
+Vérifié sur un job dont deux opérations sur trois sont largement hors horizon :
+
+```
+horizon_end = 250
+truncated = True
+   pos 1 sur M1 [100-150]
+   pos 2 sur M2 [600-650]   <-- au-dela de l'horizon
+   pos 3 sur M3 [1100-1150] <-- au-dela de l'horizon
+la zone les contient : 3 / 3
+```
+
+La cascade de contention en aval n'est pas perdue non plus : les entrées suivant `pos 2`
+sur M2 commencent après 650, donc déjà au-delà de l'horizon de 250. **Une coupe de
+précédence n'exclut rien que l'horizon n'excluait déjà**, quelle que soit sa position.
+
+**Conséquence : l'exclusion décidée en D13 devient définitive**, et pour cette raison
+structurelle — et non plus provisoire en attendant l'absorption. L'inclure signalerait des
+coupes où rien n'est perdu, soit exactement le faux positif que D13 a été conçu pour
+éliminer.
+
+L'absorption reste néanmoins une amélioration valide **en elle-même** : elle rend la taille
+des cascades de précédence plus juste, ce qui profite directement à la qualité de
+l'`ImpactZone` et aux mesures de la matrice.
+
+
 ## Hypothèses en attente de validation par Khalid
 
 ### H8 / H9 — RÉSOLUES le 2026-09-06 → voir D12
