@@ -235,3 +235,70 @@ def test_une_coupe_de_precedence_ne_contribue_jamais_au_signal():
     assert positions == {1, 2, 3}, (
         "toutes les operations du job restent dans la zone, horizon ou pas"
     )
+
+
+# ==========================================================================
+# Validation manuelle — scenario calcule a la main avant d'etre code
+# ==========================================================================
+def test_scenario_calcule_a_la_main():
+    """Scenario construit et verifie a la main, conserve comme test permanent.
+
+    Pratique etablie du projet : avant de clore une session, valider contre un cas
+    reel construit et calcule a la main, pas seulement par les tests unitaires.
+    C'est ainsi que la session D13 a trouve son defaut le plus serieux.
+
+    LE DEROULE, calcule a la main avant execution :
+
+        M1 : J1[100-150]              W1[300-350]
+        M2 :            J1[220-270]   W2[280-330]
+        M3 :                          J1[400-450]   W3[460-510]
+
+        Evenement : J1/op1 passe de 50 a 110 unites, soit +60 de retard.
+
+        1. J1/op1 marquee, retard 60.
+        2. Precedence : curseur = fin op1 = 150 ; op2 demarre a 220, donc
+           trou = 70. 60 - 70 = -10 <= 0 -> ABSORBE, op2 et op3 ne bougent pas.
+        3. Contention sur M1 depuis 150 : W1 demarre a 300, trou = 150,
+           60 - 150 <= 0 -> ABSORBE.
+        4. op2 et op3 n'ayant jamais ete marquees, aucune contention n'est
+           declenchee sur M2 ni M3 : W2 et W3 sont hors d'atteinte.
+
+        => zone attendue : {J1} seul.
+
+    CONTRE-EPREUVE, verifiee en desactivant l'absorption : la precedence marquait
+    alors op2 et op3 avec le retard plein, declenchant la contention sur M2 et M3
+    (trous de 10 unites, insuffisants) et donnant {J1, W2, W3}. Le ratio atteignait
+    75 % et recommandait le repli — sur une perturbation pourtant absorbee des la
+    premiere transition du job.
+    """
+    entries = [
+        _entry("J1", "M1", 1, 100, 50),
+        _entry("J1", "M2", 2, 220, 50),
+        _entry("J1", "M3", 3, 400, 50),
+        _entry("W1", "M1", 1, 300, 50),
+        _entry("W2", "M2", 1, 280, 50),
+        _entry("W3", "M3", 1, 460, 50),
+    ]
+    jobs = [
+        Job(id="J1",
+            operations=[Operation("J1", "M1", 50, 1), Operation("J1", "M2", 50, 2),
+                        Operation("J1", "M3", 50, 3)], deadline=9000, weight=1.0),
+        Job(id="W1", operations=[Operation("W1", "M1", 50, 1)],
+            deadline=9000, weight=1.0),
+        Job(id="W2", operations=[Operation("W2", "M2", 50, 1)],
+            deadline=9000, weight=1.0),
+        Job(id="W3", operations=[Operation("W3", "M3", 50, 1)],
+            deadline=9000, weight=1.0),
+    ]
+    instance = ProblemInstance(jobs=jobs, machines=["M1", "M2", "M3"],
+                               setup_times={}, wr=1)
+    zone = _analyse(Schedule(entries=entries), instance, _allonge_op1(110))
+
+    assert zone.impacted_job_ids == {"J1"}, (
+        "le retard est absorbe des la premiere transition du job : aucun temoin "
+        "ne doit etre atteint"
+    )
+    assert zone.truncated is False
+    assert zone.fallback_recommended is False, (
+        "sans absorption, cette perturbation locale recommandait le repli a 75 %"
+    )

@@ -89,6 +89,65 @@ Instance d'exemple : `ordosaas/backend/tests/fixtures/{jobs,operations,setups}.c
 — 10 jobs (J1..J10), 3 machines (M1, M2, M3), 3 opérations par job, **WR = 2**
 (la valeur `wr=2` est fixée dans `tests/validate_example.py`, pas dans les CSV).
 
+## Approche & patterns — pratiques établies du projet
+
+Ces pratiques ne sont pas des règles décrétées : chacune vient d'un défaut réel qui
+aurait été manqué sans elle. Elles s'appliquent par défaut aux sessions suivantes.
+
+### Valider contre un cas construit et calculé à la main avant de clore
+
+Avant de conclure une session, construire un scénario **à la main**, en calculer le
+déroulé attendu **avant** de l'exécuter, puis comparer. Pas seulement les tests
+unitaires, pas seulement les rapports agrégés.
+
+**Pourquoi** : c'est ainsi que les défauts les plus sérieux ont été trouvés, et jamais
+par les tests unitaires.
+
+| Session | Défaut trouvé par une validation manuelle |
+|---|---|
+| **D13** | Faux positif du signal de repli sur l'annulation d'un job de fin d'horizon — la coupe tombait sur l'entrée de départ elle-même, avec un « trou » nul par construction |
+| **D12** (H8/H9) | Trois défauts latents révélés au re-baselining : setup d'origine hors du `NoOverlap`, setups non touchés absents de la `Cumulative` WR, setup périmé non effacé |
+| **D10** | Place du setup entrant non réservée derrière une entrée non touchée — planning infaisable en atelier mais déclaré valide |
+
+Le scénario ainsi construit se **conserve comme test permanent** plutôt que d'être jeté
+après usage (cf. `test_absorption_precedence.py::test_scenario_calcule_a_la_main`).
+
+### Vérifier qu'un test échoue bien SANS le correctif
+
+Un test qui passe avant et après ne prouve rien. Désactiver temporairement le correctif
+et confirmer que les tests censés le couvrir échouent effectivement.
+
+**Pourquoi** : en D14, un premier jeu de 8 tests écrit sur `impacted_job_ids` passait
+**identiquement** avec et sans l'absorption — la zone étant de granularité *job*, une
+absorption interne à un job y est invisible. Les tests ont dû être réécrits autour de
+jobs *témoins* pour observer l'effet réel. Sans cette vérification, la session aurait
+livré une couverture fictive.
+
+### Ne jamais affirmer qu'une conclusion tient sans l'avoir re-mesurée
+
+Quand un correctif change ce que le système produit, les conclusions qualitatives déjà
+établies doivent être **revérifiées**, pas reconduites par analogie.
+
+**Pourquoi** : après la correction H8/H9, la matrice densité × perturbation a changé
+structurellement — la cellule « job urgent / dense » s'est **inversée** (78 % → 12 %),
+faisant disparaître la démonstration la plus forte du lien densité/repli. Une simple
+reconduction l'aurait laissée dans la documentation comme un fait acquis.
+
+### Distinguer ce qu'un correctif change de ce qu'il révèle
+
+Un correctif rend souvent atteignables des défauts latents jusque-là masqués. Les
+traiter comme des découvertes distinctes, documentées séparément, et non comme des
+régressions du correctif.
+
+### Mesurer avant de choisir entre deux approches
+
+Quand deux approches sont plausibles, mesurer plutôt qu'argumenter — et documenter les
+chiffres, pas seulement la conclusion.
+
+**Pourquoi** : en D13, la définition littérale du signal de troncature aurait déclenché
+le repli sur 8 cellules sur 9. C'est la mesure, et non le raisonnement, qui a imposé de
+distinguer les trois points de coupe.
+
 ## Décisions prises
 
 ### D1 — Accès au dépôt distant rétabli (2026-09-03)
