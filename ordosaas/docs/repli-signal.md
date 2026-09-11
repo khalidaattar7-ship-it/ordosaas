@@ -18,12 +18,12 @@ désormais le repli là où la cascade réelle le justifie — **et seulement l�
 | dense | panne machine (M1, 20 u.) | 5/7 — **71 %** | 2/7 — 29 % | oui | **oui** | non | **oui** |
 | dense | job urgent (2 op.) | 1/8 — **12 %** | 1/8 — 12 % | non | non | non | non |
 | dense | depassement duree (x1.5) | 7/7 — **100 %** | 2/7 — 29 % | oui | **oui** | non | **oui** |
-| moderee | panne machine (M1, 20 u.) | 2/7 — **29 %** | 1/7 — 14 % | oui | non | non | non |
-| moderee | job urgent (2 op.) | 3/8 — **38 %** | 2/8 — 25 % | oui | non | non | non |
-| moderee | depassement duree (x1.5) | 2/7 — **29 %** | 1/7 — 14 % | oui | non | non | non |
-| detendue | panne machine (M1, 20 u.) | 1/7 — **14 %** | 1/7 — 14 % | oui | non | non | non |
-| detendue | job urgent (2 op.) | 2/8 — **25 %** | 2/8 — 25 % | oui | non | non | non |
-| detendue | depassement duree (x1.5) | 1/7 — **14 %** | 1/7 — 14 % | oui | non | non | non |
+| moderee | panne machine (M1, 20 u.) | 1/7 — **14 %** | 1/7 — 14 % | non | non | non | non |
+| moderee | job urgent (2 op.) | 2/8 — **25 %** | 2/8 — 25 % | non | non | non | non |
+| moderee | depassement duree (x1.5) | 1/7 — **14 %** | 1/7 — 14 % | non | non | non | non |
+| detendue | panne machine (M1, 20 u.) | 1/7 — **14 %** | 1/7 — 14 % | non | non | non | non |
+| detendue | job urgent (2 op.) | 2/8 — **25 %** | 2/8 — 25 % | non | non | non | non |
+| detendue | depassement duree (x1.5) | 1/7 — **14 %** | 1/7 — 14 % | non | non | non | non |
 
 ## Lecture
 
