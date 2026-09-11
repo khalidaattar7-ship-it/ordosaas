@@ -155,18 +155,33 @@ def test_le_repli_ne_se_declenche_que_sur_le_planning_dense(rapport):
     )
 
 
-def test_en_production_le_plafond_relatif_borne_avant_le_garde_fou(rapport):
-    """Constat important pour la lecture du rapport, et pour la Discussion 3.
+def test_en_production_le_repli_se_declenche_desormais(rapport):
+    """Ce test verrouillait le DEFAUT ; il verrouille maintenant sa correction.
 
-    Avec les bornes relatives par defaut (D7), le plafond tronque la zone bien avant
-    que le seuil de repli n'entre en jeu : sur cette instance le garde-fou ne se
-    declenche jamais en regime de production. Ce test rend ce constat explicite au
-    lieu de le laisser deduire du tableau.
+    Version d'origine : "avec les bornes relatives (D7), le plafond tronque la zone
+    bien avant que le seuil de repli n'entre en jeu, donc le garde-fou ne se
+    declenche jamais en production". C'etait exact, et c'etait precisement le
+    probleme — 20 % < 50 %, donc la regle du seuil ne pouvait structurellement plus
+    se declencher, et des cascades reelles de 71 % et 100 % passaient inapercues.
+
+    Depuis D13, le signal de troncature active comble ce trou : la zone reste bornee
+    comme avant, mais le fait qu'elle ait ete COUPEE en pleine propagation est
+    desormais signale.
+
+    L'assertion est donc inversee, et c'est un progres, pas un contournement.
     """
     lignes = [l for l in lignes_du_regime(rapport, "production") if l["erreur"] is None]
     assert lignes, "le regime de production n'a produit aucune ligne"
-    assert not any(l["repli"] for l in lignes)
-    assert any(l["tronquee"] for l in lignes)
+    assert any(l["tronquee"] for l in lignes), "les bornes de D7 tronquent toujours"
+    assert any(l["repli"] for l in lignes), (
+        "le repli doit desormais se declencher en production sur les cascades "
+        "coupees en pleine propagation"
+    )
+    # Mais pas partout : un signal qui se declenche toujours ne vaut pas mieux
+    # qu'un signal qui ne se declenche jamais.
+    assert not all(l["repli"] for l in lignes), (
+        "le signal doit rester discriminant, pas recommander le repli partout"
+    )
 
 
 def test_tous_les_plannings_fusionnes_sont_valides(rapport):

@@ -239,3 +239,120 @@ def test_le_signal_est_faux_par_defaut():
     assert zone.nb_impacted_jobs == 0
     assert zone.truncated_before_convergence is False
     assert zone.fallback_recommended is False
+
+
+# ==========================================================================
+# Livrable 2 — le signal alimente reellement le garde-fou
+# ==========================================================================
+def test_une_zone_tronquee_declenche_le_repli_sous_le_seuil(machine_saturee):
+    """LE cas qui etait invisible : tronquee a 33 %, donc jamais vue par H5.
+
+    Six jobs futurs, plafond a 2 : la zone mesuree plafonne a 33 %, tres en-dessous
+    du seuil de 50 %. Avant D13, `fallback_recommended` restait faux et rien ne
+    signalait que les quatre autres jobs de la cascade n'etaient pas reoptimises.
+    """
+    schedule, instance = machine_saturee
+    event = make_event("machine_breakdown", timestamp=50, machine_id="M1",
+                       start_time=100, end_time=180)
+    zone = ImpactAnalyzer(search_horizon=10_000, max_impacted_jobs=2).analyze(
+        event, schedule, instance
+    )
+
+    assert zone.ratio_future_jobs_affected < 0.5, "sous le seuil, donc invisible pour H5"
+    assert zone.truncated_before_convergence is True
+    assert zone.fallback_recommended is True
+
+
+def test_check_suitability_leve_sur_une_zone_tronquee(machine_saturee):
+    """L'exception porte le motif de troncature, pas un ratio trompeur."""
+    from scheduling.components.impact_analyzer import IncrementalNotSuitableError
+
+    schedule, instance = machine_saturee
+    event = make_event("machine_breakdown", timestamp=50, machine_id="M1",
+                       start_time=100, end_time=180)
+    analyzer = ImpactAnalyzer(search_horizon=10_000, max_impacted_jobs=2)
+    zone = analyzer.analyze(event, schedule, instance)
+
+    with pytest.raises(IncrementalNotSuitableError) as exc:
+        analyzer.check_suitability(zone)
+
+    assert exc.value.truncated_before_convergence is True
+    assert "coupee" in str(exc.value)
+    assert "sous-estime" in str(exc.value)
+    assert not analyzer.is_suitable(zone)
+
+
+def test_une_zone_large_mais_convergente_ne_declenche_pas_le_repli():
+    """Non-regression : une cascade qui converge d'elle-meme, meme large, passe.
+
+    Quatre jobs sur M1, tous touches (100 % des jobs futurs) — mais le seuil est
+    releve a 1.0 et la cascade s'eteint d'elle-meme, sans qu'aucune borne ne coupe.
+    Le repli ne doit pas se declencher : une zone large n'est pas une zone tronquee.
+    """
+    entries = [_entry(f"J{i}", "M1", 1, 100 + 50 * i, 50) for i in range(4)]
+    jobs = [
+        Job(id=f"J{i}", operations=[Operation(f"J{i}", "M1", 50, 1)],
+            deadline=2000, weight=1.0)
+        for i in range(4)
+    ]
+    event = make_event("machine_breakdown", timestamp=50, machine_id="M1",
+                       start_time=100, end_time=180)
+    zone = ImpactAnalyzer(search_horizon=10_000, max_impacted_jobs=50,
+                          fallback_threshold=1.0).analyze(
+        event, Schedule(entries=entries), _instance(jobs, ["M1"])
+    )
+
+    assert zone.truncated is False, "aucune borne n'a coupe"
+    assert zone.truncated_before_convergence is False
+    assert zone.fallback_recommended is False
+
+
+def test_la_regle_de_ratio_reste_active(machine_saturee):
+    """Retrocompatibilite : le seuil sur le pourcentage fonctionne toujours.
+
+    Bornes larges, donc aucune troncature : si le repli se declenche, c'est bien la
+    regle d'origine qui opere. Elle doit rester en place au cas ou les bornes de D7
+    changeraient un jour.
+    """
+    schedule, instance = machine_saturee
+    event = make_event("machine_breakdown", timestamp=50, machine_id="M1",
+                       start_time=100, end_time=400)
+    zone = ImpactAnalyzer(search_horizon=10_000, max_impacted_jobs=50,
+                          fallback_threshold=0.5).analyze(
+        event, schedule, instance
+    )
+
+    assert zone.truncated_before_convergence is False
+    assert zone.ratio_future_jobs_affected > 0.5
+    assert zone.fallback_recommended is True
+
+
+def test_une_coupe_sur_un_job_deja_dans_la_zone_ne_signale_rien():
+    """Non-regression d'un faux positif reel, trouve en validant contre la matrice.
+
+    Annuler le job qui finit en DERNIER libere des creneaux de fin d'horizon et ne
+    decale rien : la cascade converge sur ce seul job. Pourtant le signal se
+    declenchait, parce que la propagation part de l'operation du job annule
+    lui-meme : cette entree etant hors horizon, la coupe tombait dessus avec un
+    "trou" nul par construction, le curseur partant precisement de la.
+
+    Or son job est DEJA dans la zone, donc toutes ses operations futures sont
+    reoptimisees : la coupe ne fait rien perdre. La garde `nouveau_job` traite ce cas.
+
+    M1 : J0[100-150] dans l'horizon, J9[900-950] tres au-dela. On annule J9.
+    """
+    entries = [_entry("J0", "M1", 1, 100, 50), _entry("J9", "M1", 1, 900, 50)]
+    jobs = [
+        Job(id="J0", operations=[Operation("J0", "M1", 50, 1)],
+            deadline=2000, weight=1.0),
+        Job(id="J9", operations=[Operation("J9", "M1", 50, 1)],
+            deadline=2000, weight=1.0),
+    ]
+    event = make_event("job_cancel", timestamp=50, job_id="J9")
+    zone = ImpactAnalyzer(search_horizon=300, max_impacted_jobs=50).analyze(
+        event, Schedule(entries=entries), _instance(jobs, ["M1"])
+    )
+
+    assert zone.impacted_job_ids == {"J9"}, "la cascade converge sur le seul job annule"
+    assert zone.truncated_before_convergence is False
+    assert zone.fallback_recommended is False

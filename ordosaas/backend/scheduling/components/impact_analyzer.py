@@ -83,11 +83,27 @@ class IncrementalNotSuitableError(Exception):
         self.zone = zone
         self.threshold = threshold
         self.ratio = zone.ratio_future_jobs_affected
+        self.truncated_before_convergence = zone.truncated_before_convergence
+
+        mesure = (
+            f"{zone.nb_impacted_jobs} job(s) touche(s) sur {zone.nb_future_jobs} "
+            f"futurs ({100 * self.ratio:.0f}%)"
+        )
+        if self.ratio > threshold:
+            motif = (
+                f"Zone d'impact trop large : {mesure}, seuil "
+                f"{100 * threshold:.0f}%."
+            )
+        else:
+            # Le ratio seul ne dit rien ici : c'est la coupe qui alerte.
+            motif = (
+                f"Cascade coupee par une borne de recherche alors qu'elle "
+                f"progressait encore : la zone mesuree ({mesure}) sous-estime "
+                f"l'impact reel, d'une ampleur inconnue."
+            )
         super().__init__(
-            f"Zone d'impact trop large : {zone.nb_impacted_jobs} job(s) touche(s) "
-            f"sur {zone.nb_future_jobs} futurs ({100 * self.ratio:.0f}%), seuil "
-            f"{100 * threshold:.0f}%. Le reordonnancement incremental n'est pas "
-            f"adapte a cette perturbation : relancer une resolution complete."
+            f"{motif} Le reordonnancement incremental n'est pas adapte a cette "
+            f"perturbation : relancer une resolution complete."
         )
 
 
@@ -306,28 +322,51 @@ class ImpactAnalyzer:
         zone.impacted_entries = [
             e for e in state.future_entries if e.job_id in zone.reason_by_job
         ]
-        zone.fallback_recommended = (
-            zone.ratio_future_jobs_affected > self.fallback_threshold
-        )
-        if zone.fallback_recommended:
+        # DEUX raisons distinctes de recommander le repli (cf. D13) :
+        #
+        # 1. la zone mesuree depasse le seuil — regle d'origine, conservee telle
+        #    quelle pour rester valable si les bornes de D7 changent un jour ;
+        # 2. la propagation a ete COUPEE alors qu'elle etait encore active — la
+        #    zone reelle est alors inconnue et potentiellement bien plus large que
+        #    ce que le plafond a laisse voir.
+        #
+        # La seconde est indispensable tant que le plafond de D7 (20 % des jobs
+        # futurs) reste sous le seuil de H5 (50 %) : la premiere regle ne peut alors
+        # structurellement plus se declencher.
+        au_dela_du_seuil = zone.ratio_future_jobs_affected > self.fallback_threshold
+        zone.fallback_recommended = au_dela_du_seuil or zone.truncated_before_convergence
+        if au_dela_du_seuil:
             logger.warning(
                 "Zone d'impact au-dela du seuil de repli (%.0f%% > %.0f%%) : "
                 "l'incremental n'est pas adapte a cette perturbation",
                 100 * zone.ratio_future_jobs_affected, 100 * self.fallback_threshold,
+            )
+        elif zone.truncated_before_convergence:
+            logger.warning(
+                "Cascade coupee par une borne de recherche alors qu'elle progressait "
+                "encore : la zone mesuree (%.0f%% des jobs futurs) sous-estime "
+                "l'impact reel, l'incremental n'est pas adapte",
+                100 * zone.ratio_future_jobs_affected,
             )
         logger.info(
             "ImpactZone: %s -> %d job(s) sur %d futurs (%.0f%%), %d entree(s)%s "
             "[horizon %d, max %d jobs]",
             event.event_type.value, zone.nb_impacted_jobs, zone.nb_future_jobs,
             100 * zone.ratio_future_jobs_affected, len(zone.impacted_entries),
-            " [tronquee]" if zone.truncated else "",
+            (" [tronquee, propagation active]" if zone.truncated_before_convergence
+             else " [tronquee]" if zone.truncated else ""),
             zone.search_horizon, zone.max_impacted_jobs,
         )
         return zone
 
     # -- garde-fou de repli (Sec. 2.6) --------------------------------------
     def is_suitable(self, zone) -> bool:
-        """L'incremental a-t-il encore du sens pour cette zone ?"""
+        """L'incremental a-t-il encore du sens pour cette zone ?
+
+        Faux si la zone depasse le seuil, OU si sa propagation a ete coupee alors
+        qu'elle progressait encore — auquel cas son ampleur reelle est inconnue
+        (cf. D13).
+        """
         return not zone.fallback_recommended
 
     def check_suitability(self, zone) -> None:
@@ -476,10 +515,20 @@ class _Propagation:
                 continue
             if debut > self.zone.horizon_end:
                 self.zone.truncated = True
-                # Le trou qui precede cette entree est connu meme si elle est hors
-                # horizon. S'il suffit a absorber le residuel, la cascade aurait
-                # converge ici : la coupe ne masque alors rien (cf. D13).
-                if restant - max(0, debut - curseur) > 0:
+                # Deux conditions pour qualifier la coupe d'ACTIVE (cf. D13) :
+                #
+                # 1. l'entree bloquee appartient a un job PAS ENCORE dans la zone.
+                #    Si son job y est deja, toutes ses operations futures sont de
+                #    toute facon reoptimisees et la coupe ne fait rien perdre. Ce
+                #    cas se produit notamment sur l'entree de DEPART elle-meme, ou
+                #    le trou mesure vaut 0 par construction puisque le curseur part
+                #    de cette entree — c'est ce qui produisait un faux positif sur
+                #    l'annulation d'un job de fin d'horizon ;
+                # 2. le trou qui la precede ne suffit pas a absorber le residuel.
+                #    Ce trou est connu meme au-dela de la borne : si
+                #    `restant - trou <= 0`, la cascade aurait converge ici.
+                nouveau_job = entry.job_id not in self.zone.reason_by_job
+                if nouveau_job and restant - max(0, debut - curseur) > 0:
                     self.zone.truncated_before_convergence = True
                 break
             # Le temps mort qui precede absorbe une partie du decalage.

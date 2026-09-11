@@ -164,12 +164,30 @@ def test_raise_on_fallback_donne_un_echec_franc(atelier):
         )
 
 
-def test_le_repli_nest_pas_signale_sur_une_perturbation_locale(atelier):
+def test_le_repli_nest_pas_signale_sur_une_perturbation_vraiment_locale(atelier):
+    """Une panne courte, absorbee par le temps mort, ne recommande pas le repli.
+
+    La panne utilisee ici dure 30 unites, non 60 comme `_panne()`. C'est la
+    difference entre une perturbation reellement locale et une perturbation qui n'en
+    a que le nom : avec 60 unites, le retard traverse le temps mort de 50 unites
+    entre J2 et J3 et touche TOUS les jobs futurs de cet atelier. La version
+    d'origine de ce test affirmait donc l'absence de repli sur une cascade a 100 %,
+    ce que le signal de troncature (D13) a mis en evidence.
+
+    Avec 30 unites, le temps mort absorbe le retard : la cascade converge sur J2
+    seul, rien n'est tronque, et le repli ne se declenche pas — le comportement que
+    ce test voulait verifier.
+    """
     schedule, instance = atelier
+    locale = make_event("machine_breakdown", timestamp=90, machine_id="M1",
+                        start_time=100, end_time=130)
     resolution = resolve_incremental(
-        schedule, _panne(), instance,
+        schedule, locale, instance,
         config=IncrementalConfig(fallback_threshold=1.0),
     )
+
+    assert resolution.zone.impacted_job_ids == {"J2"}, "la cascade s'arrete a J2"
+    assert resolution.zone.truncated_before_convergence is False
     assert resolution.fallback_recommended is False
 
 

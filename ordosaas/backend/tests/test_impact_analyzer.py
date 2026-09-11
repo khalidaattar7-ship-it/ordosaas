@@ -414,6 +414,14 @@ def test_les_bornes_relatives_reduisent_le_sur_declenchement_du_repli(
         for e in zone_nouvelle.state.future_entries
     )
     assert zone_nouvelle.search_horizon == max(fraction, plancher)
-    # La zone est contenue, et le garde-fou ne se declenche plus sur un incident local.
+    # La zone reste contenue : c'est l'objet de D7, et il est toujours rempli.
     assert zone_nouvelle.nb_impacted_jobs <= zone_ancienne.nb_impacted_jobs
-    assert zone_nouvelle.fallback_recommended is False
+
+    # En revanche le repli EST desormais recommande, et c'est voulu (cf. D13).
+    # L'assertion d'origine exigeait le contraire : elle datait d'une epoque ou le
+    # seul critere etait le pourcentage de la zone mesuree. Or borner la zone ne
+    # rend pas la perturbation locale — mesuree bornes relachees, la cascade reelle
+    # de cet incident atteint 70 % des jobs futurs. Le signal de troncature le dit
+    # maintenant, la ou la zone bornee affichait 20 % et taisait le reste.
+    assert zone_nouvelle.truncated_before_convergence is True
+    assert zone_nouvelle.fallback_recommended is True
