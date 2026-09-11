@@ -645,12 +645,15 @@ l'arbitrage.
    **+101 %** (4422.64 → 8908.76) — pour un bénéfice réel mais limité à deux des trois types
    de perturbation.
 
-4. **Le seuil de repli n'a aucun rôle observable en production.** Le plafond relatif de D7
-   borne déjà la zone bien avant que le seuil n'entre en jeu : sur cette instance, le
-   garde-fou ne se déclenche jamais en régime de production, et modérée et détendue y sont
-   même indiscernables. Arbitrer entre « marge » et « seuil de repli » suppose que le seuil
-   ait un effet — ce que les mesures ne montrent pas. **Ce point mérite d'être tranché avant
-   les trois autres**, faute de quoi l'arbitrage porterait sur un levier inopérant.
+4. ~~**Le seuil de repli n'a aucun rôle observable en production.**~~ **RÉSOLU le
+   2026-09-11 — voir D13.** Ce constat était exact et pointait un vrai défaut : le plafond
+   relatif de D7 (20 %) bornait la zone avant que le seuil de H5 (50 %) puisse l'atteindre,
+   si bien que le garde-fou ne se déclenchait jamais en production et que modérée et
+   détendue y étaient indiscernables. Le signal de troncature active corrige cela : le
+   seuil opère désormais, et de façon discriminante — il se déclenche sur le planning dense
+   (cascades réelles de 71 % et 100 %) et sur lui seul. **L'arbitrage entre « marge » et
+   « seuil de repli » porte donc maintenant sur deux leviers également actifs**, ce qui
+   n'était pas le cas quand la question a été posée.
 
 Ce constat ne tranche aucune de ces questions ; il fournit les données pour le faire.
 
@@ -862,6 +865,24 @@ survivre à la vigilance déployée en D8. Un test y fige aussi la limite du val
 canonique : un planning dont on retire tous les setups sans toucher aux dates lui paraît
 parfaitement valide.
 
+### Amélioration de qualité identifiée mais DIFFÉRÉE — absorption sur la cascade de précédence
+
+La cascade de précédence propage tout retard **sans jamais l'absorber**, là où la cascade
+de contention soustrait le temps mort rencontré. Modéliser l'absorption sur la précédence —
+un retard est absorbé si le successeur démarre assez tard après la fin retardée de son
+prédécesseur — rendrait les deux mécanismes symétriques.
+
+Conséquence concrète : la coupe de précédence hors horizon est aujourd'hui trop
+conservatrice pour servir de signal de repli, ce qui a conduit à l'exclure en D13. Ce n'est
+**pas dangereux** — sa portée est bornée aux opérations restantes d'un seul job — mais cela
+prive le signal d'une source d'information qui deviendrait fiable une fois l'absorption
+modélisée.
+
+**Non fait dans la session D13** : cela change le modèle de cascade lui-même, rétrécirait
+des zones et ferait bouger des tests existants — hors du périmètre strict d'une session
+dont l'objet était de fiabiliser le signal, pas de modifier ce qu'il mesure. À traiter dans
+une session dédiée.
+
 ### Amélioration de qualité identifiée mais DIFFÉRÉE — setup du contexte gauche sur l'arc du dépôt
 
 Le contexte gauche (dernier job figé d'une machine) est traité par une contrainte
@@ -945,6 +966,126 @@ la coupe en contention avec résiduel non absorbable isolent **exactement** dens
 dense/dépassement, et rien d'autre.
 
 
+### D13 — Le signal de troncature fiabilise le garde-fou de repli (2026-09-11) — résout le défaut D7 / H5
+
+#### Le diagnostic
+
+Deux garde-fous conçus séparément, qui ne s'articulaient pas :
+
+- **D7** borne la recherche : `search_horizon_fraction = 0.15`, `max_impacted_jobs_fraction = 0.20` ;
+- **H5** déclenche le repli : `fallback_threshold = 0.5`.
+
+**20 % < 50 %.** Le plafond coupait la zone *avant* qu'elle puisse atteindre le seuil,
+quelle que soit l'ampleur réelle de la perturbation. La règle du seuil ne pouvait donc
+**structurellement plus se déclencher**. Mesuré en Discussion 2 : des cascades réelles de
+71 % et 100 % des jobs futurs, tronquées à 29 % en production, sans que rien ne le signale.
+Le résultat restait **valide** — `ScheduleMerger` garantit toujours l'absence de
+chevauchement — mais une partie de la cascade n'était jamais réoptimisée, en silence.
+
+#### L'approche retenue : distinguer la coupe de la convergence
+
+`ImpactZone` porte désormais **deux** drapeaux, à ne pas confondre :
+
+- `truncated` — une borne a coupé quelque chose, quelle qu'en soit la raison (conservé
+  tel quel, rétrocompatible) ;
+- `truncated_before_convergence` — la coupe est intervenue alors qu'un retard résiduel
+  progressait encore, sans que rien ne l'ait absorbé.
+
+Seul le second recommande le repli. `fallback_recommended` a donc deux raisons de se
+déclencher, la seconde **s'ajoutant** à la première sans la remplacer : la règle du ratio
+est conservée pour rester valable si les bornes de D7 changent un jour.
+
+#### Traitement des trois points de coupe, et pourquoi ils diffèrent
+
+| Point de coupe | Traitement | Justification |
+|---|---|---|
+| **Plafond de jobs** (`mark`, `mark_job`) | Coupe **active** | Le plafond refuse un job que la cascade réclamait : la propagation voulait aller plus loin, par construction |
+| **Contention hors horizon** (`push_machine`) | Active **sous conditions** | Voir ci-dessous |
+| **Précédence hors horizon** (`mark`) | **Jamais** active | Voir ci-dessous |
+
+**La contention est qualifiée d'active sous deux conditions cumulatives :**
+
+1. l'entrée bloquée appartient à un job **pas encore dans la zone**. Si son job y est déjà,
+   toutes ses opérations futures sont de toute façon réoptimisées et la coupe ne fait rien
+   perdre ;
+2. le trou qui la précède ne suffit pas à absorber le résiduel — test `restant - trou <= 0`.
+   Ce trou est connu même au-delà de la borne : s'il absorbe, la cascade aurait convergé là
+   et la coupe ne masque rien. Observé 2 fois sur dense/panne et 2 fois sur
+   dense/dépassement ; sans ce test, ces coupes compteraient à tort.
+
+**La précédence est exclue, délibérément.** Sa cascade propage le retard **sans jamais
+l'absorber** : qu'un successeur lointain tombe hors horizon découle de ce conservatisme,
+pas d'une cascade réellement large. Elle est de plus bornée aux opérations restantes d'**un
+seul job** (2 à 4 sur l'instance d'exemple), donc ne peut structurellement pas justifier à
+elle seule un impact de 50 % des jobs futurs — c'est la contention, déjà dotée d'un modèle
+d'absorption, qui porte la croissance à grande échelle. L'exclure ne crée donc pas d'angle
+mort sur les cascades larges.
+
+Mesuré : l'inclure aurait fait déclencher le repli sur **8 cellules sur 9**, la coupe de
+précédence se produisant partout. On aurait reproduit à l'envers le sur-déclenchement que
+D7 avait précisément été créé pour corriger.
+
+Les deux mécanismes partagent donc le même **principe** — troncature = coupe sur
+propagation active, pas coupe indistincte — tout en gardant des implémentations distinctes,
+comme leur structure l'impose.
+
+#### Un faux positif trouvé en validant, et corrigé
+
+Annuler le job qui finit **en dernier** libère des créneaux de fin d'horizon et ne décale
+rien : cascade réelle de 14 %. Le signal se déclenchait pourtant. Cause : la propagation
+part de l'opération du job annulé lui-même ; cette entrée étant hors horizon, la coupe
+tombait dessus avec un trou nul **par construction**, le curseur partant précisément de là.
+La condition 1 ci-dessus traite ce cas, avec test de non-régression.
+
+C'est la validation contre la matrice qui l'a révélé — pas les tests unitaires.
+
+#### Validation contre la matrice de la Discussion 2
+
+Rapport reproductible : `python -m tests.repli_report`, qui génère `docs/repli-signal.md`.
+
+| Densité | Perturbation | Cascade réelle | Zone en production | AVANT D13 | APRÈS D13 |
+|---|---|---|---|---|---|
+| dense | Panne machine | **71 %** | 29 % | non | **oui** |
+| dense | Job urgent | 12 % | 12 % | non | non |
+| dense | Dépassement durée | **100 %** | 29 % | non | **oui** |
+| modérée | Panne machine | 29 % | 14 % | non | non |
+| modérée | Job urgent | 38 % | 25 % | non | non |
+| modérée | Dépassement durée | 29 % | 14 % | non | non |
+| détendue | Panne machine | 14 % | 14 % | non | non |
+| détendue | Job urgent | 25 % | 25 % | non | non |
+| détendue | Dépassement durée | 14 % | 14 % | non | non |
+
+**Avant D13 : 0 cellule sur 9. Après D13 : 2 sur 9** — exactement les deux dont la cascade
+réelle dépasse le seuil de repli, et aucune autre. **Zéro faux positif, zéro faux négatif.**
+
+Noter que `truncated` est vrai sur **8 cellules sur 9** : c'est bien la distinction entre
+troncature et troncature *active* qui fait tout le travail, pas le simple fait d'avoir été
+coupé.
+
+#### La question produit de la Discussion 2 est résolue
+
+Le constat de fin de Discussion 2 — « le seuil de repli n'a aucun rôle observable en
+production, modérée et détendue y sont même indiscernables, arbitrer entre marge et seuil
+suppose que le seuil opère, ce que les mesures ne montrent pas » — **n'est plus valable**.
+
+Le seuil opère désormais, et de façon discriminante : il distingue le planning dense, où la
+cascade déborde réellement, des plannings aérés où elle est contenue. L'arbitrage entre
+« conserver de la marge à l'optimisation initiale » et « relever le seuil de repli » porte
+donc maintenant sur deux leviers **également actifs**, ce qui n'était pas le cas quand la
+question a été posée.
+
+Les trois autres éléments de cet arbitrage restent inchangés et ouverts : la marge
+fonctionne sur les aléas subis mais pas sur les insertions, son coût a doublé (+101 % de
+TWT entre dense et détendue), et l'argument le plus démonstratif de la version d'origine a
+disparu au re-baselining. La décision appartient toujours à Khalid.
+
+#### Ce que cette session ne fait pas
+
+- Les bornes de D7 (0.15 / 0.20) sont **inchangées** : ce correctif est orthogonal.
+- Le **routage automatique** vers `LNSRecursiveSolver` reste non implémenté (H5) : le repli
+  est signalé, jamais appliqué.
+
+
 ## Hypothèses en attente de validation par Khalid
 
 ### H8 / H9 — RÉSOLUES le 2026-09-06 → voir D12
@@ -963,7 +1104,11 @@ SQLAlchemy existants pour `resolutions` définissent déjà des conventions de n
 différentes, et les concilier avec les 5 valeurs de type retenues ici pour
 `PerturbationEvent`.
 
-### H5 — Le routage du garde-fou de repli reste à faire (2026-09-03)
+### H5 — Le routage du garde-fou de repli reste à faire (2026-09-03, **signal fiabilisé le 2026-09-11**)
+
+> Le *signal* est désormais fiable (cf. D13) : il se déclenche exactement sur les cascades
+> dont l'ampleur réelle dépasse le seuil, y compris quand le plafond de D7 les tronque.
+> Le **routage** reste, lui, non implémenté — c'est toujours l'objet de cette hypothèse.
 
 Conformément au point 7 du prompt, le garde-fou de dépassement de seuil est **détecté et
 signalé**, mais le routage réel vers `LNSRecursiveSolver` dans `SolverDispatcher` n'est
@@ -1038,7 +1183,7 @@ Composants livrés dans la Discussion 1 (un commit poussé par composant) :
 | 10 | Setups de jonction en variables (cf. D8) | `solvers/incremental_optimizer.py`, `components/schedule_merger.py` | +6 | livré |
 | 11 | Orchestrateur public `resolve_incremental` (cf. D9) | `scheduling/incremental.py` | 15 | livré |
 
-Suite complète hors tests API : **214 tests verts** (141 à la fin des 8 premiers commits,
+Suite complète hors tests API : **232 tests verts** (141 à la fin des 8 premiers commits,
 170 à la fin de la Discussion 1, 189 après le livrable 2 de la Discussion 2).
 `python -m tests.validate_example` passe toujours (TWT 3012.84), donc aucune régression sur
 le solveur initial. Les tests de
