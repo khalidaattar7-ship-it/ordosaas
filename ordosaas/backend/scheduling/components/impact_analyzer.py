@@ -109,8 +109,14 @@ class ImpactZone:
     # Entrees futures appartenant aux jobs impactes : ce sont elles qui redeviennent
     # des variables d'optimisation. Les entrees figees n'y sont jamais.
     impacted_entries: list = field(default_factory=list)
-    # True si la propagation a ete coupee par une borne de l'horizon de recherche.
+    # True si la propagation a ete coupee par une borne de l'horizon de recherche,
+    # quelle qu'en soit la raison. Drapeau large, conserve tel quel.
     truncated: bool = False
+    # True si la coupe est intervenue alors que la propagation etait ENCORE ACTIVE,
+    # c'est-a-dire avec un retard residuel que rien n'avait absorbe (cf. D13).
+    # C'est ce drapeau, et non `truncated`, qui recommande le repli : sans lui, le
+    # plafond de D7 coupe toujours la zone avant que le seuil de H5 puisse la voir.
+    truncated_before_convergence: bool = False
     # True si la zone depasse le seuil de repli : l'incremental n'est pas adapte.
     fallback_recommended: bool = False
 
@@ -428,13 +434,20 @@ class _Propagation:
         if job_id in self.zone.reason_by_job:
             return
         if self._at_capacity():
-            self.zone.truncated = True
+            self._coupe_active()
             return
         self.zone.reason_by_job[job_id] = reason
 
     def mark(self, entry, reason: str, delay: int) -> bool:
         """Marque une entree impactee et l'empile si le retard progresse."""
         if _occ_start(entry) > self.zone.horizon_end:
+            # Coupe d'horizon, signalee mais DELIBEREMENT pas comme une coupe
+            # active (cf. D13). Ce chemin sert la cascade de precedence, qui
+            # propage le retard sans jamais l'absorber : qu'un successeur lointain
+            # tombe hors horizon decoule de ce conservatisme, pas d'une cascade
+            # reellement large. La cascade de precedence est de plus bornee aux
+            # operations restantes d'UN SEUL job (2 a 4 ici), elle ne peut donc pas
+            # justifier a elle seule un impact de 50 % des jobs futurs.
             self.zone.truncated = True
             return False
         connu = self.delays.get(id(entry))
@@ -442,7 +455,9 @@ class _Propagation:
             return False
         if entry.job_id not in self.zone.reason_by_job:
             if self._at_capacity():
-                self.zone.truncated = True
+                # Le plafond refuse un job que la cascade reclamait : la propagation
+                # etait donc bien encore active au moment de la coupe.
+                self._coupe_active()
                 return False
             self.zone.reason_by_job[entry.job_id] = reason
         self.delays[id(entry)] = delay
@@ -461,6 +476,11 @@ class _Propagation:
                 continue
             if debut > self.zone.horizon_end:
                 self.zone.truncated = True
+                # Le trou qui precede cette entree est connu meme si elle est hors
+                # horizon. S'il suffit a absorber le residuel, la cascade aurait
+                # converge ici : la coupe ne masque alors rien (cf. D13).
+                if restant - max(0, debut - curseur) > 0:
+                    self.zone.truncated_before_convergence = True
                 break
             # Le temps mort qui precede absorbe une partie du decalage.
             restant -= max(0, debut - curseur)
@@ -489,6 +509,11 @@ class _Propagation:
                     self.mark(suivant, REASON_PRECEDENCE, delay)
             # Cascade par contention : le reste de la machine derriere cette operation.
             self.push_machine(entry.machine_id, after=entry.end_time, delay=delay)
+
+    def _coupe_active(self) -> None:
+        """Coupe intervenue alors que la propagation etait encore active."""
+        self.zone.truncated = True
+        self.zone.truncated_before_convergence = True
 
     def _at_capacity(self) -> bool:
         # La borne est celle resolue pour CETTE analyse (relative aux jobs futurs),
