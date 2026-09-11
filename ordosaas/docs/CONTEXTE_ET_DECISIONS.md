@@ -924,24 +924,6 @@ survivre à la vigilance déployée en D8. Un test y fige aussi la limite du val
 canonique : un planning dont on retire tous les setups sans toucher aux dates lui paraît
 parfaitement valide.
 
-### Amélioration de qualité identifiée mais DIFFÉRÉE — absorption sur la cascade de précédence
-
-La cascade de précédence propage tout retard **sans jamais l'absorber**, là où la cascade
-de contention soustrait le temps mort rencontré. Modéliser l'absorption sur la précédence —
-un retard est absorbé si le successeur démarre assez tard après la fin retardée de son
-prédécesseur — rendrait les deux mécanismes symétriques.
-
-Conséquence concrète : la coupe de précédence hors horizon est aujourd'hui trop
-conservatrice pour servir de signal de repli, ce qui a conduit à l'exclure en D13. Ce n'est
-**pas dangereux** — sa portée est bornée aux opérations restantes d'un seul job — mais cela
-prive le signal d'une source d'information qui deviendrait fiable une fois l'absorption
-modélisée.
-
-**Non fait dans la session D13** : cela change le modèle de cascade lui-même, rétrécirait
-des zones et ferait bouger des tests existants — hors du périmètre strict d'une session
-dont l'objet était de fiabiliser le signal, pas de modifier ce qu'il mesure. À traiter dans
-une session dédiée.
-
 ### Amélioration de qualité identifiée mais DIFFÉRÉE — setup du contexte gauche sur l'arc du dépôt
 
 Le contexte gauche (dernier job figé d'une machine) est traité par une contrainte
@@ -1224,6 +1206,116 @@ des cascades de précédence plus juste, ce qui profite directement à la qualit
 l'`ImpactZone` et aux mesures de la matrice.
 
 
+### D14 — La cascade de précédence absorbe le temps mort du job (2026-09-11)
+
+#### La formule retenue
+
+Transposition du principe déjà appliqué à la contention. On descend la chaîne du job en
+soustrayant le temps mort rencontré, et on s'arrête dès que le retard est épuisé :
+
+```python
+restant, curseur = delay, entry.end_time
+for suivant in by_job[entry.job_id]:            # trié par position_in_job
+    if suivant.position_in_job <= entry.position_in_job:
+        continue
+    restant -= max(0, suivant.start_time - curseur)   # temps mort du JOB
+    if restant <= 0:
+        break                                   # convergence naturelle
+    self.mark(suivant, REASON_PRECEDENCE, restant)
+    curseur = suivant.end_time
+```
+
+Cela corrige **deux** défauts d'un coup : l'absence d'absorption, et l'absence de
+parcours séquentiel — les trois lignes d'origine marquaient *toutes* les opérations en
+aval avec le *même* retard non réduit.
+
+**Le trou se mesure sur les bornes d'OPÉRATION pures** (`suivant.start_time - curseur`),
+jamais sur l'occupation incluant le setup. C'est l'analogue exact de la contrainte
+réellement posée dans le modèle (`_add_precedences` : `s2 >= e1`), et le setup relève de
+la **contention machine**, pas de la chaîne du job. Les mélanger ferait qu'un job doté
+d'un gros setup entrant — imposé par un tiers sur sa machine — verrait sa propre
+précédence faussement moins absorbante. Cette séparation vaut comme principe par défaut
+pour tout mécanisme de cascade ajouté ultérieurement.
+
+#### Revalidation de la matrice — 3 cellules sur 9 changent
+
+Rapport reproductible : `python -m tests.absorption_report`, qui génère
+`docs/absorption-precedence.md`.
+
+| Densité | Perturbation | Avant D14 | Après D14 | Écart |
+|---|---|---|---|---|
+| dense | Panne machine | 71 % | 71 % | — |
+| dense | Job urgent | 12 % | 12 % | — |
+| dense | Dépassement durée | 100 % | 100 % | — |
+| **modérée** | **Panne machine** | **29 %** | **14 %** | **−15 pts** |
+| **modérée** | **Job urgent** | **38 %** | **25 %** | **−13 pts** |
+| **modérée** | **Dépassement durée** | **29 %** | **14 %** | **−15 pts** |
+| détendue | Panne machine | 14 % | 14 % | — |
+| détendue | Job urgent | 25 % | 25 % | — |
+| détendue | Dépassement durée | 14 % | 14 % | — |
+
+Toutes les variations sont à la **baisse**, ce qui est structurel : arrêter la
+propagation plus tôt ne peut jamais élargir une cascade.
+
+**L'effet se concentre sur la densité intermédiaire**, et c'est explicable : le planning
+dense n'a quasiment pas de temps mort à absorber, tandis que le détendu convergeait déjà
+avant D14 par la seule contention. La modérée est la seule qui ait du temps mort *et*
+dont la précédence sur-propageait faute de le prendre en compte.
+
+#### Les conclusions qualitatives ont été REVÉRIFIÉES
+
+Pas reconduites par analogie :
+
+1. **La marge aide sur les aléas subis** — toujours vrai, et l'écart reste net
+   (panne : 71 % → 14 % → 14 % ; dépassement : 100 % → 14 % → 14 %).
+2. **La marge n'aide pas sur les insertions** — toujours vrai : le job urgent reste le
+   moins coûteux sur le planning saturé (12 % contre 25 %).
+3. **Le seuil de repli distingue le planning dense des autres** — toujours vrai, et le
+   signal reste exact : 2 cellules sur 9, les mêmes qu'en D13, zéro faux positif.
+
+**Une nuance nouvelle, en revanche** : modérée et détendue donnent désormais des cascades
+**identiques**. Une fois qu'un planning comporte assez de marge pour que la cascade
+converge d'elle-même, en ajouter davantage ne change plus rien. **L'effet de la densité
+n'est donc pas graduel — il y a un seuil**, au-delà duquel la marge supplémentaire est
+sans effet sur l'ampleur de la cascade, alors que son coût continue de croître
+linéairement. C'est une donnée directement utile à l'arbitrage produit encore ouvert.
+
+#### La précédence est-elle un contributeur réel ou marginal ?
+
+Deux mesures distinctes, sur les 9 cellules en configuration de production :
+
+| Mesure | Occurrence |
+|---|---|
+| **Absorptions effectives** (la précédence arrête la propagation) | **7 cellules sur 9** |
+| Coupes de précédence par l'horizon | 1 cellule sur 9 (dense / panne) |
+
+**Comme mécanisme d'absorption, la précédence est un contributeur fréquent**, pas
+marginal : elle intervient dans 7 cellules sur 9. L'amélioration a donc un impact réel,
+et pas seulement théorique.
+
+**Comme contributeur au signal de troncature, elle serait redondante** : sa seule coupe
+observée se produit dans une cellule que la contention signale déjà. L'exclusion décidée
+en D13 et rendue définitive par la cartographie de cette session ne coûte donc rien,
+même en pratique.
+
+#### Effet secondaire mesuré : disparition des troncatures parasites
+
+Avant D14, les bornes de D7 marquaient `truncated` sur **8 cellules sur 9**. Après, sur
+**2 seulement** — les deux du planning dense, qui déclenchent toutes deux le repli à bon
+droit. Les 6 autres étaient des troncatures sans perte réelle, dues à une cascade de
+précédence qui ne convergeait jamais. La distinction entre `truncated` et
+`truncated_before_convergence` reste utile et testée au niveau unitaire, mais elle n'a
+plus d'occurrence sur cette matrice — signe que le bruit a disparu.
+
+#### Un effet non anticipé, trouvé par la validation manuelle
+
+Sur le scénario calculé à la main, la version *sans* absorption ne se contentait pas
+d'élargir la zone : elle atteignait 75 % des jobs futurs et **recommandait le repli** —
+sur une perturbation pourtant absorbée dès la première transition du job. L'absorption
+évite donc aussi des recommandations de repli injustifiées, ce qui n'avait pas été prévu
+en ouvrant la session.
+
+
 ## Hypothèses en attente de validation par Khalid
 
 ### H8 / H9 — RÉSOLUES le 2026-09-06 → voir D12
@@ -1321,7 +1413,7 @@ Composants livrés dans la Discussion 1 (un commit poussé par composant) :
 | 10 | Setups de jonction en variables (cf. D8) | `solvers/incremental_optimizer.py`, `components/schedule_merger.py` | +6 | livré |
 | 11 | Orchestrateur public `resolve_incremental` (cf. D9) | `scheduling/incremental.py` | 15 | livré |
 
-Suite complète hors tests API : **232 tests verts** (141 à la fin des 8 premiers commits,
+Suite complète hors tests API : **244 tests verts** (141 à la fin des 8 premiers commits,
 170 à la fin de la Discussion 1, 189 après le livrable 2 de la Discussion 2).
 `python -m tests.validate_example` passe toujours (TWT 3012.84), donc aucune régression sur
 le solveur initial. Les tests de
