@@ -1316,6 +1316,79 @@ sur une perturbation pourtant absorbée dès la première transition du job. L'a
 en ouvrant la session.
 
 
+### Constat — un planning « optimisé à densité modérée » n'existe pas par simple résolution (2026-09-12)
+
+Vérification préalable à toute tentative de résoudre une instance à ~52 % d'utilisation.
+**L'hypothèse redoutée est confirmée**, et plus nettement que ne le laissait penser la
+mesure de la Discussion 2.
+
+#### Ce qu'il faudrait atteindre
+
+L'occupation totale est **fixe** : 1708 unités (1388 de durées + 320 de setups payés).
+L'utilisation vaut `occupation / (makespan × 3)`, donc viser un taux revient à viser un
+makespan :
+
+| Utilisation visée | Makespan nécessaire |
+|---|---|
+| 88 % (dense actuel) | ~647 |
+| 70 % | ~813 |
+| **52 % (modérée)** | **~1095** |
+| 36 % (détendue) | ~1581 |
+
+#### Ce que CP-SAT rend réellement
+
+Deadlines desserrées jusqu'à ×50, configuration déterministe de la référence dense :
+
+| Deadlines | Makespan | Utilisation | Temps mort | TWT | Statut | Temps |
+|---|---|---|---|---|---|---|
+| ×1 | 673 | 88.3 % | 45 | 4422.64 | feasible | 107 s |
+| ×2 | 742 | 80.3 % | 20 | 519.76 | feasible | 132 s |
+| ×4 | 916 | 73.2 % | 16 | **0.00** | **optimal** | 1.3 s |
+| ×8 | 709 | **90.6 %** | 1 | 0.00 | optimal | 0.6 s |
+| ×16 | 709 | 90.6 % | 1 | 0.00 | optimal | 0.5 s |
+| ×50 | 709 | 90.6 % | 1 | 0.00 | optimal | 0.6 s |
+
+#### La démonstration est dans la NON-monotonie
+
+L'utilisation ne décroît pas quand on desserre : elle descend à 73 % (×4) puis
+**remonte à 90.6 %** (×8) et y reste, identique, jusqu'à ×50. Desserrer cinquante fois
+les deadlines ne produit pas un planning plus aéré qu'à ×8.
+
+La raison est structurelle : **dès que le TWT atteint 0, CP-SAT devient indifférent.**
+Tous les plannings faisables sont alors également optimaux, et il rend le premier
+trouvé — compact, parce que rien ne l'incite à étaler. Le 73.2 % obtenu à ×4 est un
+**accident de recherche**, pas un effet du levier.
+
+L'objectif du modèle le confirme, il ne contient rien d'autre que le retard :
+
+```python
+objective_terms = [int(job.weight * 100) * tardiness_vars[job.id] for job in jobs]
+model.Minimize(sum(objective_terms))
+```
+
+Aucun terme de makespan, aucun terme récompensant la marge. **Et M1, la machine goulot,
+a zéro temps mort dans les six configurations mesurées.**
+
+#### Conclusion
+
+Minimiser le retard pondéré et conserver de la marge sont **deux objectifs en tension,
+pas un seul**. Un planning qui garde délibérément de la marge ne peut donc pas émerger
+d'une simple résolution : il faudrait un mécanisme explicite dans le modèle — contrainte
+de temps mort minimal, ou terme d'objectif récompensant la marge conservée, sur le même
+principe que `STABILITY_WEIGHT` pour l'incrémental.
+
+C'est une **question de conception**, pas un second appel au solveur. Elle est soumise à
+Khalid avant tout choix de mécanisme.
+
+#### Ce que cela dit du « +101 % de TWT » déjà publié
+
+Ce chiffre compare le planning dense (4422.64, résolution réelle) à la variante détendue
+(8908.76, **obtenue par étirement**). Il mesure donc en grande partie le coût de **ne pas
+ré-optimiser** — une séquence pensée pour un planning serré, subie à une échelle
+distendue — et non le coût intrinsèque de la marge. Tant qu'aucun mécanisme de marge
+explicite n'existe, **on ne dispose d'aucune mesure du coût intrinsèque de la marge**.
+
+
 ## Hypothèses en attente de validation par Khalid
 
 ### H8 / H9 — RÉSOLUES le 2026-09-06 → voir D12
