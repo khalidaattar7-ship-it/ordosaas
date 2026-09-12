@@ -7,6 +7,7 @@ from app.models.job import Job
 from app.models.machine import Machine
 from app.models.operation import Operation
 from app.models.resolution import Resolution
+from app.models.sector_default import SectorDefault
 from app.models.schedule_entry import ScheduleEntry
 from app.models.setup_time import SetupTime
 from app.models.solver_config import SolverConfig
@@ -25,6 +26,7 @@ __all__ = [
     "Operation",
     "SetupTime",
     "SolverConfig",
+    "SectorDefault",
     "Resolution",
     "TimeWindow",
     "ScheduleEntry",

@@ -3,6 +3,7 @@ from sqlalchemy import Boolean, CheckConstraint, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import TimestampedModel
+from app.models.sector_default import CONTRAINTE_SECTEUR, SECTEUR_PAR_DEFAUT
 
 
 class Tenant(TimestampedModel):
@@ -11,6 +12,7 @@ class Tenant(TimestampedModel):
         CheckConstraint("default_wr BETWEEN 1 AND 50", name="ck_tenant_default_wr"),
         CheckConstraint("default_timeout BETWEEN 5 AND 300", name="ck_tenant_default_timeout"),
         CheckConstraint("default_strategy IN ('auto','cpsat','lns','atcs')", name="ck_tenant_default_strategy"),
+        CheckConstraint(f"sector {CONTRAINTE_SECTEUR}", name="ck_tenant_sector"),
     )
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -22,6 +24,13 @@ class Tenant(TimestampedModel):
     max_machines_per_instance: Mapped[int] = mapped_column(Integer, default=20, nullable=False)
     max_instances_stored: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
     timezone: Mapped[str] = mapped_column(String(50), default="Africa/Casablanca", nullable=False)
+    #: Secteur d'activite, choisi a l'inscription. Sert uniquement a PROPOSER un socle
+    #: de configuration (cf. app.sectors) ; rien n'est applique automatiquement.
+    #: Jamais nul : `autre` est le defaut et ne suppose rien.
+    sector: Mapped[str] = mapped_column(
+        String(30), default=SECTEUR_PAR_DEFAUT, server_default=SECTEUR_PAR_DEFAUT,
+        nullable=False,
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     users = relationship("User", back_populates="tenant", cascade="all, delete-orphan")

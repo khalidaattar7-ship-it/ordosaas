@@ -19,6 +19,7 @@ class SolverConfig(BaseModel):
         CheckConstraint("max_recursion_depth BETWEEN 1 AND 8", name="ck_cfg_depth"),
         CheckConstraint("max_iterations BETWEEN 1 AND 20", name="ck_cfg_iterations"),
         CheckConstraint("junction_radius BETWEEN 2 AND 30", name="ck_cfg_junction"),
+        CheckConstraint("stability_weight >= 0", name="ck_cfg_stability"),
     )
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(
@@ -39,5 +40,11 @@ class SolverConfig(BaseModel):
     max_iterations: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
     epsilon: Mapped[float] = mapped_column(Numeric(6, 4), default=0.01, nullable=False)
     junction_radius: Mapped[int] = mapped_column(Integer, default=10, nullable=False)
+    #: Poids du terme de stabilite du reordonnancement incrementel (cf. Sec. 2.5 et
+    #: IncrementalOptimizer). Absent du schema de conception d'origine, ce parametre
+    #: etant ne apres lui, avec l'architecture incrementale.
+    stability_weight: Mapped[float] = mapped_column(
+        Numeric(6, 4), default=0.1, server_default="0.1", nullable=False
+    )
     k1: Mapped[float | None] = mapped_column(Numeric(6, 4), nullable=True)
     k2: Mapped[float | None] = mapped_column(Numeric(6, 4), nullable=True)
