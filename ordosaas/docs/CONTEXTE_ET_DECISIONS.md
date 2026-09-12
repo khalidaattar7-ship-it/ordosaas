@@ -1470,6 +1470,125 @@ et 5 ci-dessus). H4 cesse d'être une incertitude pour devenir une liste de trav
 précise.
 
 
+### D15 — Secteur du tenant et instrumentation des causes de replanification (2026-09-12)
+
+Deux pistes indissociables : un **socle de configuration par secteur**, et le **journal
+d'événements** qui dira ce que ce socle valait vraiment. Le secteur est un point de
+départ ; les logs sont la vérité qui le recalibre.
+
+**Aucun endpoint** n'a été créé : cette session construit la couche donnée, la
+Discussion 4 l'exposera. Les contrats d'API ne sont pas devinés à l'avance.
+
+#### Piste A — le secteur
+
+**Structure retenue** : `tenants.sector`, `String(30)` + `CheckConstraint` sur six
+valeurs, `NOT NULL`, défaut `autre`. C'est la convention **déjà établie** du projet
+(`default_strategy`, `Resolution.status`, `method_used`) — un ENUM natif ou une table de
+référence divergeraient sans bénéfice pour une taxonomie fermée.
+
+**Les défauts vivent en base**, table `sector_defaults`, clé primaire = le secteur.
+Seul modèle du projet sans `id` UUID, parce que c'est une table de référence à
+cardinalité fermée. Les ajuster est un `UPDATE`, pas un déploiement — c'est la condition
+posée, et elle est vérifiée par un test qui modifie la table et constate le changement.
+
+**`stability_weight` a dû être ajouté à `solver_configs`.** Il est absent du schéma de
+conception parce qu'il est **né après lui**, avec l'architecture incrémentale — signe
+supplémentaire que `schema_bdd.sql` est un document à réconcilier en continu, pas une
+référence figée. Sans cette colonne, `cablage_auto` et `textile` — les deux secteurs au
+signal le plus net — n'auraient eu aucun levier distinctif.
+
+**Le socle PROPOSE, il n'applique jamais.** Deux raisons, dont une **structurelle** :
+`SolverConfig` exige un `instance_id`, donc aucune configuration ne peut exister au
+moment où le tenant est créé — « appliquer à l'inscription » est impossible par
+construction, pas seulement discutable. Et `Tenant` porte déjà `default_wr`,
+`default_timeout`, `default_strategy`, qui existent pour être fixés librement par
+l'utilisateur ; les écraser imposerait ce qui doit rester une suggestion. La fonction
+s'appelle donc `defauts_pour_secteur()` et non `resoudre_config()`, pour que son usage
+en Discussion 4 reste sans ambiguïté.
+
+#### Les valeurs de départ sont des HYPOTHÈSES, pas des conclusions
+
+Elles reposent sur des indices **structurels** concernant les secteurs industriels
+marocains, **sans aucune donnée quantifiée à l'appui** — c'est reconnu dès le départ,
+pas un risque découvert après coup. Chaque ligne porte un champ `rationale` disant sur
+quoi elle repose et ce qui ne la valide pas.
+
+| Secteur | Écart au défaut | Hypothèse |
+|---|---|---|
+| `cablage_auto` | `stability_weight` 0.3 | Flux JIS, insertions urgentes fréquentes |
+| `textile` | `stability_weight` 0.3 | Fast-fashion, réordonnancements sur commande |
+| `plasturgie` | `wr` 8 | Aléas subis, changements de série longs |
+| `sous_traitance_mecanique` | `wr` 6 | Profil intermédiaire, moins marqué |
+| `agro_alimentaire` | aucun | Profil mixte sans signal net |
+| `autre` | aucun | Défaut, aucune supposition |
+
+**À réviser dès que des données réelles existeront.** C'est précisément ce que la piste B
+rend possible.
+
+Deux garde-fous de conception : un secteur hors taxonomie lève `SecteurInconnuError` au
+lieu de dégrader silencieusement vers `autre` — masquer un défaut d'appelant le rendrait
+indétectable ; et une table vide dégrade vers les défauts actuels du projet, jamais vers
+une erreur.
+
+#### Piste B — le journal
+
+`PerturbationEvent` reste la dataclass pure de D5 **et** dispose désormais d'une
+contrepartie persistée, `PerturbationEventLog`. Les deux coexistent volontairement.
+
+**Le sens de la dépendance est strict**, et verrouillé par un test qui relit le source :
+
+```
+app.perturbation_log  ──appelle──>  scheduling.resolve_incremental
+                      ──écrit──>    perturbation_events
+```
+
+`scheduling/incremental.py` n'importe ni SQLAlchemy ni `app`, et ne doit jamais le faire
+(D9). Si ce test tombe un jour, c'est que le sens s'est inversé.
+
+**`base_resolution_id` et `reported_by` sont NON NULS**, conformément au schéma de
+conception. La tension apparente avec un futur connecteur MES n'est pas réelle : un
+événement d'origine automatisée sera attribué à un **compte de service** dédié dans
+`users`. **La future session MES n'aura donc aucune migration de schéma à faire** — c'est
+consigné ici pour qu'elle n'ait pas à redécouvrir la question.
+
+**La fonction d'analyse est la mesure, pas la boucle d'ajustement.**
+`repartition_des_causes()` dit ce qui provoque réellement les replanifications d'un
+tenant. Recalibrer le socle à partir de ce constat est une décision **distincte et
+délibérément non automatisée** : on verra d'abord à quoi ressemblent de vraies données.
+
+Deux choix qui évitent des pièges d'appelant : les cinq types sont **toujours présents**
+dans le résultat, à zéro si absents — l'absence d'un type est une information ; et un
+tenant sans historique renvoie un constat vide explicite (`sans_historique`), jamais une
+erreur ni une division par zéro silencieuse.
+
+#### Validation manuelle — le journal contredit le socle
+
+Scénario calculé à la main avant exécution, conservé comme test permanent. Un tenant
+`cablage_auto` — dont le socle parie sur les insertions avec `stability_weight` 0.3 —
+dont le journal réel donne :
+
+| Type | Compte | Part |
+|---|---|---|
+| `machine_breakdown` | 6 | **60 %** |
+| `duration_change` | 2 | 20 % |
+| `urgent_job` | 1 | **10 %** |
+| `job_cancel` | 1 | 10 % |
+| `resource_change` | 0 | 0 % |
+
+**L'hypothèse sectorielle est contredite** : 60 % d'aléas subis contre 10 %
+d'insertions. C'est exactement la boucle recherchée, et la démonstration que
+l'instrumentation sert à quelque chose.
+
+#### Ce que la Discussion 4 n'aura plus à concevoir
+
+La couche donnée est là : schéma, migrations, persistance, fonction d'analyse, tous
+testés contre une vraie base. **Il ne restera qu'à l'exposer** —
+`POST /resolutions/{id}/events` appellera `resout_et_journalise()`, un endpoint de
+statistiques appellera `repartition_des_causes()`, et la création d'une `SolverConfig`
+pourra consulter `defauts_pour_secteur()`. Les décisions d'API — quand appeler, avec
+quelle possibilité de surcharge — restent entières et lui appartiennent.
+
+
 ## Hypothèses en attente de validation par Khalid
 
 ### H8 / H9 — RÉSOLUES le 2026-09-06 → voir D12
@@ -1479,14 +1598,26 @@ Discussion 3 comme recommandé. Le TWT de référence passe de 3012.84 à 4422.6
 Reste ouvert, et qui appartient à Khalid : que faire du fait que l'ancienne valeur ait été
 présentée comme preuve de performance.
 
-### H4 — Le `schema_bdd.sql` de référence est un document de conception (2026-09-03)
+### H4 — PARTIELLEMENT CLOSE le 2026-09-12 → voir la cartographie et D15
 
-Le schéma SQL de l'annexe (§2.7) est une intention de conception, pas forcément le reflet
-exact de ce qui est — ou sera — implémenté en SQLAlchemy dans ce dépôt. Avant
-d'implémenter la migration réelle en **Discussion 4**, il faudra vérifier si les modèles
-SQLAlchemy existants pour `resolutions` définissent déjà des conventions de nommage
-différentes, et les concilier avec les 5 valeurs de type retenues ici pour
-`PerturbationEvent`.
+**Ce qui est clos.** La question posée — le `schema_bdd.sql` de référence colle-t-il au
+SQLAlchemy réel ? — a sa réponse : **non**, et les écarts ont été identifiés puis
+comblés pour les tables concernées :
+
+| Écart | Statut |
+|---|---|
+| `perturbation_events` inexistante | **Créée** (migration 0005) |
+| `resolutions` sans `parent_resolution_id` / `trigger_type` / `nb_jobs_affected` | **Ajoutées** (migration 0005) |
+| `solver_configs` sans `stability_weight` | **Ajoutée** (migration 0004) |
+| Les 5 types de `PerturbationType` et le CHECK SQL | **Alignés**, verrouillé par un test |
+
+**Ce qui reste ouvert.** Le constat de fond demeure : `schema_bdd.sql` est un document
+de **conception**, à réconcilier en continu et non une référence figée.
+`stability_weight` en est la démonstration — il est absent du schéma non par oubli, mais
+parce qu'il est né après lui, avec l'architecture incrémentale. Les tables non touchées
+par cette session (`machines`, `jobs`, `operations`, `setup_times`, `time_windows`,
+`schedule_entries`, `solution_comparisons`) n'ont **pas** été confrontées au schéma de
+référence : le même type d'écart peut s'y trouver.
 
 ### H5 — Le routage du garde-fou de repli reste à faire (2026-09-03, **signal fiabilisé le 2026-09-11**)
 
@@ -1567,7 +1698,7 @@ Composants livrés dans la Discussion 1 (un commit poussé par composant) :
 | 10 | Setups de jonction en variables (cf. D8) | `solvers/incremental_optimizer.py`, `components/schedule_merger.py` | +6 | livré |
 | 11 | Orchestrateur public `resolve_incremental` (cf. D9) | `scheduling/incremental.py` | 15 | livré |
 
-Suite complète hors tests API : **244 tests verts** (141 à la fin des 8 premiers commits,
+Suite complète hors tests API : **270 tests verts** (141 à la fin des 8 premiers commits,
 170 à la fin de la Discussion 1, 189 après le livrable 2 de la Discussion 2).
 `python -m tests.validate_example` passe toujours (TWT 3012.84), donc aucune régression sur
 le solveur initial. Les tests de

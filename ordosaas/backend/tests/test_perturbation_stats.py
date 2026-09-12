@@ -140,3 +140,89 @@ async def test_la_cause_dominante_est_deterministe_en_cas_degalite(socle):
     assert r.comptes["urgent_job"] == r.comptes["job_cancel"] == 1
     # `urgent_job` precede `job_cancel` dans TYPES_EVENEMENT.
     assert r.cause_dominante == "urgent_job"
+
+
+# ==========================================================================
+# Validation manuelle — scenario calcule a la main avant execution
+# ==========================================================================
+async def test_scenario_calcule_a_la_main_le_journal_contredit_le_secteur(socle):
+    """Scenario construit et CALCULE A LA MAIN, conserve comme test permanent.
+
+    Pratique etablie du projet (section Approche & patterns) : valider contre un cas
+    reel calcule a la main avant de clore, pas seulement par les tests unitaires.
+
+    LE SCENARIO, et son calcul prealable :
+
+        Un tenant declare le secteur `cablage_auto`. Le socle PROPOSE donc
+        stability_weight = 0.3, sur l'HYPOTHESE que les insertions (jobs urgents JIS)
+        dominent.
+
+        On journalise ensuite 10 perturbations reellement traitees :
+
+            machine_breakdown  x6      duration_change  x2
+            urgent_job         x1      job_cancel       x1
+            resource_change    x0
+
+        Repartition attendue, calculee a la main :
+
+            total = 6 + 2 + 1 + 1 + 0 = 10
+            machine_breakdown  6/10 = 60.0 %      duration_change 2/10 = 20.0 %
+            urgent_job         1/10 = 10.0 %      job_cancel      1/10 = 10.0 %
+            resource_change    0/10 =  0.0 %
+            cause dominante    machine_breakdown
+
+    CE QUE CELA DEMONTRE : l'hypothese sectorielle disait « insertions dominantes ».
+    Le journal dit 60 % d'aleas SUBIS pour 10 % d'insertions — elle est CONTREDITE.
+
+    C'est exactement la boucle voulue : le secteur est un point de depart, les logs
+    sont la verite. La session produit la mesure ; le recalibrage reste une decision
+    distincte et non automatisee.
+    """
+    fabriques = {
+        "machine_breakdown": _panne,
+        "duration_change": lambda: make_event(
+            "duration_change", timestamp=50, job_id="J1",
+            position_in_job=1, machine_id="M1", new_duration=70),
+        "urgent_job": lambda: make_event(
+            "urgent_job", timestamp=50, job_id="U",
+            operations=[Operation("U", "M1", 10, 1)], deadline=400, weight=5.0),
+        "job_cancel": lambda: make_event("job_cancel", timestamp=50, job_id="J2"),
+    }
+    attendu = {
+        "machine_breakdown": (6, 60.0), "duration_change": (2, 20.0),
+        "urgent_job": (1, 10.0), "job_cancel": (1, 10.0),
+        "resource_change": (0, 0.0),
+    }
+
+    graphe = await cree_graphe_minimal(socle, secteur="cablage_auto")
+    await socle.commit()
+
+    # L'hypothese sectorielle, avant toute donnee reelle.
+    propose = await defauts_pour_tenant(socle, graphe["tenant"])
+    assert propose["stability_weight"] == 0.3, (
+        "le scenario suppose que cablage_auto parie sur les insertions"
+    )
+
+    for type_evt, (nombre, _) in attendu.items():
+        for _ in range(nombre):
+            await journalise_evenement(
+                socle, event=fabriques[type_evt](),
+                tenant_id=graphe["tenant"].id,
+                base_resolution_id=graphe["resolution"].id,
+                reported_by=graphe["user"].id,
+            )
+    await socle.commit()
+    socle.expunge_all()
+
+    r = await repartition_des_causes(socle, graphe["tenant"].id)
+
+    assert r.total == 10
+    for type_evt, (nombre, pourcentage) in attendu.items():
+        assert r.comptes[type_evt] == nombre, type_evt
+        assert r.pourcentages[type_evt] == pourcentage, type_evt
+    assert r.cause_dominante == "machine_breakdown"
+
+    # Le constat qui justifie toute l'instrumentation : la donnee contredit le socle.
+    assert r.pourcentages["machine_breakdown"] > r.pourcentages["urgent_job"] * 5, (
+        "les aleas subis dominent largement, contre l'hypothese du secteur"
+    )
