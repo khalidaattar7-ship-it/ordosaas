@@ -6,6 +6,7 @@ from app.models.instance import ProblemInstance
 from app.models.job import Job
 from app.models.machine import Machine
 from app.models.operation import Operation
+from app.models.perturbation_event import PerturbationEventLog
 from app.models.resolution import Resolution
 from app.models.sector_default import SectorDefault
 from app.models.schedule_entry import ScheduleEntry
@@ -27,6 +28,7 @@ __all__ = [
     "SetupTime",
     "SolverConfig",
     "SectorDefault",
+    "PerturbationEventLog",
     "Resolution",
     "TimeWindow",
     "ScheduleEntry",

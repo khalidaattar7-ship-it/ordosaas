@@ -19,6 +19,10 @@ class Resolution(TimestampedModel):
         CheckConstraint("method_used IN ('cpsat','lns','atcs') OR method_used IS NULL", name="ck_resolution_method"),
         CheckConstraint("progress_pct BETWEEN 0 AND 100", name="ck_resolution_progress"),
         CheckConstraint("current_phase BETWEEN 0 AND 4", name="ck_resolution_phase"),
+        CheckConstraint(
+            "trigger_type IN ('manual', 'incremental', 'scheduled')",
+            name="ck_resolution_trigger_type",
+        ),
     )
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(
@@ -51,5 +55,14 @@ class Resolution(TimestampedModel):
     progress_detail: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_detail: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    #: Les trois colonnes que le schema de conception prevoyait et que le modele
+    #: n'avait jamais recues — ecart releve par la cartographie du 2026-09-12.
+    parent_resolution_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("resolutions.id"), nullable=True
+    )
+    trigger_type: Mapped[str] = mapped_column(
+        String(20), default="manual", server_default="manual", nullable=False
+    )
+    nb_jobs_affected: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     instance = relationship("ProblemInstance", back_populates="resolutions")
