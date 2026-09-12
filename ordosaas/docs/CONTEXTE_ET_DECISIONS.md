@@ -1389,6 +1389,87 @@ distendue — et non le coût intrinsèque de la marge. Tant qu'aucun mécanisme
 explicite n'existe, **on ne dispose d'aucune mesure du coût intrinsèque de la marge**.
 
 
+### Cartographie de la couche BDD réelle (2026-09-12) — clôt l'essentiel de H4
+
+Établie par lecture du code, préalable à la persistance des événements et au secteur.
+C'est la vérification que H4 réclamait depuis la Discussion 1.
+
+#### 1. Migrations : Alembic est en place, et ce n'est PAS la première
+
+`alembic.ini` présent, et **trois migrations existent déjà** :
+
+| Migration | Objet |
+|---|---|
+| `0001_initial_schema.py` | Schéma initial |
+| `0002_audit_logs.py` | Table `audit_logs` |
+| `0003_fix_method_used_constraint.py` | Correction de contrainte sur `resolutions` |
+
+Toute nouvelle migration s'inscrit donc dans une chaîne existante, elle ne l'inaugure pas.
+
+#### 2. `Tenant` — existe, sans secteur, mais porte déjà des défauts
+
+Champs réels : `name`, `slug`, `default_wr`, `default_timeout`, `default_strategy`,
+`max_jobs_per_instance`, `max_machines_per_instance`, `max_instances_stored`, `timezone`,
+`is_active` (+ `id`, `created_at`, `updated_at` hérités).
+
+**Aucun champ `sector`.** En revanche le modèle porte **déjà des valeurs par défaut au
+niveau tenant** (`default_wr`, `default_timeout`, `default_strategy`), ce qui donne un
+point d'ancrage naturel à un socle sectoriel.
+
+Convention du projet, à respecter : les énumérations sont des `String(n)` assortis d'un
+`CheckConstraint`, jamais un type ENUM natif ni une table de référence — voir
+`default_strategy`, `Resolution.status`, `Resolution.method_used`.
+
+#### 3. `SolverConfig` — il manque le levier que le secteur veut régler
+
+Table **par instance** : `tenant_id` + `instance_id` + `created_by` obligatoires, puis
+`wr`, `strategy`, `cpsat_timeout`, `max_jobs_per_window`, `min_jobs_per_window`,
+`max_recursion_depth`, `max_iterations`, `epsilon`, `junction_radius`, `k1`, `k2`.
+
+**`stability_weight` n'existe pas.** C'est pourtant le levier que les défauts sectoriels
+visent en premier (`IncrementalOptimizer(stability_weight=...)`, défaut 0.1). Sans
+colonne, un défaut sectoriel n'a nulle part où atterrir.
+
+**Conséquence structurelle importante** : `SolverConfig` exige un `instance_id`. Une
+configuration ne peut donc pas exister au moment où le tenant est créé — il n'y a pas
+encore d'instance. « Appliquer les défauts sectoriels à la création du tenant » est donc
+**impossible par construction**, pas seulement déconseillé.
+
+#### 4. `Resolution` — trois colonnes de §2.7 absentes
+
+Le modèle réel ne porte **ni** `parent_resolution_id`, **ni** `trigger_type`, **ni**
+`nb_jobs_affected`, que le schéma de conception (§2.7 de
+`architecture-incremental.md`) prévoyait. Divergence réelle, à combler si l'on veut
+relier un événement à la résolution qu'il déclenche.
+
+#### 5. `perturbation_events` — la table n'existe pas du tout
+
+Aucune trace dans `app/models/`. `PerturbationEvent` reste ce que D5 avait décidé : une
+**dataclass Python pure** (`scheduling/models/perturbation.py`), jamais persistée.
+
+#### 6. Le cœur scheduling est SANS dépendance base, et doit le rester
+
+`scheduling/incremental.py` n'importe que des modules `scheduling.*` — aucun SQLAlchemy,
+aucune session. C'est une propriété délibérée (cf. D9) : `resolve_incremental` est
+testable et exécutable sans base. Toute persistance doit donc vivre dans une **couche
+de service distincte**, qui appelle l'orchestrateur puis écrit — jamais l'inverse.
+
+#### 7. Tester la persistance est possible sans PostgreSQL
+
+`app/models/_types.py` fournit des types portables (`UUID`, `JSONB`) qui compilent sur
+PostgreSQL **et** SQLite, ce dernier étant explicitement documenté comme repli local.
+`aiosqlite` est installé. Les tests de persistance peuvent donc relire réellement la
+base, sans dépendre du PostgreSQL absent en local — lequel explique les échecs
+préexistants de `test_instances.py`, `test_auth.py` et `test_resolutions.py`.
+
+#### Statut de H4
+
+La question posée par H4 — « le `schema_bdd.sql` de référence colle-t-il au SQLAlchemy
+réel ? » — a maintenant sa réponse : **non, et les écarts sont identifiés** (points 3, 4
+et 5 ci-dessus). H4 cesse d'être une incertitude pour devenir une liste de travaux
+précise.
+
+
 ## Hypothèses en attente de validation par Khalid
 
 ### H8 / H9 — RÉSOLUES le 2026-09-06 → voir D12
