@@ -2097,6 +2097,112 @@ elle est **ciblée sur les trois défauts corrigés**. Une couverture de base du
 `_compute_junction_costs`, `_build_applied`, le critère de convergence — reste un chantier
 identifié et **volontairement différé**, à traiter en priorité (voir la note de tête).
 
+### Audit — les 7 tables jamais confrontées à `schema_bdd.sql` (2026-09-17)
+
+Clôt la partie de H4 laissée ouverte par la cartographie du 2026-09-12 : `machines`,
+`jobs`, `operations`, `setup_times`, `time_windows`, `schedule_entries`,
+`solution_comparisons`. Audit à trois sources — le schéma de conception, la migration
+Alembic `0001_initial_schema.py` (qui fait foi sur ce que la base contient vraiment) et
+les modèles SQLAlchemy.
+
+#### Fait préalable : le document de référence n'était pas dans le dépôt
+
+`git log --all --diff-filter=ADM -- "*.sql"` ne renvoie **rien** : aucun fichier `.sql`
+n'a jamais existé dans l'histoire du dépôt, sur aucune branche. `schema_bdd.sql` vivait
+dans `~/Desktop/PFA/files/`, hors versionnement, alors que `PROMPT_DISCUSSION_1.md` et ce
+fichier le citent comme référence.
+
+**C'est la cause mécanique de la dérive que H4 décrit.** Un document de conception non
+versionné avec le code ne peut pas être « réconcilié en continu » : rien ne signale qu'il
+a divergé, et une session qui le cherche ne le trouve pas. Il est désormais versionné dans
+`docs/schema_bdd.sql`.
+
+Son identité a été vérifiée plutôt que supposée : `solver_configs` y est bien **sans**
+`stability_weight` et `perturbation_events` n'y existe pas — les deux écarts consignés en
+D15.
+
+#### Colonnes : aucun écart
+
+Les 7 tables ont **exactement** les mêmes colonnes, types et longueurs dans les trois
+sources. Le cas `stability_weight` — une colonne née après le schéma — ne se reproduit
+nulle part ici.
+
+#### Catégorie A — 9 index manquants
+
+La migration crée **13** index ; le schéma en spécifie **29**. Pour les 7 tables auditées :
+
+| Table | Schéma | Migration | Manquants |
+|---|---|---|---|
+| `machines` | tenant_id | ✓ (nom différent) | — |
+| `jobs` | instance_id, tenant_id | instance_id | **tenant_id** |
+| `operations` | job_id, machine_id, tenant_id | job_id | **machine_id, tenant_id** |
+| `setup_times` | instance_id, from_job, to_job, machine | instance_id | **from_job_id, to_job_id, machine_id** |
+| `time_windows` | resolution_id | ✓ | — |
+| `schedule_entries` | resolution_id, job_id, machine_id, tenant_id, gantt | resolution_id, machine_id | **job_id, tenant_id, composite Gantt** |
+| `solution_comparisons` | tenant_id | ✓ (nom différent) | — |
+
+Tous portent sur des clés étrangères ou sur `tenant_id`, colonne de filtrage de toute
+requête multi-tenant. Le composite `(resolution_id, machine_id, start_time)` est
+explicitement justifié dans le schéma pour la requête Gantt. **Aucun résultat de requête
+ne change** : c'est ce qui les rend sûrs à appliquer.
+
+#### Catégorie B — `time_windows.method_used`, et c'est le motif récurrent
+
+> **Occurrence du motif déjà nommé dans « Approche & patterns »** : une contrainte prévue
+> sur le papier que la base n'applique pas. Même famille que H8/H9, D16/D17 et H10a/b/c —
+> traitée avec la même urgence, pas comme un écart de documentation.
+
+Trois constats empilés :
+
+1. Le schéma déclare `CHECK (method_used IN ('cpsat','atcs', NULL))`. En SQL,
+   `'zzz' IN ('cpsat','atcs',NULL)` vaut **NULL**, jamais `FALSE` — et un `CHECK` qui vaut
+   NULL **passe**. La contrainte du document accepte donc *n'importe quelle* valeur : elle
+   est inopérante dans sa propre formulation.
+2. La migration 0001 ne porte **aucun** `CHECK` sur cette colonne, et le modèle
+   SQLAlchemy non plus. La colonne est totalement libre en base.
+3. Le projet **connaissait déjà ce piège** sans l'avoir généralisé :
+   `solution_comparisons.winner` est écrit correctement dans la migration
+   (`IN ('A','B') OR winner IS NULL`) alors que le schéma a la forme fautive, et la
+   migration **0003** a réécrit `resolutions.method_used` sous la forme correcte — parce
+   que, dit son docstring, le solveur y stockait historiquement `'optimal'`/`'feasible'`.
+   `time_windows.method_used` est le seul endroit où la leçon n'a jamais été appliquée.
+
+**La liste du schéma est périmée, pas le code.** `service.py:191` écrit
+`method_used=schedule.method_used`, dont les valeurs réelles sont `cpsat`, `lns` et
+`incremental`. Appliquer littéralement `IN ('cpsat','atcs')` **rejetterait des données
+légitimes** dès la première résolution LNS aboutie — exactement la situation de
+`stability_weight` : `lns` et `incremental` sont nés après la rédaction du schéma.
+
+Retenu : `CHECK (method_used IN ('cpsat','lns','atcs','incremental') OR method_used IS
+NULL)`, forme correcte de 0003, verrouillée par un test sur le modèle des 5
+`PerturbationType` de D15.
+
+#### Catégorie C — 3 non-écarts
+
+- **`time_windows.recursion_depth`** et **`schedule_entries.setup_duration`** : `DEFAULT 0`
+  nullable au schéma, `NOT NULL DEFAULT 0` en migration et modèle. L'implémentation est
+  **plus stricte** que la conception — jamais un défaut.
+- **`solution_comparisons.winner`** : c'est le **schéma qui est fautif**, avec le même
+  piège `IN (..., NULL)`. Le code est correct depuis 0001. Rien à changer côté base.
+- **Noms d'index** : `idx_machines_tenant` contre `idx_machines_tenant_id`. Convention de
+  nommage, pas écart de structure. Les nouveaux index suivent la convention **de la
+  migration**, pour rester cohérents avec les 13 existants.
+
+#### Hors périmètre, signalé sans être corrigé
+
+Deux bombes à retardement sur `resolutions`, table pourtant déclarée réconciliée en D15 :
+`ck_resolution_method` n'autorise que `('cpsat','lns','atcs')` et `method_used` est un
+`String(10)`, alors que `resolution.method_used = schedule.method_used`
+(`service.py:226`) recevra **`"incremental"`** — 11 caractères, valeur non listée — dès
+que la Discussion 4 exposera `resolve_incremental`. Non corrigé ici : hors des 7 tables de
+cet audit.
+
+Autre constat sans rapport avec les tables, relevé en localisant le schéma :
+`exemple_jobs.csv` du dossier de sujet **diffère** de `tests/fixtures/jobs.csv`
+(J1 : deadline 120 / poids 8.5 contre 141 / 7.67), et l'`exemple_expected_output.json`
+fourni annonce **TWT 878.0, statut OPTIMAL, 154 setups**. L'instance de référence du dépôt
+n'est donc pas celle du sujet. Cela mérite une session à soi.
+
 
 ## Hypothèses en attente de validation par Khalid
 
