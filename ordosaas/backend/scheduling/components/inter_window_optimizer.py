@@ -99,9 +99,20 @@ class InterWindowOptimizer:
             return []
 
         micro_job_ids = {j.id for j in micro_jobs}
+        # Filtrage par OR, et non AND (cf. H10a). Le contexte gauche designe comme
+        # dernier job de la machine une entree prise dans `left.window.jobs[:-radius]`
+        # — donc DELIBEREMENT hors de `micro_jobs`. Exiger que les DEUX extremites
+        # appartiennent a `micro_jobs` eliminait exactement les paires
+        # (job precedent -> micro job) dont le contexte gauche a besoin : la
+        # micro-instance lisait alors ces setups comme nuls et ne les payait jamais.
+        #
+        # C'est deja la convention de `lns_recursive._create_window_instance`. Les
+        # paires (micro job -> job exterieur) ainsi conservees ne sont jamais
+        # interrogees par le modele, et `_borne_horizon` n'itere que sur les jobs de
+        # l'instance : elles n'elargissent aucun domaine.
         filtered_setups = {
             k: v for k, v in instance.setup_times.items()
-            if k[0] in micro_job_ids and k[1] in micro_job_ids
+            if k[0] in micro_job_ids or k[1] in micro_job_ids
         }
         micro_instance = ProblemInstance(
             jobs=micro_jobs, machines=instance.machines,
