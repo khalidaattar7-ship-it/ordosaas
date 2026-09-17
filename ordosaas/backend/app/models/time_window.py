@@ -19,6 +19,18 @@ class TimeWindow(BaseModel):
             "status IN ('pending','running','optimal','feasible','atcs_fallback','error')",
             name="ck_window_status",
         ),
+        # `method_used` n'etait contraint NULLE PART : ni ici, ni dans la migration.
+        # `schema_bdd.sql` le declarait, mais sous la forme `IN (..., NULL)` qui ne
+        # rejette jamais rien — un CHECK valant NULL passe. Meme motif que H8/H9 :
+        # une contrainte prevue que la base n'applique pas. Voir migration 0007.
+        #
+        # La liste du schema ('cpsat','atcs') est perimee : `lns` et `incremental`
+        # sont nes apres lui, et le service les ecrit reellement.
+        CheckConstraint(
+            "method_used IN ('cpsat','lns','atcs','incremental') "
+            "OR method_used IS NULL",
+            name="ck_window_method",
+        ),
         Index("idx_windows_resolution", "resolution_id"),
     )
 
