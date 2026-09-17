@@ -155,12 +155,71 @@ class InterWindowOptimizer:
         result = self.cpsat_solver.solve_with_context(micro_instance, left_context, None)
         if result is None:
             return []
+        if self._deborde_a_droite(result, window_results, junction["index"],
+                                  micro_job_ids):
+            return []
         return [{
             "index": junction["index"],
             "micro_schedule": result,
             "left_job_ids": {j.id for j in left_jobs},
             "right_job_ids": {j.id for j in right_jobs},
         }]
+
+    def _deborde_a_droite(self, micro_schedule, window_results, index,
+                          micro_job_ids) -> bool:
+        """La jonction empiete-t-elle sur les fenetres POSTERIEURES ? (cf. H10c)
+
+        GARDE CONSERVATRICE, et assumee comme telle. `solve_with_context` accepte un
+        `right_context` mais ne le lit JAMAIS — le mot n'apparait qu'a sa signature.
+        La frontiere droite n'est donc modelisee sur aucun chemin LNS, et rien
+        n'empeche le micro-planning de deborder sur ce qui suit.
+
+        Dans le LNS sequentiel cela reste sans consequence : les fenetres s'enchainent
+        par le contexte GAUCHE, chacune repartant apres le resultat de la precedente.
+        `InterWindowOptimizer` est le seul chemin qui reoptimise une tranche AU MILIEU,
+        avec de l'intact des deux cotes — c'est la, et seulement la, que l'absence
+        devient une violation du NoOverlap.
+
+        Faute de pouvoir contraindre le modele, on REJETTE la jonction qui deborde.
+        C'est plus conservateur que l'optimum — on perd des jonctions par ailleurs
+        ameliorables — mais jamais invalide, sur le meme principe que le Constat A de
+        la Discussion 2. Honorer `right_context` dans `solve_with_context`, sur le
+        modele des obstacles fixes de D10, est l'amelioration structurelle
+        correspondante ; elle touche du code partage avec le LNS recursif et releve
+        d'une session dediee.
+        """
+        occupations = {}
+        for wr in window_results[index + 2:]:
+            for entry in wr.schedule.entries:
+                if entry.job_id in micro_job_ids:
+                    continue
+                debut = entry.start_time
+                if entry.setup and entry.setup.duration > 0:
+                    debut = min(debut, entry.setup.start_time)
+                actuel = occupations.get(entry.machine_id)
+                if actuel is None or debut < actuel:
+                    occupations[entry.machine_id] = debut
+        if not occupations:
+            return False
+
+        for entry in micro_schedule.entries:
+            borne = occupations.get(entry.machine_id)
+            if borne is None:
+                continue
+            if entry.end_time > borne:
+                logger.info(
+                    "Jonction %d rejetee : %s finit a %d, au-dela de %d sur %s",
+                    index, entry.job_id, entry.end_time, borne, entry.machine_id,
+                )
+                return True
+            if entry.setup and entry.setup.duration > 0 and entry.setup.end_time > borne:
+                logger.info(
+                    "Jonction %d rejetee : le setup de %s finit a %d, au-dela de %d "
+                    "sur %s", index, entry.job_id, entry.setup.end_time, borne,
+                    entry.machine_id,
+                )
+                return True
+        return False
 
     def _assemble_schedule(self, window_results: list, instance: ProblemInstance) -> Schedule:
         final = Schedule(method_used="lns")

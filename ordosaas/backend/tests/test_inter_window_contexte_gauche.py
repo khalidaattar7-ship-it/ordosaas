@@ -2,8 +2,9 @@
 
 `_optimize_junction` reoptimise un voisinage de jonction : `micro_jobs` ne contient que
 les `junction_radius` derniers jobs de la fenetre gauche et les premiers de la droite.
-Tout ce qui precede doit etre represente par un `BoundaryContext` gauche. Deux defauts
-distincts faisaient perdre cette representation :
+Tout ce qui precede doit etre represente par un `BoundaryContext` gauche, et tout ce qui
+suit par une borne droite. TROIS defauts distincts, tous dans la meme methode, faisaient
+perdre ces representations :
 
   H10a — le filtrage des setups de la micro-instance utilisait un `and`, qui elimine
          exactement les paires (job precedent -> micro job) dont le contexte gauche a
@@ -16,8 +17,15 @@ distincts faisaient perdre cette representation :
          depuis t=0 en ignorant les fenetres anterieures : CHEVAUCHEMENT, et la
          jonction fautive etait ACCEPTEE parce qu'elle ameliore le TWT.
 
+  H10c — `solve_with_context` accepte un `right_context` mais ne le lit JAMAIS : le mot
+         n'apparait qu'a sa signature. Rien ne bornait donc la jonction a droite, et le
+         micro-planning pouvait deborder sur les fenetres POSTERIEURES. Corrige ici par
+         une garde conservatrice qui REJETTE la jonction debordante ; honorer
+         `right_context` dans le solveur partage est l'amelioration structurelle
+         correspondante, differee.
+
 Ce module est aussi la premiere couverture directe de ce composant : il n'en avait
-aucune, et c'est ce vide autant que la logique qui a laisse passer les deux defauts.
+aucune, et c'est ce vide autant que la logique qui a laisse passer les trois defauts.
 """
 import pytest
 
@@ -221,3 +229,75 @@ def test_aucune_transition_impayee_dans_le_planning_reassemble(trois_fenetres):
         optim._build_applied(fenetres, resultat), instance
     )
     assert transitions_non_payees(final, instance) == []
+
+
+# ==========================================================================
+# H10c — la jonction ne doit pas deborder sur les fenetres POSTERIEURES
+# ==========================================================================
+@pytest.fixture
+def trois_fenetres_setups_lourds():
+    """W0, W1, W2 sur M1. Setups lourds entre les micro jobs de la jonction W0/W1.
+
+    Le voisinage reoptimise ne tient alors plus dans l'espace [0,40] qu'il occupait,
+    et deborde sur W2 [40,60] — que rien ne protege, `solve_with_context` ignorant
+    totalement son parametre `right_context`.
+    """
+    groupes = [["A1", "A2"], ["B1", "B2"], ["C1", "C2"]]
+    jobs = {
+        j: Job(id=j, operations=[_op(j)], deadline=200, weight=1.0)
+        for g in groupes for j in g
+    }
+    micro = ["A1", "A2", "B1", "B2"]
+    setups = {
+        (a, b, "M1"): 15 for a in micro for b in micro if a != b
+    }
+    instance = ProblemInstance(
+        jobs=list(jobs.values()), machines=["M1"], setup_times=setups, wr=2,
+    )
+    fenetres = [
+        _window_result(i, g, jobs, [20 * i, 20 * i + DUREE])
+        for i, g in enumerate(groupes)
+    ]
+    return instance, fenetres
+
+
+def test_une_jonction_qui_deborde_sur_la_suite_est_rejetee(
+    trois_fenetres_setups_lourds
+):
+    """Garde conservatrice : mieux vaut perdre la jonction qu'un planning valide."""
+    instance, fenetres = trois_fenetres_setups_lourds
+    optim = InterWindowOptimizer(cpsat_solver=_solveur(), junction_radius=10)
+    resultat = optim._optimize_junction(
+        {"index": 0, "cost": 1.0, "left": fenetres[0], "right": fenetres[1]},
+        fenetres, instance,
+    )
+    assert resultat == [], (
+        "la jonction deborde sur W2 et aurait du etre rejetee"
+    )
+
+
+def test_le_planning_reste_valide_quand_la_jonction_deborde(
+    trois_fenetres_setups_lourds
+):
+    """Sans la garde, le reassemblage produit des chevauchements sur M1."""
+    instance, fenetres = trois_fenetres_setups_lourds
+    optim = InterWindowOptimizer(cpsat_solver=_solveur(), junction_radius=10)
+    resultat = optim._optimize_junction(
+        {"index": 0, "cost": 1.0, "left": fenetres[0], "right": fenetres[1]},
+        fenetres, instance,
+    )
+    final = optim._assemble_schedule(
+        optim._build_applied(fenetres, resultat), instance
+    )
+    assert validate_schedule(final, instance=instance) == []
+
+
+def test_une_jonction_qui_ne_deborde_pas_reste_acceptee(trois_fenetres):
+    """La garde ne doit pas rejeter les jonctions legitimes."""
+    instance, fenetres = trois_fenetres
+    optim = InterWindowOptimizer(cpsat_solver=_solveur(), junction_radius=10)
+    resultat = optim._optimize_junction(
+        {"index": 1, "cost": 1.0, "left": fenetres[1], "right": fenetres[2]},
+        fenetres, instance,
+    )
+    assert resultat, "une jonction qui ne deborde pas a ete rejetee a tort"
