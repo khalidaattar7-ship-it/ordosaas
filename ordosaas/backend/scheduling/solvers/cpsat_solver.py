@@ -110,16 +110,21 @@ class CPSATSolver(BaseSolver):
         # voir : il ne majore que les paires INTERNES a l'instance, or le dernier job
         # fige n'en fait pas partie. Sans ce terme, un setup entrant plus long que le
         # travail de la fenetre rend le modele infaisable et `solve_with_context`
-        # renvoie None — une fenetre LNS perdue en silence. Une machine ne paie qu'un
-        # seul setup de contexte gauche, on majore donc par le plus long d'entre eux.
-        setups_gauche = [
-            instance.get_setup(last_job_id, job.id, machine_id)
+        # renvoie None — une fenetre LNS perdue en silence.
+        #
+        # Une machine ne paie qu'UN setup de contexte gauche : on majore donc machine
+        # par machine par le plus long possible. Mais on SOMME ensuite sur les
+        # machines, car la Cumulative WR peut contraindre ces setups a se serialiser
+        # au lieu de tourner en parallele.
+        horizon += sum(
+            max(
+                (instance.get_setup(last_job_id, job.id, machine_id)
+                 for job in jobs
+                 if any(op.machine_id == machine_id for op in job.operations)),
+                default=0,
+            )
             for machine_id, last_job_id in left_context.last_job_per_machine.items()
-            for job in jobs
-            if any(op.machine_id == machine_id for op in job.operations)
-        ]
-        if setups_gauche:
-            horizon += max(setups_gauche)
+        )
 
         # Interval variables per operation
         op_vars = {}
@@ -238,6 +243,7 @@ class CPSATSolver(BaseSolver):
         # `charge + setup(dernier_fige, premier)`. Aucun job ne peut donc demarrer
         # avant que la machine soit reellement liberee. La borne `s >= charge` de
         # la charge machine, elle, reste INCONDITIONNELLE pour tous les jobs.
+        setups_gauche = {}
         for machine_id, last_job_id in left_context.last_job_per_machine.items():
             for to_job in jobs:
                 if not any(op.machine_id == machine_id for op in to_job.operations):
@@ -248,13 +254,29 @@ class CPSATSolver(BaseSolver):
                 load = left_context.machine_loads.get(machine_id, 0)
                 s_to, _, _, _, _ = op_vars[(to_job.id, machine_id)]
                 b_premier = litteral_depot.get((to_job.id, machine_id))
+
+                # Le setup est un INTERVALLE, pas une simple inegalite. Il occupe
+                # reellement la machine et consomme un technicien WR : il doit donc
+                # entrer dans le NoOverlap machine et dans la Cumulative, comme tout
+                # autre setup. `ss >= load` et `se <= s_to` impliquent au passage
+                # `s_to >= load + s_dur`, l'ancienne inegalite est donc subsumee.
+                ss = model.NewIntVar(0, horizon, f"lss_{to_job.id}_{machine_id}")
+                se = model.NewIntVar(0, horizon, f"lse_{to_job.id}_{machine_id}")
                 if b_premier is None:
                     # Machine a moins de deux jobs : pas de circuit, donc pas
-                    # d'arbitrage. Ce job EST le premier, la contrainte
-                    # inconditionnelle y est deja exacte.
-                    model.Add(s_to >= load + s_dur)
+                    # d'arbitrage. Ce job EST le premier, le setup est certain.
+                    siv = model.NewIntervalVar(
+                        ss, s_dur, se, f"lsiv_{to_job.id}_{machine_id}"
+                    )
+                    model.Add(ss >= load)
+                    model.Add(se <= s_to)
                 else:
-                    model.Add(s_to >= load + s_dur).OnlyEnforceIf(b_premier)
+                    siv = model.NewOptionalIntervalVar(
+                        ss, s_dur, se, b_premier, f"lsiv_{to_job.id}_{machine_id}"
+                    )
+                    model.Add(ss >= load).OnlyEnforceIf(b_premier)
+                    model.Add(se <= s_to).OnlyEnforceIf(b_premier)
+                setups_gauche[(to_job.id, machine_id)] = (ss, se, siv, b_premier, s_dur)
 
         # NoOverlap per machine (operations + setups)
         for machine_id in machines:
@@ -266,6 +288,9 @@ class CPSATSolver(BaseSolver):
             for (fi, ti, km), (ss, se, siv, b, _) in setup_vars.items():
                 if km == machine_id:
                     intervals.append(siv)
+            for (ti, km), (ss, se, siv, b, _) in setups_gauche.items():
+                if km == machine_id:
+                    intervals.append(siv)
             if intervals:
                 model.AddNoOverlap(intervals)
 
@@ -273,6 +298,9 @@ class CPSATSolver(BaseSolver):
         all_setup_intervals = []
         all_setup_demands = []
         for (fi, ti, m), (ss, se, siv, b, dur) in setup_vars.items():
+            all_setup_intervals.append(siv)
+            all_setup_demands.append(1)
+        for (ti, m), (ss, se, siv, b, dur) in setups_gauche.items():
             all_setup_intervals.append(siv)
             all_setup_demands.append(1)
         for active_setup in left_context.active_setups:
@@ -357,14 +385,15 @@ class CPSATSolver(BaseSolver):
                     b_premier = litteral_depot.get((job.id, op.machine_id))
                     est_premier = b_premier is None or solver.Value(b_premier) == 1
                     last_job = left_context.last_job_per_machine.get(op.machine_id)
-                    if last_job and est_premier:
-                        s_dur = instance.get_setup(last_job, job.id, op.machine_id)
-                        if s_dur > 0:
-                            load = left_context.machine_loads.get(op.machine_id, 0)
-                            setup_entry = SetupEntry(
-                                from_job_id=last_job, start_time=load,
-                                end_time=load + s_dur, duration=s_dur,
-                            )
+                    gauche = setups_gauche.get((job.id, op.machine_id))
+                    if last_job and est_premier and gauche is not None:
+                        # Les dates sortent du MODELE, jamais d'un calcul apres coup
+                        # a partir de la charge : regle posee en D8.
+                        ss, se, _siv, _b, s_dur = gauche
+                        setup_entry = SetupEntry(
+                            from_job_id=last_job, start_time=solver.Value(ss),
+                            end_time=solver.Value(se), duration=s_dur,
+                        )
 
                 schedule.add_entry(ScheduleEntry(
                     job_id=job.id, machine_id=op.machine_id, position_in_job=op.position,

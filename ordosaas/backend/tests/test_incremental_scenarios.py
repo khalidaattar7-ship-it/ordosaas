@@ -87,7 +87,22 @@ def test_scenario_panne_machine(example_schedule, example_instance, t_now):
                        start_time=t_now + 5, end_time=t_now + 35)
     zone, result, merged, report = _replanifie(event, example_schedule, example_instance)
 
-    _verifie_les_invariants(zone, merged, report, example_instance, max_ratio=0.75)
+    # Seuil porte de 0.75 a 0.90 le 2026-09-17, en meme temps que la reservation du
+    # setup de contexte gauche (D17). Mesure sur ce scenario exact :
+    #
+    #                    | avant | apres
+    #   jobs replanifies |  5/7  |  6/7
+    #   TWT fusionne     | 4514.56 | 4560.58  (+1.02 %)
+    #   violations       |   0   |   0
+    #
+    # Le setup de contexte gauche occupe desormais reellement la machine et un
+    # technicien WR, au lieu d'etre une inegalite sans reservation : il deplace donc
+    # un job de plus. Ce n'est pas une degradation de la cascade mais le cout, paye,
+    # d'un temps qui etait consomme sans etre reserve. La zone elle-meme est
+    # inchangee (6 jobs), et `nb_jobs_affected <= zone.nb_impacted_jobs` reste
+    # verifie separement — c'est l'invariant fort, celui-ci n'est qu'un garde-fou
+    # de proportionnalite.
+    _verifie_les_invariants(zone, merged, report, example_instance, max_ratio=0.90)
 
     # La zone est bien limitee aux operations de cette machine et a leur cascade.
     assert machine in zone.machines_involved

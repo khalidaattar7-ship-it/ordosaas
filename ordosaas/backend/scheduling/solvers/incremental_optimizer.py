@@ -103,16 +103,16 @@ class IncrementalOptimizer:
         setup_vars, litteraux_depot = self._add_setups(
             model, sub_instance, op_vars, t_now, horizon
         )
-        self._add_left_boundary(
-            model, contexts.left, sub_instance, op_vars, litteraux_depot
+        setups_gauche = self._add_left_boundary(
+            model, contexts.left, sub_instance, op_vars, litteraux_depot, horizon
         )
         junction_vars = self._add_junction_setups(
             model, sub_instance, op_vars, cibles, t_now, horizon
         )
         self._add_no_overlap(model, zone, sub_instance, op_vars, setup_vars, obstacles,
-                             junction_vars)
+                             junction_vars, setups_gauche)
         self._add_cumulative_wr(model, zone, sub_instance, contexts.left, setup_vars,
-                                horizon, junction_vars)
+                                horizon, junction_vars, setups_gauche)
         tardiness_vars, completion_vars = self._add_tardiness(
             model, sub_instance, op_vars, horizon
         )
@@ -138,7 +138,7 @@ class IncrementalOptimizer:
 
         schedule = self._build_schedule(
             solver, zone, sub_instance, op_vars, setup_vars, contexts.left,
-            tardiness_vars, completion_vars, status,
+            tardiness_vars, completion_vars, status, setups_gauche,
         )
         junction_setups = self._collect_junction_setups(solver, junction_vars)
         return WindowResult(
@@ -238,13 +238,17 @@ class IncrementalOptimizer:
         # Le setup du contexte gauche echappe a la majoration ci-dessous, qui ne
         # couvre que les paires INTERNES a la sous-instance : le dernier job fige
         # n'en fait pas partie. Meme raison que cote CPSATSolver.
-        setups_gauche = [
-            sub_instance.get_setup(dernier, job.id, machine_id)
+        # Un setup au plus par machine, mais somme sur les machines : la Cumulative
+        # WR peut les contraindre a se serialiser au lieu de tourner en parallele.
+        base += sum(
+            max(
+                (sub_instance.get_setup(dernier, job.id, machine_id)
+                 for job in sub_instance.jobs
+                 if any(op.machine_id == machine_id for op in job.operations)),
+                default=0,
+            )
             for machine_id, dernier in contexts.left.last_job_per_machine.items()
-            for job in sub_instance.jobs
-            if any(op.machine_id == machine_id for op in job.operations)
-        ]
-        base += max(setups_gauche, default=0)
+        )
         # Majoration des setups resserree, comme cote CPSATSolver (cf. D12) : une
         # operation n'a qu'UN setup entrant, on majore donc chaque entree par le plus
         # long setup possible vers elle plutot que de sommer toutes les paires.
@@ -300,7 +304,8 @@ class IncrementalOptimizer:
                 model.Add(s_first >= fin_figee)
 
     @staticmethod
-    def _add_left_boundary(model, left, sub_instance, op_vars, litteraux_depot) -> None:
+    def _add_left_boundary(model, left, sub_instance, op_vars, litteraux_depot,
+                           horizon) -> dict:
         """Contexte gauche EXACT : chaque machine n'est libre qu'a sa charge figee.
 
         La borne de CHARGE machine (`s >= charge`) est INCONDITIONNELLE : la machine
@@ -319,7 +324,8 @@ class IncrementalOptimizer:
         Meme convention que `CPSATSolver.solve_with_context`, corrige au meme moment :
         les deux modeles ne doivent pas diverger sur ce point.
         """
-        for (job_id, _), (s, _, _, op) in op_vars.items():
+        setups_gauche = {}
+        for (job_id, position), (s, _, _, op) in op_vars.items():
             charge = left.machine_loads.get(op.machine_id, 0)
             model.Add(s >= charge)
             dernier = left.last_job_per_machine.get(op.machine_id)
@@ -329,12 +335,30 @@ class IncrementalOptimizer:
             if s_dur <= 0:
                 continue
             b_premier = litteraux_depot.get((job_id, op.machine_id))
+
+            # Le setup est un INTERVALLE, pas une simple inegalite : il occupe la
+            # machine et consomme un technicien WR. `ss >= charge` et `se <= s`
+            # impliquent `s >= charge + s_dur`, l'ancienne inegalite est subsumee.
+            ss = model.NewIntVar(0, horizon, f"lss_{job_id}_{op.machine_id}")
+            se = model.NewIntVar(0, horizon, f"lse_{job_id}_{op.machine_id}")
             if b_premier is None:
                 # Machine a moins de deux jobs de zone : pas de circuit, donc pas
                 # d'arbitrage. Ce job EST le premier de la zone sur la machine.
-                model.Add(s >= charge + s_dur)
+                siv = model.NewIntervalVar(
+                    ss, s_dur, se, f"lsiv_{job_id}_{op.machine_id}"
+                )
+                model.Add(ss >= charge)
+                model.Add(se <= s)
             else:
-                model.Add(s >= charge + s_dur).OnlyEnforceIf(b_premier)
+                siv = model.NewOptionalIntervalVar(
+                    ss, s_dur, se, b_premier, f"lsiv_{job_id}_{op.machine_id}"
+                )
+                model.Add(ss >= charge).OnlyEnforceIf(b_premier)
+                model.Add(se <= s).OnlyEnforceIf(b_premier)
+            setups_gauche[(job_id, position, op.machine_id)] = (
+                ss, se, siv, b_premier, s_dur, dernier
+            )
+        return setups_gauche
 
     @staticmethod
     def _build_untouched_obstacles(model, zone, sub_instance, t_now):
@@ -617,7 +641,7 @@ class IncrementalOptimizer:
 
     @staticmethod
     def _add_no_overlap(model, zone, sub_instance, op_vars, setup_vars,
-                        obstacles, junction_vars=None) -> None:
+                        obstacles, junction_vars=None, setups_gauche=None) -> None:
         """NoOverlap par machine : operations, setups, obstacles, panne.
 
         Quatre sources d'occupation en plus des operations de la zone : leurs
@@ -636,6 +660,10 @@ class IncrementalOptimizer:
                 siv for (_, _, km), (_, _, siv, _, _) in setup_vars.items()
                 if km == machine_id
             ]
+            intervals += [
+                siv for (_, _, km), (_, _, siv, _, _, _) in (setups_gauche or {}).items()
+                if km == machine_id
+            ]
             intervals += obstacles.get(machine_id, [])
             intervals += _junction_intervals(model, junction_vars, machine_id)
             if (event.event_type is PerturbationType.MACHINE_BREAKDOWN
@@ -652,7 +680,7 @@ class IncrementalOptimizer:
 
     @staticmethod
     def _add_cumulative_wr(model, zone, sub_instance, left, setup_vars, horizon,
-                           junction_vars=None) -> None:
+                           junction_vars=None, setups_gauche=None) -> None:
         """Contrainte Cumulative sur les setups (WR techniciens).
 
         Cinq sources de demande : les setups de la zone, les setups de jonction vers
@@ -700,6 +728,13 @@ class IncrementalOptimizer:
                 model.NewConstant(entry.setup.end_time),
                 f"setup_intouche_{entry.machine_id}_{entry.job_id}_{entry.position_in_job}",
             ))
+            demands.append(1)
+
+        # Setup du CONTEXTE GAUCHE : il consomme un technicien comme les autres.
+        # Distinct de `left.active_setups`, qui porte les setups figes encore en
+        # cours a T_now — ceux-la precedent une operation figee, pas un job de zone.
+        for (_, _, _), (_ss, _se, siv, _b, _dur, _de) in (setups_gauche or {}).items():
+            intervals.append(siv)
             demands.append(1)
 
         for machine_id, from_j, to_j, s_time, e_time in left.active_setups:
@@ -786,7 +821,8 @@ class IncrementalOptimizer:
 
     # -- extraction du resultat ---------------------------------------------
     def _build_schedule(self, solver, zone, sub_instance, op_vars, setup_vars, left,
-                        tardiness_vars, completion_vars, status) -> Schedule:
+                        tardiness_vars, completion_vars, status,
+                        setups_gauche=None) -> Schedule:
         schedule = Schedule(
             method_used="incremental",
             solver_status="optimal" if status == cp_model.OPTIMAL else "feasible",
@@ -800,7 +836,8 @@ class IncrementalOptimizer:
                     start_time=solver.Value(s), end_time=solver.Value(e),
                     duration=op.duration,
                     setup=self._setup_entry_for(solver, job.id, op, setup_vars, left,
-                                                sub_instance, eligibles),
+                                                sub_instance, eligibles,
+                                                setups_gauche),
                 ))
         total = 0.0
         for job in sub_instance.jobs:
@@ -818,7 +855,7 @@ class IncrementalOptimizer:
 
     @staticmethod
     def _setup_entry_for(solver, job_id, op, setup_vars, left, sub_instance,
-                         eligibles_jonction_gauche):
+                         eligibles_jonction_gauche, setups_gauche=None):
         """SetupEntry d'une operation, uniquement quand il est reellement modelise.
 
         Deux cas seulement produisent un setup :
@@ -844,14 +881,17 @@ class IncrementalOptimizer:
 
         if (op.machine_id, job_id, op.position) not in eligibles_jonction_gauche:
             return None
-        dernier = left.last_job_per_machine.get(op.machine_id)
-        if dernier and dernier != job_id:
-            s_dur = sub_instance.get_setup(dernier, job_id, op.machine_id)
-            if s_dur > 0:
-                charge = left.machine_loads.get(op.machine_id, 0)
-                return SetupEntry(from_job_id=dernier, start_time=charge,
-                                  end_time=charge + s_dur, duration=s_dur)
-        return None
+        gauche = (setups_gauche or {}).get((job_id, op.position, op.machine_id))
+        if gauche is None:
+            return None
+        ss, se, _siv, b_premier, s_dur, dernier = gauche
+        if b_premier is not None and solver.Value(b_premier) != 1:
+            return None
+        # Les dates sortent du MODELE, jamais d'un calcul apres coup a partir de la
+        # charge : regle posee en D8, ou des dates fabriquees de cette facon avaient
+        # produit 8 chevauchements sur l'instance reelle.
+        return SetupEntry(from_job_id=dernier, start_time=solver.Value(ss),
+                          end_time=solver.Value(se), duration=s_dur)
 
     @staticmethod
     def _collect_junction_setups(solver, junction_vars) -> dict:
