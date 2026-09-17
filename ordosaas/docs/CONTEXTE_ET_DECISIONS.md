@@ -1588,6 +1588,73 @@ statistiques appellera `repartition_des_causes()`, et la création d'une `Solver
 pourra consulter `defauts_pour_secteur()`. Les décisions d'API — quand appeler, avec
 quelle possibilité de surcharge — restent entières et lui appartiennent.
 
+### Cartographie — le setup de contexte gauche (2026-09-17, avant correction)
+
+Établie par lecture du code, préalable au rattachement du setup de contexte gauche à
+l'arc du dépôt. Cette cartographie est une **information nouvelle en soi** : elle corrige
+une prémisse et révèle un second défaut, indépendant de l'amélioration visée.
+
+#### La contrainte inconditionnelle vit à DEUX endroits, pas un
+
+| Emplacement | Fonction | Nature |
+|---|---|---|
+| `solvers/cpsat_solver.py:202-212` | `solve_with_context` | code **partagé** |
+| `solvers/incremental_optimizer.py:284-300` | `_add_left_boundary` | modèle **dédié** de l'incrémental (D2) |
+
+L'incrémental n'appelle pas `solve_with_context` : son modèle est distinct depuis D2. La
+duplication est **délibérée et documentée** — le docstring de `_add_left_boundary` dit
+« on applique la même convention que `CPSATSolver.solve_with_context` […] conservateur,
+mais cohérent avec le solveur initial », et celui de `_add_setups` ajoute que « cette
+symétrie est voulue — les deux modèles ne doivent pas diverger sur ce point précis ».
+
+#### Correction de prémisse : D8 / H7 n'est PAS le mécanisme inter-fenêtres du LNS
+
+La session avait été ouverte sur l'hypothèse que le correctif pourrait toucher « les
+jonctions inter-fenêtres du LNS (H7/D8) ». **C'est inexact.** D8 (`_add_junction_setups`,
+dans `incremental_optimizer.py`) traite les setups **zone → première entrée non touchée**,
+côté *droit*, à l'intérieur de l'incrémental — il n'utilise pas `left` du tout. Le
+mécanisme inter-fenêtres du LNS est `components/inter_window_optimizer.py`, un composant
+distinct. **D8 est donc confirmé hors du chemin affecté.**
+
+#### Les consommateurs réels du contexte gauche
+
+| Chemin | Contexte gauche | Affecté ? |
+|---|---|---|
+| `CPSATSolver.solve` (résolution directe) | `BoundaryContext.empty()` | **Non** — la boucle sur `last_job_per_machine` ne s'exécute jamais |
+| `LNSRecursiveSolver`, fenêtres i > 0 | reconstruit l. 90 | **Oui**, usage identique |
+| `InterWindowOptimizer` | construit l. 110-122, appel l. 124 | **Oui**, usage identique |
+| `IncrementalOptimizer` | `contexts.left` | **Oui**, modèle dédié |
+
+Le LNS et `InterWindowOptimizer` bénéficient de ce correctif comme **effet positif net,
+pas comme risque à surveiller**. Les corriger n'est pas une extension de périmètre
+choisie : c'est une contrainte posée par le code lui-même, qui interdit explicitement aux
+deux modèles de diverger sur ce point. Ne corriger que l'incrémental créerait sciemment
+l'incohérence que le code proscrit.
+
+#### Fichiers de référence — ce qui bouge et ce qui ne peut pas bouger
+
+| Référence | Affectée ? | Démonstration |
+|---|---|---|
+| `tests/fixtures/expected_output.json` | **Non** | produit par `CPSATSolver.solve` → contexte gauche vide → code mort |
+| `tests/conftest.py::example_schedule` | **Non** | même chemin, même configuration déterministe |
+| `validate_incremental` | chemin **oui**, valeurs **non** | validateur de propriétés, aucun baseline numérique figé |
+| `docs/densite-perturbation.md`, variantes | **Non** | résolution directe, contexte gauche vide |
+| `docs/densite-perturbation.md`, matrices | **à re-mesurer** | zone, cascade et repli sont calculés par `ImpactAnalyzer` *en amont* du solveur, donc a priori invariants |
+
+#### Défaut de validité découvert au passage — le setup gauche n'est jamais réservé
+
+Aux deux emplacements, le setup de contexte gauche est une **simple inégalité
+arithmétique** `s >= charge + s_dur`. Aucun `NewOptionalIntervalVar` n'est créé : il
+n'entre donc ni dans le `NoOverlap` de la machine, ni dans la `Cumulative` WR. Pendant ce
+temps, `cpsat_solver.py:304-312` et `_setup_entry_for` (l. 804-812) **émettent** un
+`SetupEntry` occupant `[charge, charge + s_dur]`.
+
+**L'occupation est rapportée mais jamais réservée.** C'est la même famille que les trois
+défauts latents révélés par le re-baselining de D12, et que le côté gauche de H7 — pas une
+amélioration de qualité. Ce gap **préexiste** à la présente session : la restructuration en
+arc du dépôt ne le crée pas, elle rend seulement sa correction triviale en exposant le
+littéral d'arc. Il est corrigé dans un commit séparé, avec sa propre mesure avant/après.
+
 
 ## Hypothèses en attente de validation par Khalid
 
