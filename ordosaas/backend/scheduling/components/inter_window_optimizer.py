@@ -119,18 +119,38 @@ class InterWindowOptimizer:
             setup_times=filtered_setups, wr=instance.wr,
         )
 
+        # Contexte gauche : TOUT ce qui precede la jonction et n'est pas reoptimise
+        # ici, toutes fenetres confondues (cf. H10b).
+        #
+        # La version precedente ne regardait que `left.window.jobs[:-junction_radius]`,
+        # sous un garde `if len(left.window.jobs) > self.junction_radius`. Quand ce
+        # garde etait faux, `left_context` restait ENTIEREMENT VIDE : ni charge
+        # machine, ni dernier job. Le micro-solveur replacait alors les jobs depuis
+        # t = 0 en ignorant toutes les fenetres anterieures, produisant de vrais
+        # CHEVAUCHEMENTS dans le planning reassemble — et la jonction fautive etait
+        # ACCEPTEE, puisque tout replacer au plus tot ameliore le TWT.
+        #
+        # Ce n'etait pas un cas limite : avec les defauts du projet
+        # (min_jobs_per_window = 5, junction_radius = 10), toute fenetre de 5 a 10
+        # jobs tombait dedans EN PRODUCTION.
+        #
+        # Prendre le maximum sur toutes les fenetres jusqu'a la gauche incluse
+        # subsume l'ancien calcul : quand la fenetre gauche a des jobs precedents,
+        # ce sont eux qui finissent le plus tard ; quand elle n'en a pas, ce sont
+        # les fenetres anterieures qui fournissent la charge.
         left_context = BoundaryContext.empty()
-        if len(left.window.jobs) > self.junction_radius:
-            preceding_jobs = {j.id for j in left.window.jobs[:-self.junction_radius]}
-            entries_before = [
-                e for e in left.schedule.entries if e.job_id in preceding_jobs
-            ]
-            for m in instance.machines:
-                m_entries = [e for e in entries_before if e.machine_id == m]
-                if m_entries:
-                    last = max(m_entries, key=lambda e: e.end_time)
-                    left_context.last_job_per_machine[m] = last.job_id
-                    left_context.machine_loads[m] = last.end_time
+        entries_before = [
+            e
+            for wr in window_results[:junction["index"] + 1]
+            for e in wr.schedule.entries
+            if e.job_id not in micro_job_ids
+        ]
+        for m in instance.machines:
+            m_entries = [e for e in entries_before if e.machine_id == m]
+            if m_entries:
+                last = max(m_entries, key=lambda e: e.end_time)
+                left_context.last_job_per_machine[m] = last.job_id
+                left_context.machine_loads[m] = last.end_time
 
         result = self.cpsat_solver.solve_with_context(micro_instance, left_context, None)
         if result is None:
