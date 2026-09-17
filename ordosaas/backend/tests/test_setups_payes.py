@@ -306,7 +306,14 @@ def test_canari_le_solveur_initial_paie_toujours_des_setups(atelier_canari):
     l'absence de chevauchement — le planning bugue n'en avait aucun — mais que le
     temps de setup PAYE correspond aux transitions reellement produites.
     """
-    schedule = CPSATSolver(timeout_seconds=15).solve(atelier_canari)
+    # Meme discipline deterministe que le canari H9 : les deux garde-fous
+    # protegent la meme famille de defaut et ne doivent pas avoir des
+    # configurations inegales. Ce canari-ci ne SEMBLE pas affecte — ses assertions
+    # passent 25/25 sous saturation — mais il produit bien DEUX plannings distincts,
+    # donc la meme sensibilite structurelle. Dans ce projet, l'absence d'echec
+    # observe n'est jamais une preuve d'innocuite : c'est le raisonnement qui a fait
+    # trouver H9 apres H8, puis H10b et H10c apres H10a.
+    schedule = solveur_canari().solve(atelier_canari)
 
     assert schedule is not None
     assert schedule.total_setup_time > 0, "le defaut H8 est revenu"
@@ -371,7 +378,7 @@ def test_le_validateur_canonique_ne_detecte_toujours_pas_ce_defaut(atelier_canar
 
     from scheduling.validation import validate_schedule
 
-    schedule = CPSATSolver(timeout_seconds=15).solve(atelier_canari)
+    schedule = solveur_canari().solve(atelier_canari)
     # On retire tous les setups sans toucher aux dates : le planning devient
     # physiquement infaisable, mais le validateur n'y voit rien.
     sans_setups = replace(
