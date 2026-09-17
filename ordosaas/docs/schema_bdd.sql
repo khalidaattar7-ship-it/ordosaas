@@ -15,9 +15,14 @@
 -- defauts qu'elle contient sont corriges dans le commit SUIVANT, et non ici.
 --
 -- Ecarts connus au moment du versement (cf. l'audit du 2026-09-17 dans
--- docs/CONTEXTE_ET_DECISIONS.md) : deux CHECK de la forme `IN (..., NULL)` qui
+-- docs/CONTEXTE_ET_DECISIONS.md) : TROIS CHECK de la forme `IN (..., NULL)` qui
 -- ne rejettent rien, des listes de valeurs perimees, l'absence de
 -- `solver_configs.stability_weight` et de la table `perturbation_events`.
+--
+-- Les trois CHECK et les listes perimees sont corriges depuis. Les deux
+-- absences structurelles ne le sont PAS : les combler reviendrait a rediger de
+-- la conception nouvelle, un acte different d'une correction de defaut. Elles
+-- restent documentees dans D15.
 -- =============================================================================
 
 -- =============================================================================
@@ -339,7 +344,8 @@ CREATE TABLE resolutions (
     
     -- Méthode effectivement utilisée (peut différer de la stratégie demandée)
     method_used         VARCHAR(20)                         -- 'cpsat','lns','atcs'
-                        CHECK (method_used IN ('cpsat', 'lns', 'atcs', NULL)),
+                        CHECK (method_used IN ('cpsat', 'lns', 'atcs')
+                               OR method_used IS NULL),
     
     -- Résultats globaux
     total_weighted_tardiness    NUMERIC(15,4),              -- Objectif final
@@ -417,7 +423,11 @@ CREATE TABLE time_windows (
                             'error'
                         )),
     method_used         VARCHAR(20)
-                        CHECK (method_used IN ('cpsat', 'atcs', NULL)),
+                        -- 'lns' et 'incremental' ajoutes le 2026-09-17 : ils sont
+                        -- nes apres la redaction de ce schema et sont reellement
+                        -- ecrits par app/resolutions/service.py.
+                        CHECK (method_used IN ('cpsat', 'lns', 'atcs', 'incremental')
+                               OR method_used IS NULL),
     recursion_depth     INTEGER DEFAULT 0,                  -- Profondeur atteinte lors du D&C
     
     -- KPIs de la fenêtre
@@ -488,7 +498,8 @@ CREATE TABLE solution_comparisons (
     delta_jobs_late             INTEGER,
     delta_machine_utilization   NUMERIC(6,2),
     winner                      VARCHAR(1)                  -- 'A', 'B', ou NULL (ex aequo)
-                                CHECK (winner IN ('A', 'B', NULL)),
+                                CHECK (winner IN ('A', 'B')
+                                       OR winner IS NULL),
     
     -- Métadonnées
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
