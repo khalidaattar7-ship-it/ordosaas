@@ -1858,6 +1858,107 @@ exploitable, pas moins. Livrer D16 en différant D17 aurait dégradé la validit
 affichant un meilleur chiffre — c'est le scénario exact que la règle « la validité se
 corrige avec urgence, jamais différée » existe pour empêcher.
 
+### Cartographie — H10, le contexte gauche d'`InterWindowOptimizer` (2026-09-17, avant correction)
+
+Établie par lecture du code **et exécution du composant réel**, pas d'une reproduction de
+sa logique. La session avait été ouverte sur un défaut ; elle en a trouvé **deux**, dans
+la même méthode `_optimize_junction`, et le second est plus grave que le premier.
+
+#### Pourquoi le contexte gauche est structurellement fragile ici
+
+`_optimize_junction` réoptimise un voisinage de jonction : `micro_jobs = left_jobs +
+right_jobs`, soit les `junction_radius` derniers jobs de la fenêtre gauche et les
+`junction_radius` premiers de la droite. Tout ce qui précède doit être représenté par un
+`BoundaryContext` gauche. Les deux défauts sont des façons différentes de perdre cette
+représentation.
+
+#### H10a — le filtrage `and` élimine les paires du contexte gauche
+
+`inter_window_optimizer.py:101-104` filtre les setups de la micro-instance avec un
+**`and`**, là où `lns_recursive._create_window_instance:201-204` utilise un **`or`** :
+
+```
+inter_window_optimizer   if k[0] in micro_job_ids and k[1] in micro_job_ids
+lns_recursive            if k[0] in job_ids       or  k[1] in job_ids
+```
+
+Or `last_job_per_machine` est pris dans `left.window.jobs[:-junction_radius]` — des jobs
+**délibérément exclus** de `micro_jobs`. Exiger que *les deux* extrémités appartiennent à
+`micro_jobs` élimine donc exactement les paires dont le contexte gauche a besoin. La
+micro-instance lit un setup de 50 comme **0**.
+
+Mesuré sur le composant réel (fenêtre gauche `L1..L4`, droite `R1,R2`, rayon 2) :
+
+| | Premier micro job | Écart laissé après `L2` | Setup dû |
+|---|---|---|---|
+| `and` (avant) | 20 | **0** | 50 |
+| `or` (après) | 70 | **50** | 50 |
+
+Avec `or`, un `SetupEntry` `L2 [20,70]` est émis, dates issues du modèle.
+
+#### H10b — le garde de taille laisse le contexte gauche VIDE
+
+`inter_window_optimizer.py:111` ne construit le contexte gauche que
+`if len(left.window.jobs) > self.junction_radius`. Quand la condition est fausse,
+`left_context` reste `BoundaryContext.empty()` : **ni charge machine, ni dernier job**.
+
+Les valeurs par défaut du projet sont `min_jobs_per_window = 5` et
+`junction_radius = 10` : **toute fenêtre de 5 à 10 jobs tombe dans ce cas, en
+configuration de production**.
+
+Ce n'est alors plus un setup impayé, c'est un **recouvrement pur** : le micro-solveur
+replace les jobs à partir de `t = 0` en ignorant toutes les fenêtres antérieures, qui ne
+sont ni dans `micro_jobs` ni dans le contexte. Mesuré sur trois fenêtres, jonction entre
+W1 et W2, W0 occupant M1 sur `[0,20]` :
+
+```
+planning reassemble sur M1 :  A1 [0,10]   C1 [0,10]
+                              A2 [10,20]  C2 [10,20]
+violations : Chevauchement sur M1 : A1#1 [0-10] et C1#1 [0-10]
+             Chevauchement sur M1 : A2#1 [10-20] et C2#1 [10-20]
+```
+
+**Et la jonction fautive est ACCEPTÉE** : le critère d'acceptation est
+`test_schedule.total_weighted_tardiness < current_twt * (1 - epsilon)`, or tout replacer au
+plus tôt *améliore* le TWT. C'est le mécanisme du « TWT de 0.0 faux » de D16/D17 —
+un optimum trompeur obtenu sur un planning invalide — mais avec cette fois un
+chevauchement physique en plus, pas seulement une valeur flatteuse.
+
+#### Pas de troisième défaut : la réservation est déjà correcte
+
+`InterWindowOptimizer` ne construit **aucun modèle CP-SAT** et n'émet **aucun `SetupEntry`**
+de son cru. Il délègue intégralement à `solve_with_context`, dont la réservation —
+intervalle dans le `NoOverlap` machine et dans la `Cumulative` WR — a été corrigée en D17.
+Une fois le filtre franchi, tout s'applique seul.
+
+**L'ordre des corrections est ici FAVORABLE, à l'inverse du piège de D16/D17.** D17 ayant
+déjà atterri, corriger le filtrage ne peut pas produire un résultat meilleur mais invalide.
+Le tableau à trois états de D16/D17 **ne s'applique donc pas à cette session**, et c'est
+une conclusion, pas une omission.
+
+#### Indépendance du code
+
+| Chemin | Partagé avec H10 ? |
+|---|---|
+| `solve_with_context` | le **solveur** est partagé (et déjà corrigé D16/D17), mais aucun des deux défauts n'y réside |
+| `_add_left_boundary` (incrémental) | indépendant |
+| `lns_recursive._create_window_instance` | utilise déjà `or` et un contexte gauche correct — rien à corriger |
+
+Les deux défauts sont **locaux à `_optimize_junction`**. Aucun autre site n'est à modifier.
+
+#### La cause profonde : aucun test direct
+
+`InterWindowOptimizer` n'avait **aucun test direct** avant cette session — `grep` ne
+trouvait que des mentions en docstring et l'import dans `lns_recursive`. Les quatre tests
+de `test_lns.py` exercent le solveur de bout en bout, jamais ce composant isolément.
+
+**C'est cette absence de couverture, et pas seulement la logique défectueuse, qui a permis
+aux deux défauts de rester indétectés.** Une couverture de base du composant
+(`_compute_junction_costs`, `_build_applied`, critère de convergence) est un chantier
+**identifié et volontairement différé**, hors périmètre de cette session de correction —
+consigné ici pour qu'une session future le reprenne en connaissance de cause, plutôt que
+de redécouvrir le même vide au prochain défaut dans ce composant.
+
 
 ## Hypothèses en attente de validation par Khalid
 
