@@ -93,11 +93,19 @@ class IncrementalOptimizer:
 
         op_vars = self._declare_operations(model, pending_ops, t_now, horizon)
         self._add_precedences(model, zone, sub_instance, op_vars)
-        self._add_left_boundary(model, contexts.left, sub_instance, op_vars)
         obstacles, cibles = self._build_untouched_obstacles(
             model, zone, sub_instance, t_now
         )
-        setup_vars = self._add_setups(model, sub_instance, op_vars, t_now, horizon)
+        # `_add_setups` precede `_add_left_boundary` : cette derniere rattache
+        # desormais le setup du contexte gauche au litteral de l'arc du depot,
+        # produit par le circuit. L'ordre de declaration est sans effet sur le
+        # modele CP-SAT lui-meme, qui est declaratif.
+        setup_vars, litteraux_depot = self._add_setups(
+            model, sub_instance, op_vars, t_now, horizon
+        )
+        self._add_left_boundary(
+            model, contexts.left, sub_instance, op_vars, litteraux_depot
+        )
         junction_vars = self._add_junction_setups(
             model, sub_instance, op_vars, cibles, t_now, horizon
         )
@@ -227,6 +235,16 @@ class IncrementalOptimizer:
         for entry in zone.untouched_future_entries:
             base = max(base, entry.end_time)
         travail = sum(op.duration for _, op in pending_ops)
+        # Le setup du contexte gauche echappe a la majoration ci-dessous, qui ne
+        # couvre que les paires INTERNES a la sous-instance : le dernier job fige
+        # n'en fait pas partie. Meme raison que cote CPSATSolver.
+        setups_gauche = [
+            sub_instance.get_setup(dernier, job.id, machine_id)
+            for machine_id, dernier in contexts.left.last_job_per_machine.items()
+            for job in sub_instance.jobs
+            if any(op.machine_id == machine_id for op in job.operations)
+        ]
+        base += max(setups_gauche, default=0)
         # Majoration des setups resserree, comme cote CPSATSolver (cf. D12) : une
         # operation n'a qu'UN setup entrant, on majore donc chaque entree par le plus
         # long setup possible vers elle plutot que de sommer toutes les paires.
@@ -282,22 +300,41 @@ class IncrementalOptimizer:
                 model.Add(s_first >= fin_figee)
 
     @staticmethod
-    def _add_left_boundary(model, left, sub_instance, op_vars) -> None:
+    def _add_left_boundary(model, left, sub_instance, op_vars, litteraux_depot) -> None:
         """Contexte gauche EXACT : chaque machine n'est libre qu'a sa charge figee.
 
-        Si le dernier job fige de la machine differe du job a placer, un setup les
-        separe. On applique la meme convention que `CPSATSolver.solve_with_context` :
-        la contrainte porte sur toutes les operations de la machine, pas seulement
-        sur la premiere — conservateur, mais coherent avec le solveur initial.
+        La borne de CHARGE machine (`s >= charge`) est INCONDITIONNELLE : la machine
+        est occupee jusqu'a sa charge figee quel que soit l'ordre choisi.
+
+        Le SETUP depuis le dernier job fige, lui, est rattache au litteral de l'arc
+        `depot -> job` du circuit : le dernier job fige ne precede immediatement
+        qu'un seul job, celui que le circuit place en premier. La version precedente
+        l'imposait a toutes les operations de la machine — sur, mais sur-contraignant,
+        puisque les jobs non premiers payaient un setup qu'ils n'ont pas a payer.
+
+        La relaxation reste SURE par transitivite : un job non premier est borne par
+        l'arc entrant de son propre predecesseur, et la chaine s'enracine sur le
+        premier job, qui paie bien `charge + setup(dernier_fige, premier)`.
+
+        Meme convention que `CPSATSolver.solve_with_context`, corrige au meme moment :
+        les deux modeles ne doivent pas diverger sur ce point.
         """
         for (job_id, _), (s, _, _, op) in op_vars.items():
             charge = left.machine_loads.get(op.machine_id, 0)
             model.Add(s >= charge)
             dernier = left.last_job_per_machine.get(op.machine_id)
-            if dernier and dernier != job_id:
-                s_dur = sub_instance.get_setup(dernier, job_id, op.machine_id)
-                if s_dur > 0:
-                    model.Add(s >= charge + s_dur)
+            if not dernier or dernier == job_id:
+                continue
+            s_dur = sub_instance.get_setup(dernier, job_id, op.machine_id)
+            if s_dur <= 0:
+                continue
+            b_premier = litteraux_depot.get((job_id, op.machine_id))
+            if b_premier is None:
+                # Machine a moins de deux jobs de zone : pas de circuit, donc pas
+                # d'arbitrage. Ce job EST le premier de la zone sur la machine.
+                model.Add(s >= charge + s_dur)
+            else:
+                model.Add(s >= charge + s_dur).OnlyEnforceIf(b_premier)
 
     @staticmethod
     def _build_untouched_obstacles(model, zone, sub_instance, t_now):
@@ -496,7 +533,7 @@ class IncrementalOptimizer:
         return junction_vars
 
     @staticmethod
-    def _add_setups(model, sub_instance, op_vars, t_now, horizon) -> dict:
+    def _add_setups(model, sub_instance, op_vars, t_now, horizon) -> tuple:
         """Setups sequence-dependants entre operations de la zone (cf. D12).
 
         Meme technique que `CPSATSolver` depuis la correction de H8 : une contrainte
@@ -524,6 +561,10 @@ class IncrementalOptimizer:
         docs/CONTEXTE_ET_DECISIONS.md.
         """
         setup_vars = {}
+        # Litteral de l'arc depot -> job : "ce job est le PREMIER de la zone sur
+        # cette machine". Nomme et conserve pour que `_add_left_boundary` y
+        # rattache le setup du contexte gauche.
+        litteraux_depot = {}
         for machine_id in sub_instance.machines:
             jobs_on_m = [
                 j for j in sub_instance.jobs
@@ -535,7 +576,9 @@ class IncrementalOptimizer:
             # Indices de noeud : 0 = depot, k + 1 = jobs_on_m[k].
             arcs = []
             for k, job in enumerate(jobs_on_m):
-                arcs.append((0, k + 1, model.NewBoolVar(f"zdebut_{job.id}_{machine_id}")))
+                b_premier = model.NewBoolVar(f"zdebut_{job.id}_{machine_id}")
+                litteraux_depot[(job.id, machine_id)] = b_premier
+                arcs.append((0, k + 1, b_premier))
                 arcs.append((k + 1, 0, model.NewBoolVar(f"zfin_{job.id}_{machine_id}")))
 
             for i, from_job in enumerate(jobs_on_m):
@@ -570,7 +613,7 @@ class IncrementalOptimizer:
                     )
 
             model.AddCircuit(arcs)
-        return setup_vars
+        return setup_vars, litteraux_depot
 
     @staticmethod
     def _add_no_overlap(model, zone, sub_instance, op_vars, setup_vars,

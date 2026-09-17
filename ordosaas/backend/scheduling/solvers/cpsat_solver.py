@@ -106,6 +106,21 @@ class CPSATSolver(BaseSolver):
         if left_context.machine_loads:
             horizon += max(left_context.machine_loads.values())
 
+        # ...et pour le SETUP du contexte gauche, que `_borne_horizon` ne peut pas
+        # voir : il ne majore que les paires INTERNES a l'instance, or le dernier job
+        # fige n'en fait pas partie. Sans ce terme, un setup entrant plus long que le
+        # travail de la fenetre rend le modele infaisable et `solve_with_context`
+        # renvoie None — une fenetre LNS perdue en silence. Une machine ne paie qu'un
+        # seul setup de contexte gauche, on majore donc par le plus long d'entre eux.
+        setups_gauche = [
+            instance.get_setup(last_job_id, job.id, machine_id)
+            for machine_id, last_job_id in left_context.last_job_per_machine.items()
+            for job in jobs
+            if any(op.machine_id == machine_id for op in job.operations)
+        ]
+        if setups_gauche:
+            horizon += max(setups_gauche)
+
         # Interval variables per operation
         op_vars = {}
         for job in jobs:
@@ -151,6 +166,10 @@ class CPSATSolver(BaseSolver):
         # Un arc est cree pour CHAQUE paire ordonnee, y compris a setup nul : le
         # circuit ne serait pas hamiltonien sinon, et la garantie tomberait.
         setup_vars = {}
+        # Litteral de l'arc depot -> job : "ce job est le PREMIER de la machine".
+        # Il est nomme et conserve parce que le setup du contexte gauche s'y
+        # rattache (cf. la section "contexte gauche" plus bas).
+        litteral_depot = {}
         for machine_id in machines:
             jobs_on_m = [
                 j for j in jobs if any(op.machine_id == machine_id for op in j.operations)
@@ -161,7 +180,9 @@ class CPSATSolver(BaseSolver):
             # Indices de noeud : 0 = depot, k + 1 = jobs_on_m[k].
             arcs = []
             for k, job in enumerate(jobs_on_m):
-                arcs.append((0, k + 1, model.NewBoolVar(f"debut_{job.id}_{machine_id}")))
+                b_premier = model.NewBoolVar(f"debut_{job.id}_{machine_id}")
+                litteral_depot[(job.id, machine_id)] = b_premier
+                arcs.append((0, k + 1, b_premier))
                 arcs.append((k + 1, 0, model.NewBoolVar(f"fin_{job.id}_{machine_id}")))
 
             for i, from_job in enumerate(jobs_on_m):
@@ -198,16 +219,42 @@ class CPSATSolver(BaseSolver):
 
             model.AddCircuit(arcs)
 
-        # Setups from the left context (last job on each machine)
+        # ------------------------------------------------------------------
+        # Setup du contexte gauche : rattache a l'ARC DU DEPOT
+        # ------------------------------------------------------------------
+        # Le dernier job fige de la machine ne precede immediatement qu'UN seul
+        # job : celui que le circuit place en premier. Le setup correspondant se
+        # rattache donc au litteral de l'arc depot -> job, et non a tous les jobs
+        # de la machine.
+        #
+        # La version precedente imposait `s >= charge + setup(dernier_fige, j)` a
+        # TOUT job j de la machine. C'etait sur-contraignant : les jobs qui ne
+        # sont pas premiers payaient un setup qu'ils n'ont jamais a payer. Sur et
+        # valide, mais inutilement penalisant.
+        #
+        # La relaxation reste SURE par transitivite : un job non premier est borne
+        # par l'arc entrant de son propre predecesseur (`st >= ef + s_dur` plus
+        # haut), et cette chaine s'enracine sur le premier job, qui paie bien
+        # `charge + setup(dernier_fige, premier)`. Aucun job ne peut donc demarrer
+        # avant que la machine soit reellement liberee. La borne `s >= charge` de
+        # la charge machine, elle, reste INCONDITIONNELLE pour tous les jobs.
         for machine_id, last_job_id in left_context.last_job_per_machine.items():
             for to_job in jobs:
                 if not any(op.machine_id == machine_id for op in to_job.operations):
                     continue
                 s_dur = instance.get_setup(last_job_id, to_job.id, machine_id)
-                if s_dur > 0:
-                    load = left_context.machine_loads.get(machine_id, 0)
-                    s_to, _, _, _, _ = op_vars[(to_job.id, machine_id)]
+                if s_dur <= 0:
+                    continue
+                load = left_context.machine_loads.get(machine_id, 0)
+                s_to, _, _, _, _ = op_vars[(to_job.id, machine_id)]
+                b_premier = litteral_depot.get((to_job.id, machine_id))
+                if b_premier is None:
+                    # Machine a moins de deux jobs : pas de circuit, donc pas
+                    # d'arbitrage. Ce job EST le premier, la contrainte
+                    # inconditionnelle y est deja exacte.
                     model.Add(s_to >= load + s_dur)
+                else:
+                    model.Add(s_to >= load + s_dur).OnlyEnforceIf(b_premier)
 
         # NoOverlap per machine (operations + setups)
         for machine_id in machines:
@@ -301,8 +348,16 @@ class CPSATSolver(BaseSolver):
                         )
                         break
                 if setup_entry is None:
+                    # Le setup du contexte gauche n'est rapporte que pour le job
+                    # reellement premier sur la machine. Sans ce filtre, tout job
+                    # sans setup de zone entrant se voyait crediter un setup
+                    # fantome depuis le dernier job fige -- y compris un job dont
+                    # le predecesseur a simplement un setup nul, cas qui ne
+                    # produit aucune entree dans `setup_vars`.
+                    b_premier = litteral_depot.get((job.id, op.machine_id))
+                    est_premier = b_premier is None or solver.Value(b_premier) == 1
                     last_job = left_context.last_job_per_machine.get(op.machine_id)
-                    if last_job:
+                    if last_job and est_premier:
                         s_dur = instance.get_setup(last_job, job.id, op.machine_id)
                         if s_dur > 0:
                             load = left_context.machine_loads.get(op.machine_id, 0)
