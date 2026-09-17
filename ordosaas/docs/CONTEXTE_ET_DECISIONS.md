@@ -123,6 +123,42 @@ absorption interne à un job y est invisible. Les tests ont dû être réécrits
 jobs *témoins* pour observer l'effet réel. Sans cette vérification, la session aurait
 livré une couverture fictive.
 
+### Tout `SetupEntry` émis doit avoir un intervalle réservé dans le modèle
+
+Un setup qu'on **rapporte** doit être un setup qu'on **réserve**. Chaque fois qu'un
+mécanisme émet un `SetupEntry`, vérifier que le modèle CP-SAT correspondant déclare un
+intervalle pour ce setup, et que cet intervalle entre bien dans **les deux** contraintes :
+le `NoOverlap` de la machine et la `Cumulative` WR. Une inégalité arithmétique du type
+`début >= charge + durée` ne suffit pas : elle décale l'opération sans jamais occuper la
+ressource, si bien que le solveur reste libre de placer autre chose pendant ce temps.
+
+Le corollaire vaut aussi dans l'autre sens, et c'est la règle posée en D8 : les dates d'un
+`SetupEntry` doivent **sortir du modèle**, jamais être recalculées après coup à partir de
+la charge machine.
+
+**À vérifier systématiquement à chaque nouveau mécanisme touchant les setups**, pas
+seulement au moment où un bug le révèle.
+
+**Pourquoi** : c'est la **quatrième** occurrence de ce motif dans le projet, à chaque fois
+découverte par accident plutôt que par contrôle.
+
+1. **H7 / D8** — les setups de jonction étaient seulement réservés en temps par un
+   obstacle élargi, sans variable ; aucune date n'existait. Une première tentative de les
+   fabriquer après coup depuis `left.machine_loads` a produit 8 chevauchements.
+2. **D12, défaut latent 1** — le setup d'origine de jonction créait un intervalle
+   optionnel qui n'était ajouté à **aucun** `NoOverlap` : la zone pouvait se placer
+   par-dessus.
+3. **D12, défaut latent 2** — les setups des entrées non touchées consommaient un
+   technicien sans figurer dans la `Cumulative` WR, autorisant des dépassements de
+   capacité.
+4. **D17** — le setup de contexte gauche était une inégalité arithmétique sans aucun
+   intervalle, alors que `CPSATSolver` et `_setup_entry_for` en émettaient un `SetupEntry`
+   que le validateur canonique compte dans les deux contraintes.
+
+Les quatre partagent la même cause : le code qui **rapporte** le setup et le code qui le
+**contraint** ont été écrits séparément, et rien ne vérifiait leur appariement. Le
+validateur canonique ne peut pas rattraper l'écart — il ne voit que ce qui est rapporté.
+
 ### Ne jamais affirmer qu'une conclusion tient sans l'avoir re-mesurée
 
 Quand un correctif change ce que le système produit, les conclusions qualitatives déjà
@@ -924,7 +960,7 @@ survivre à la vigilance déployée en D8. Un test y fige aussi la limite du val
 canonique : un planning dont on retire tous les setups sans toucher aux dates lui paraît
 parfaitement valide.
 
-### Amélioration de qualité identifiée mais DIFFÉRÉE — setup du contexte gauche sur l'arc du dépôt
+### ✅ FAITE le 2026-09-17 (voir D16) — amélioration différée : setup du contexte gauche sur l'arc du dépôt
 
 Le contexte gauche (dernier job figé d'une machine) est traité par une contrainte
 **inconditionnelle** : *tout* job de la machine doit démarrer après `charge + setup(dernier
@@ -939,6 +975,9 @@ attribuable à un seul changement et ne mélange pas une correction de validité
 amélioration de qualité distincte et non bloquante — même principe que le traitement du
 Constat A en Discussion 2. À traiter dans une session séparée, **après** que la référence
 issue de cette session soit stabilisée et validée.
+
+> **Réalisée le 2026-09-17 → voir D16.** La session dédiée a aussi mis au jour un défaut
+> de validité préexistant sur le même setup, corrigé séparément → voir **D17**.
 
 
 ### Cartographie — comment la propagation de cascade s'arrête aujourd'hui (2026-09-11, avant correction)
@@ -1655,8 +1694,201 @@ amélioration de qualité. Ce gap **préexiste** à la présente session : la re
 arc du dépôt ne le crée pas, elle rend seulement sa correction triviale en exposant le
 littéral d'arc. Il est corrigé dans un commit séparé, avec sa propre mesure avant/après.
 
+### D16 — Le setup du contexte gauche se rattache à l'arc du dépôt (2026-09-17)
+
+Amélioration de qualité identifiée en D12 et volontairement différée alors, pour que le
+TWT de référence issu de H8/H9 reste attribuable à un seul changement. La référence étant
+stabilisée depuis, elle est traitée ici.
+
+#### Ce qui change
+
+Le dernier job figé d'une machine ne précède immédiatement qu'**un seul** job : celui que
+le circuit place en premier. Le setup correspondant se rattache donc au littéral de l'arc
+`dépôt → job`, déjà produit par `AddCircuit` depuis D12 mais jusque-là **anonyme et
+jamais référencé**. Aucun job virtuel n'a eu à être introduit : le nœud dépôt *est* le
+contexte gauche.
+
+Avant, la contrainte était inconditionnelle — *tout* job de la machine devait démarrer
+après `charge + setup(dernier_figé, job)`. Sûr et valide, mais sur-contraignant : les jobs
+qui ne sont pas premiers payaient un setup qu'ils n'ont jamais à payer.
+
+**Pourquoi la relaxation reste sûre** — c'est le point à ne pas perdre de vue. Un job non
+premier est borné par l'arc entrant de son propre prédécesseur (`st >= ef + s_dur`), et
+cette chaîne s'enracine sur le premier job, qui paie bien `charge + setup(dernier_figé,
+premier)`. Aucun job ne peut donc démarrer avant que la machine soit réellement libérée.
+La borne de **charge machine** (`s >= charge`), elle, reste inconditionnelle pour tous.
+
+Les machines à moins de deux jobs n'ont pas de circuit : le job unique y *est* le premier,
+la contrainte inconditionnelle y est déjà exacte et elle est conservée.
+
+#### Portée : les deux emplacements, et pourquoi ce n'est pas une extension de périmètre
+
+`solve_with_context` (partagé) **et** `_add_left_boundary` (modèle dédié de l'incrémental,
+D2) sont corrigés. Ce n'est pas un choix d'ampleur : le code lui-même l'impose. Le
+docstring de `_add_setups` dit que « cette symétrie est voulue — les deux modèles ne
+doivent pas diverger sur ce point précis ». Ne corriger que l'incrémental aurait créé
+sciemment l'incohérence que le code proscrit.
+
+**Le LNS et `InterWindowOptimizer` en bénéficient comme effet positif net, pas comme
+risque à surveiller.** À relire plus tard, cette portée ne doit pas être confondue avec une
+extension non désirée : `CPSATSolver.solve` a un contexte gauche vide et n'est pas touché,
+et D8 — les jonctions vers le futur non touché — n'utilise pas `left_context` du tout.
+
+#### Deux défauts préexistants corrigés au passage
+
+1. **`_borne_horizon` ignorait le setup de contexte gauche.** Il ne majore que les paires
+   **internes** à l'instance, or le dernier job figé n'en fait pas partie. Un setup entrant
+   plus long que le travail de la fenêtre rendait le modèle **infaisable** et
+   `solve_with_context` renvoyait `None` — une fenêtre LNS perdue en silence. La borne
+   somme désormais, machine par machine, le plus long setup gauche possible : une somme et
+   non un maximum, car la `Cumulative` WR peut les forcer à se sérialiser.
+2. **Remontée d'un `SetupEntry` fantôme.** Le setup de contexte gauche était rapporté pour
+   *tout* job sans setup de zone entrant — y compris un job dont le prédécesseur a
+   simplement un setup nul, cas qui ne produit aucune entrée dans `setup_vars`. Le filtre
+   passe par le littéral d'arc du dépôt.
+
+#### Revalidation — ce qui bouge, et ce qui ne bouge pas
+
+Conforme à ce que la cartographie annonçait :
+
+| Référence | Résultat |
+|---|---|
+| `expected_output.json` | **inchangé**, TWT 4422.64, écart 0,000 % — contexte gauche vide, chemin inerte |
+| `validate_example` | 4 contrôles PASS |
+| `validate_incremental` | 23 scénarios, 200 vérifications, **tous PASS** |
+| `docs/densite-perturbation.md` | **identique octet pour octet** après régénération |
+| Suite de tests | 270 → 281 verts |
+
+Aucun re-baselining n'a donc été nécessaire. Le seul écart mesurable est décrit en D17,
+et il vient de la correction de validité, pas de celle-ci.
+
+## ✅ RÉSOLU — Le setup de contexte gauche est désormais réservé (D17)
+
+> Défaut de **validité**, découvert le 2026-09-17 en cartographiant la session sur l'arc
+> du dépôt. Documenté ici, au même niveau de visibilité que H8/H9, parce qu'il appartient
+> à la même famille et qu'il pouvait produire des plannings que le validateur canonique du
+> projet rejette. Ce n'est pas une amélioration de qualité et il n'a pas été différé.
+
+**Le défaut.** Le setup de contexte gauche — dernier job figé → premier job replanifié —
+était posé comme une **simple inégalité arithmétique** `s >= charge + durée`. Aucun
+intervalle ne le représentait dans le modèle : il n'entrait ni dans le `NoOverlap` de la
+machine, ni dans la `Cumulative` WR. Pendant ce temps, `CPSATSolver` et
+`IncrementalOptimizer._setup_entry_for` **émettaient** bien un `SetupEntry` pour ce setup —
+que le validateur canonique compte, lui, dans les deux contraintes.
+
+**L'occupation était rapportée mais jamais réservée.** Le solveur restait donc libre de
+placer d'autres setups par-dessus.
+
+**Le défaut est ANTÉRIEUR à cette session.** Aux deux emplacements
+(`cpsat_solver.py:202-212` et `incremental_optimizer.py:294-300`), l'inégalité
+arithmétique était là avant tout changement du 2026-09-17. La restructuration en arc du
+dépôt ne l'a pas créé : elle a seulement rendu sa correction triviale, en exposant le
+littéral d'arc auquel accrocher l'intervalle.
+
+#### A-t-il pu affecter des résultats déjà produits ? Oui, et de peu
+
+`tests/wr_gap_report.py` mesure la marge WR pendant les fenêtres de setup gauche, sur les
+23 scénarios du dépôt :
+
+| | Mesure |
+|---|---|
+| Scénarios avec au moins un setup de contexte gauche | 18 / 23 |
+| Scénarios à marge WR **nulle** pendant ce setup | **16 / 23** |
+| Violations effectivement constatées | **0** |
+
+Aucune violation ne s'est matérialisée sur les scénarios existants — `validate_incremental`
+passait, et passe toujours. Mais la marge était **nulle dans 16 cas sur 23** : le modèle
+autorisait le dépassement, et seul le hasard des choix de CP-SAT l'en a empêché. Constater
+qu'un validateur passe ne suffisait pas ; c'est la mesure de la marge qui dit la vérité.
+
+Sur un cas **saturant délibérément WR** — deux machines, un seul technicien, un setup
+gauche dû à `t=0` sur chacune — l'ancien modèle produit un planning que le validateur
+**rejette** :
+
+| | Ancien modèle | Nouveau modèle |
+|---|---|---|
+| Setup M1 (`JF→A`) | **0 – 20** | 20 – 40 |
+| Setup M2 (`JG→B`) | **0 – 20** | 0 – 20 |
+| Validateur | `Cumulative WR violee a t=0 : 2 setups simultanes pour WR=1` | aucune violation |
+
+#### La correction
+
+L'inégalité devient un **intervalle** : optionnel gouverné par le littéral d'arc du dépôt,
+obligatoire sur une machine sans circuit. Il entre dans le `NoOverlap` machine et dans la
+`Cumulative` WR, dans les **deux** solveurs. `ss >= charge` et `se <= début` impliquent
+`début >= charge + durée` : l'ancienne inégalité est subsumée, pas juxtaposée.
+
+Les dates du `SetupEntry` **sortent désormais du modèle** au lieu d'être recalculées en
+`[charge, charge + durée]` après coup — c'est la règle posée en D8, que le côté gauche ne
+respectait pas.
+
+#### Le coût, mesuré
+
+Scénario panne machine de l'instance d'exemple, seul point où un chiffre bouge :
+
+| | Avant | Après |
+|---|---|---|
+| Jobs replanifiés | 5 / 7 (71,4 %) | 6 / 7 (85,7 %) |
+| TWT fusionné | 4514.56 | **4560.58** (+1,02 %) |
+| Zone d'impact | 6 jobs | 6 jobs (inchangée) |
+| Violations | 0 | 0 |
+
+Le surcoût est le prix d'un temps qui était **consommé sans être réservé**. Un seul test a
+dû être ajusté — le garde-fou de proportionnalité de `test_scenario_panne_machine`, de 0,75
+à 0,90, mesure inscrite dans le test. L'invariant fort
+(`nb_jobs_affected <= zone.nb_impacted_jobs`) reste vérifié séparément.
+
+`expected_output.json` est **inchangé** : la résolution directe a un contexte gauche vide.
+
+#### Ce que la validation manuelle a révélé de plus
+
+Le scénario calculé à la main (`test_contexte_gauche_calcule_a_la_main.py`) a été exécuté
+sur les trois états du code :
+
+| État | TWT | Validateur |
+|---|---|---|
+| `eee2c49` — avant la session | 10.0 | ❌ violation WR à t=110 |
+| `6340c73` — arc du dépôt seul | **0.0** | ❌ violation WR à t=110 |
+| `698487a` — les deux correctifs | 5.0 | ✅ aucune |
+
+**Le TWT de 0.0 de l'état intermédiaire est faux** : il est obtenu sur un planning
+invalide, et il bat l'optimum réel (5.0) précisément parce qu'il exploite le setup non
+réservé. L'amélioration de qualité seule rendait donc le défaut de validité **plus**
+exploitable, pas moins. Livrer D16 en différant D17 aurait dégradé la validité tout en
+affichant un meilleur chiffre — c'est le scénario exact que la règle « la validité se
+corrige avec urgence, jamais différée » existe pour empêcher.
+
 
 ## Hypothèses en attente de validation par Khalid
+
+### H10 — `InterWindowOptimizer` neutralise son propre contexte gauche (2026-09-17)
+
+**Découvert** en cartographiant D16, **non corrigé** : hors du périmètre autorisé pour
+cette session, et dans un troisième composant. Consigné ici pour arbitrage.
+
+Le filtrage des setups de la micro-instance utilise un **`and`**, là où le LNS récursif
+utilise un **`or`** :
+
+```
+components/inter_window_optimizer.py:101-104   if k[0] in micro_job_ids and k[1] in micro_job_ids
+solvers/lns_recursive.py:201-204               if k[0] in job_ids    or  k[1] in job_ids
+```
+
+Le `and` élimine exactement les paires dont le contexte gauche a besoin :
+`last_job_per_machine` est pris dans `left.window.jobs[:-junction_radius]`, c'est-à-dire
+des jobs **délibérément exclus** de `micro_jobs`. Vérifié : un setup valant 99 dans
+l'instance complète est lu à **0** par la micro-instance. Le setup de contexte gauche y est
+donc totalement inerte — avant comme après D16, qui ne change rien à ce point.
+
+**C'est une sous-réservation, pas une sur-réservation.** À la jonction, une micro-opération
+peut être placée directement à `machine_loads[m]` sans payer un setup pourtant réel dans le
+planning fusionné. Même famille que H8/H9, mais dans un composant que ni D12 ni cette
+session n'ont couvert.
+
+**Non mesuré** : l'ampleur sur des instances réelles reste à établir. `InterWindowOptimizer`
+n'intervient que sur les jonctions dont le `boundary_cost` est non nul, et le LNS n'est
+sollicité qu'au-delà du seuil exact — ce chemin n'est donc pas exercé par l'instance
+d'exemple à 10 jobs.
 
 ### H8 / H9 — RÉSOLUES le 2026-09-06 → voir D12
 
@@ -1765,9 +1997,10 @@ Composants livrés dans la Discussion 1 (un commit poussé par composant) :
 | 10 | Setups de jonction en variables (cf. D8) | `solvers/incremental_optimizer.py`, `components/schedule_merger.py` | +6 | livré |
 | 11 | Orchestrateur public `resolve_incremental` (cf. D9) | `scheduling/incremental.py` | 15 | livré |
 
-Suite complète hors tests API : **270 tests verts** (141 à la fin des 8 premiers commits,
+Suite complète hors tests API : **286 tests verts** (141 à la fin des 8 premiers commits,
 170 à la fin de la Discussion 1, 189 après le livrable 2 de la Discussion 2).
-`python -m tests.validate_example` passe toujours (TWT 3012.84), donc aucune régression sur
+`python -m tests.validate_example` passe toujours (TWT **4422.64** depuis la correction
+H8/H9 ; la valeur 3012.84 qui figurait ici datait d'avant D12), donc aucune régression sur
 le solveur initial. Les tests de
 `test_instances.py` / `test_auth.py` / `test_resolutions.py` exigent un PostgreSQL local et
 échouent en connexion — situation préexistante, sans rapport avec cette session.
