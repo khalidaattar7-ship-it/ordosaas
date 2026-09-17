@@ -2232,7 +2232,7 @@ Discussion 3 comme recommandé. Le TWT de référence passe de 3012.84 à 4422.6
 Reste ouvert, et qui appartient à Khalid : que faire du fait que l'ancienne valeur ait été
 présentée comme preuve de performance.
 
-### H4 — PARTIELLEMENT CLOSE le 2026-09-12 → voir la cartographie et D15
+### H4 — CLOSE le 2026-09-17 → voir la cartographie, D15 et l'audit des 7 tables
 
 **Ce qui est clos.** La question posée — le `schema_bdd.sql` de référence colle-t-il au
 SQLAlchemy réel ? — a sa réponse : **non**, et les écarts ont été identifiés puis
@@ -2245,13 +2245,35 @@ comblés pour les tables concernées :
 | `solver_configs` sans `stability_weight` | **Ajoutée** (migration 0004) |
 | Les 5 types de `PerturbationType` et le CHECK SQL | **Alignés**, verrouillé par un test |
 
-**Ce qui reste ouvert.** Le constat de fond demeure : `schema_bdd.sql` est un document
-de **conception**, à réconcilier en continu et non une référence figée.
-`stability_weight` en est la démonstration — il est absent du schéma non par oubli, mais
-parce qu'il est né après lui, avec l'architecture incrémentale. Les tables non touchées
-par cette session (`machines`, `jobs`, `operations`, `setup_times`, `time_windows`,
-`schedule_entries`, `solution_comparisons`) n'ont **pas** été confrontées au schéma de
-référence : le même type d'écart peut s'y trouver.
+**Ce qui a été clos le 2026-09-17.** Les 7 tables restantes ont été auditees —
+`machines`, `jobs`, `operations`, `setup_times`, `time_windows`, `schedule_entries`,
+`solution_comparisons`. Résultat : **aucun écart de colonne**, 9 index manquants
+(catégorie A, créés), un défaut de contrainte (catégorie B, `time_windows.method_used`,
+corrigé) et 3 non-écarts. Le détail est dans la section d'audit.
+
+**Et surtout, la cause de la dérive est traitée, pas seulement ses effets.**
+`schema_bdd.sql` n'était **pas dans le dépôt** : aucun fichier `.sql` n'avait jamais
+existé dans l'histoire git, sur aucune branche. Un document de référence non versionné
+avec le code ne peut pas être « réconcilié en continu » — rien ne signale qu'il a
+divergé, et une session qui le cherche ne le trouve pas. Il vit désormais dans
+`docs/schema_bdd.sql`, avec un en-tête rappelant qu'il est un document de **conception**
+et que **les migrations font foi**. Ses propres défauts — trois `CHECK` de la forme
+`IN (..., NULL)` qui ne rejettent rien, une liste de valeurs périmée — y ont été
+corrigés, dans un commit séparé du versement verbatim.
+
+**H4 est close** : la question qu'elle posait a reçu sa réponse complète, table par
+table, et le mécanisme qui la faisait renaître est supprimé.
+
+**Ce qui lui succède, sans être H4.** Deux constats hors des 7 tables, signalés sans
+être corrigés :
+
+- `resolutions.method_used` — `ck_resolution_method` n'autorise pas `'incremental'`, et
+  le modèle déclare `String(10)` pour une valeur de 11 caractères (le schéma, lui, dit
+  `VARCHAR(20)` et a raison). La Discussion 4 déclenchera les deux en exposant
+  `resolve_incremental`.
+- L'instance de référence du dépôt n'est **pas** celle du dossier de sujet :
+  `exemple_jobs.csv` diffère de `tests/fixtures/jobs.csv`, et l'`exemple_expected_output.json`
+  fourni annonce TWT 878.0, statut OPTIMAL, 154 setups. Cela mérite une session à soi.
 
 ### H5 — Le routage du garde-fou de repli reste à faire (2026-09-03, **signal fiabilisé le 2026-09-11**)
 
@@ -2332,7 +2354,7 @@ Composants livrés dans la Discussion 1 (un commit poussé par composant) :
 | 10 | Setups de jonction en variables (cf. D8) | `solvers/incremental_optimizer.py`, `components/schedule_merger.py` | +6 | livré |
 | 11 | Orchestrateur public `resolve_incremental` (cf. D9) | `scheduling/incremental.py` | 15 | livré |
 
-Suite complète hors tests API : **295 tests verts** (141 à la fin des 8 premiers commits,
+Suite complète hors tests API : **325 tests verts** (141 à la fin des 8 premiers commits,
 170 à la fin de la Discussion 1, 189 après le livrable 2 de la Discussion 2).
 `python -m tests.validate_example` passe toujours (TWT **4422.64** depuis la correction
 H8/H9 ; la valeur 3012.84 qui figurait ici datait d'avant D12), donc aucune régression sur
