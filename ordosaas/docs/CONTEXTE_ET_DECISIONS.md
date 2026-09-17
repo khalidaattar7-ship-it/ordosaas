@@ -2203,6 +2203,83 @@ Autre constat sans rapport avec les tables, relevé en localisant le schéma :
 fourni annonce **TWT 878.0, statut OPTIMAL, 154 setups**. L'instance de référence du dépôt
 n'est donc pas celle du sujet. Cela mérite une session à soi.
 
+### Cartographie — le canari H8/H9 est non déterministe (2026-09-17, avant correction)
+
+Le canari incrémental a échoué une fois pendant l'audit H4, sans rapport avec cette
+session-là. Cette cartographie **reproduit et quantifie** le défaut au lieu de s'en tenir
+au diagnostic supposé.
+
+#### Le diagnostic est confirmé sur le principe, corrigé sur le mécanisme
+
+Ce n'est **ni** le budget de 15 s, **ni** l'étage incrémental. C'est la **résolution
+initiale** qui rend, sous contention, un planning *différent mais également optimal*.
+
+| Étape | Cas majoritaire (22/25) | Cas minoritaire (3/25) |
+|---|---|---|
+| Planning initial | variante A | **variante B** |
+| Cible `min(entries, key=start_time)` | `K2/MA` | **`K3/MA`** |
+| Zone d'impact | 5 opérations | **1 opération** |
+| `total_setup_time` de la zone | 24 | **0** → le canari crie |
+
+Une opération seule n'a **aucune transition**, donc aucun setup. Le canari conclut « le
+défaut H9 est revenu » alors que rien n'est revenu : c'est un **faux positif**, pas une
+détection.
+
+#### Taux d'échec mesuré
+
+| Conditions | Échecs |
+|---|---|
+| Machine peu chargée, 30 exécutions | **0 / 30** |
+| Suite complète en parallèle, 20 exécutions | **0 / 20** |
+| 8 processus de charge sur 20 cœurs, 25 exécutions | **0 / 25** |
+| **40 processus sur 20 cœurs, 25 exécutions** | **3 / 25 — 12 %** |
+
+Il faut une **sur-souscription franche** pour le déclencher. C'est ce qui explique qu'il
+ait survécu jusqu'ici et n'ait frappé qu'une fois : le jour de l'incident, plusieurs
+`pytest` tournaient en parallèle d'une suite complète.
+
+#### La configuration D12, relue et non supposée
+
+`tests/fixtures/expected_output.json` porte un bloc `reproducibility` :
+`num_search_workers: 1`, `random_seed: 42`, `max_deterministic_time: 10.0`. Il est
+consommé par `conftest.example_schedule`, `validate_example` et
+`densite_variants.construit_variantes` — **mais par aucun des deux canaris**, qui se
+contentent de `CPSATSolver(timeout_seconds=15)`.
+
+#### Le correctif minimal suffit : ne pas étendre l'incrémental
+
+`IncrementalOptimizer` n'expose **ni `random_seed` ni `max_deterministic_time`**, et
+s'arrête à l'horloge (`max_time_in_seconds`). Le déterminiser demanderait d'étendre son
+API — ce qui s'est avéré **inutile** : déterminiser la **seule** résolution initiale donne
+**25 / 25 stables** sous la saturation qui produisait 12 % d'échecs. Les 4 workers de
+l'étage incrémental ne changent pas la propriété testée.
+
+Mesuré aussi : en mode déterministe le résultat est **identique au cas majoritaire**
+(zone de 5, setup 24). Le budget ne masque donc rien — l'instance est minuscule.
+
+#### Le second canari (H8) porte le même défaut, non révélé
+
+`test_canari_le_solveur_initial_paie_toujours_des_setups` produit lui aussi **2 plannings
+distincts** sous charge. Mais ses quatre assertions passent **25 / 25** : le fixture est
+construit pour qu'aucune solution valide n'ait un setup nul, donc elles résistent à la
+variation.
+
+Il n'échoue pas aujourd'hui — **ce qui n'est pas une preuve d'innocuité**. C'est
+exactement le raisonnement qui a fait chercher H9 après H8, puis H10b et H10c après H10a.
+Il reçoit donc le même traitement, pour que les deux garde-fous jumeaux ne protègent pas
+la même famille de défaut avec des configurations inégales.
+
+#### La fragilité de fond, au-delà du non-déterminisme
+
+L'assertion `total_setup_time > 0` suppose **implicitement** que la zone contienne au
+moins une transition. La déterminisation fige cette condition, mais ne la rend pas
+visible. Sans préalable explicite, un futur échec resterait **ambigu** entre une vraie
+régression de H9 — urgente — et un scénario devenu dégénéré — simple maintenance de
+fixture. Deux causes très différentes qui méritent des réponses différentes.
+
+Le canari affirme donc désormais d'abord que le scénario **exerce** les conditions
+nécessaires, avant d'affirmer la propriété.
+
 
 ## Hypothèses en attente de validation par Khalid
 
