@@ -1,7 +1,9 @@
 """Machine ORM model."""
 import uuid
 
-from sqlalchemy import CheckConstraint, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint, ForeignKey, Index, String, Text, UniqueConstraint,
+)
 from app.models._types import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -13,6 +15,7 @@ class Machine(TimestampedModel):
     __table_args__ = (
         UniqueConstraint("tenant_id", "external_id", name="uq_machine_tenant_external"),
         CheckConstraint("status IN ('active','maintenance','inactive')", name="ck_machine_status"),
+        Index("idx_machines_tenant", "tenant_id"),
     )
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(

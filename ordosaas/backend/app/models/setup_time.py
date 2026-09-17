@@ -1,7 +1,7 @@
 """SetupTime ORM model."""
 import uuid
 
-from sqlalchemy import CheckConstraint, ForeignKey, Integer, UniqueConstraint
+from sqlalchemy import CheckConstraint, ForeignKey, Index, Integer, UniqueConstraint
 from app.models._types import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -13,6 +13,10 @@ class SetupTime(BaseModel):
     __table_args__ = (
         UniqueConstraint("instance_id", "from_job_id", "to_job_id", "machine_id", name="uq_setup_unique"),
         CheckConstraint("duration >= 0", name="ck_setup_duration"),
+        Index("idx_setups_instance", "instance_id"),
+        Index("idx_setups_from_job", "from_job_id"),
+        Index("idx_setups_to_job", "to_job_id"),
+        Index("idx_setups_machine", "machine_id"),
     )
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(

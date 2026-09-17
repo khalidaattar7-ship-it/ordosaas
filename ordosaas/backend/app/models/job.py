@@ -1,7 +1,9 @@
 """Job ORM model."""
 import uuid
 
-from sqlalchemy import CheckConstraint, ForeignKey, Integer, Numeric, String, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint, ForeignKey, Index, Integer, Numeric, String, UniqueConstraint,
+)
 from app.models._types import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -14,6 +16,8 @@ class Job(BaseModel):
         UniqueConstraint("instance_id", "external_id", name="uq_job_instance_external"),
         CheckConstraint("deadline > 0", name="ck_job_deadline"),
         CheckConstraint("weight > 0", name="ck_job_weight"),
+        Index("idx_jobs_instance", "instance_id"),
+        Index("idx_jobs_tenant", "tenant_id"),
     )
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(

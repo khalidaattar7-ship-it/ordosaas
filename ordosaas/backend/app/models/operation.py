@@ -1,7 +1,7 @@
 """Operation ORM model."""
 import uuid
 
-from sqlalchemy import CheckConstraint, ForeignKey, Integer, UniqueConstraint
+from sqlalchemy import CheckConstraint, ForeignKey, Index, Integer, UniqueConstraint
 from app.models._types import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -15,6 +15,9 @@ class Operation(BaseModel):
         UniqueConstraint("job_id", "machine_id", name="uq_operation_job_machine"),
         CheckConstraint("position >= 1", name="ck_operation_position"),
         CheckConstraint("duration > 0", name="ck_operation_duration"),
+        Index("idx_operations_job", "job_id"),
+        Index("idx_operations_machine", "machine_id"),
+        Index("idx_operations_tenant", "tenant_id"),
     )
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(

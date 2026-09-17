@@ -1,7 +1,7 @@
 """TimeWindow ORM model."""
 import uuid
 
-from sqlalchemy import CheckConstraint, ForeignKey, Integer, Numeric, String
+from sqlalchemy import CheckConstraint, ForeignKey, Index, Integer, Numeric, String
 from app.models._types import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -19,6 +19,7 @@ class TimeWindow(BaseModel):
             "status IN ('pending','running','optimal','feasible','atcs_fallback','error')",
             name="ck_window_status",
         ),
+        Index("idx_windows_resolution", "resolution_id"),
     )
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(

@@ -1,7 +1,7 @@
 """ScheduleEntry ORM model."""
 import uuid
 
-from sqlalchemy import CheckConstraint, ForeignKey, Integer, Numeric
+from sqlalchemy import CheckConstraint, ForeignKey, Index, Integer, Numeric
 from app.models._types import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -13,6 +13,12 @@ class ScheduleEntry(BaseModel):
     __table_args__ = (
         CheckConstraint("start_time >= 0", name="ck_entry_start"),
         CheckConstraint("end_time > start_time", name="ck_entry_end"),
+        Index("idx_entries_resolution", "resolution_id"),
+        Index("idx_entries_machine", "machine_id"),
+        Index("idx_entries_job", "job_id"),
+        Index("idx_entries_tenant", "tenant_id"),
+        # Requete Gantt : par resolution et machine, triee par date.
+        Index("idx_entries_gantt", "resolution_id", "machine_id", "start_time"),
     )
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(

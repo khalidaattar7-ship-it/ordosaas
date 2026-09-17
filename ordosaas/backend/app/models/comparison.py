@@ -1,7 +1,7 @@
 """SolutionComparison ORM model."""
 import uuid
 
-from sqlalchemy import CheckConstraint, ForeignKey, Integer, Numeric, String
+from sqlalchemy import CheckConstraint, ForeignKey, Index, Integer, Numeric, String
 from app.models._types import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -12,6 +12,7 @@ class SolutionComparison(BaseModel):
     __tablename__ = "solution_comparisons"
     __table_args__ = (
         CheckConstraint("winner IN ('A','B') OR winner IS NULL", name="ck_comparison_winner"),
+        Index("idx_comparisons_tenant", "tenant_id"),
     )
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(
