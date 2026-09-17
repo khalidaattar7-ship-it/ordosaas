@@ -1959,37 +1959,165 @@ aux deux défauts de rester indétectés.** Une couverture de base du composant
 consigné ici pour qu'une session future le reprenne en connaissance de cause, plutôt que
 de redécouvrir le même vide au prochain défaut dans ce composant.
 
+## ✅ RÉSOLU — Les trois défauts de contexte d'`InterWindowOptimizer` (D18, ex-H10)
+
+> Session dédiée du 2026-09-17, ouverte sur **un** défaut consigné en fin de session
+> D16/D17. Il y en avait **trois**, tous dans la même méthode `_optimize_junction`, dont
+> deux produisant des plannings que le validateur canonique rejette. Documenté ici au même
+> niveau de visibilité que H8/H9 et D16/D17 : ils appartiennent au même défaut de fond —
+> le voisinage de jonction est réoptimisé sans que son environnement soit représenté.
+
+> **Trois défauts distincts trouvés dans une seule méthode, en une seule session.** Cela ne
+> se contente pas d'illustrer le besoin de couverture directe sur `InterWindowOptimizer`
+> signalé plus bas : cela le **renforce**. Ce chantier ne doit plus être vu comme une
+> amélioration de confort, mais comme un point à traiter **en priorité** dès qu'une session
+> s'y prête.
+
+#### H10a — le filtrage `and` éliminait les paires du contexte gauche
+
+Le contexte gauche désigne comme dernier job de la machine une entrée prise dans
+`left.window.jobs[:-junction_radius]` — **délibérément hors de `micro_jobs`**. Exiger que
+*les deux* extrémités appartiennent à `micro_jobs` éliminait donc exactement les paires
+dont ce contexte a besoin. La micro-instance lisait un setup de 50 comme **0**.
+
+| | Premier micro job | Écart laissé après `L2` | Setup dû |
+|---|---|---|---|
+| `and` (avant) | 20 | **0** | 50 |
+| `or` (après) | 70 | **50** | 50 |
+
+Corrigé en alignant sur `lns_recursive._create_window_instance`, qui utilise déjà `or`.
+
+#### H10b — le garde de taille vidait entièrement le contexte gauche
+
+`left_context` n'était construit que `if len(left.window.jobs) > self.junction_radius`.
+Quand la condition était fausse, il restait `BoundaryContext.empty()` : ni charge machine,
+ni dernier job. Le micro-solveur replaçait les jobs depuis `t = 0` en ignorant toutes les
+fenêtres antérieures.
+
+**Ce n'était pas un cas limite** : avec les défauts du projet `min_jobs_per_window = 5` et
+`junction_radius = 10`, **toute fenêtre de 5 à 10 jobs tombait dedans, en production**.
+
+```
+avant : A1 [0,10] et C1 [0,10] ; A2 [10,20] et C2 [10,20]  -> 2 chevauchements
+apres : la jonction repart apres la fin de W0              -> aucune violation
+```
+
+Le contexte est désormais construit à partir de **toutes** les entrées qui précèdent la
+jonction et ne sont pas réoptimisées, toutes fenêtres confondues. Le garde disparaît.
+
+#### H10c — `right_context` est un paramètre mort
+
+`solve_with_context` **accepte** un `right_context` et **ne le lit jamais** : le mot
+n'apparaît qu'à sa signature, ligne 95. La frontière droite n'est donc modélisée sur
+**aucun** chemin LNS — `lns_recursive` en construit un aux lignes 125 et 147, et il est
+silencieusement jeté.
+
+Dans le LNS séquentiel c'est sans conséquence : les fenêtres s'enchaînent par le contexte
+**gauche**, chacune repartant après le résultat de la précédente. `InterWindowOptimizer`
+est le seul chemin qui réoptimise une tranche **au milieu**, avec de l'intact des deux
+côtés — c'est là, et seulement là, que l'absence devient une violation.
+
+**Correction locale et conservatrice, assumée comme telle.** Faute de pouvoir contraindre
+le modèle sans toucher au code partagé, la jonction qui déborde est **rejetée**. On perd
+des jonctions par ailleurs améliorables, mais on ne produit jamais de planning invalide —
+même principe que le Constat A de la Discussion 2.
+
+#### L'atteignabilité, mesurée — et c'est H10a qui la crée
+
+| Setup de contexte gauche | Sans la garde | Avec la garde |
+|---|---|---|
+| 0 | fin micro 60, validateur OK | acceptée |
+| **5** | fin micro 65 → `Chevauchement R1 [55-65] et S1 [60-70]` | **rejetée** |
+| 10 | fin micro 70 → chevauchement | rejetée |
+| 20 | fin micro 80 → chevauchement | rejetée |
+| 40 | fin micro 100 → chevauchement | rejetée |
+
+**Cinq unités de setup suffisent**, et la jonction fautive était acceptée à chaque fois :
+le débordement n'a rien d'artificiel. Surtout, **c'est le correctif H10a qui le rend
+atteignable** — avant lui, le setup de contexte gauche était lu comme 0, donc aucune
+expansion n'était possible.
+
+Livrer H10a seul aurait donc **introduit** un chevauchement atteignable là où il n'y avait
+qu'un setup impayé. C'est la **troisième occurrence** du même enchaînement dans ce projet,
+après D16 → D17 : corriger une lacune rend la lacune adjacente exploitable. La règle
+« la validité se corrige avec urgence, jamais différée » vaut donc aussi, et peut-être
+surtout, pour les défauts **adjacents** à celui qu'on corrige.
+
+#### Pas de défaut de réservation ici
+
+`InterWindowOptimizer` ne construit **aucun modèle CP-SAT** et n'émet **aucun `SetupEntry`**
+de son cru : il délègue à `solve_with_context`, dont la réservation a été corrigée en D17.
+L'ordre des corrections était ici **favorable**, à l'inverse du piège de D16/D17 : le
+tableau à trois états de D17 ne s'applique pas à cette session, et c'est une conclusion,
+pas une omission.
+
+#### Revalidation
+
+| Référence | Résultat |
+|---|---|
+| `expected_output.json` / `validate_example` | **inchangé**, TWT 4422.64 |
+| `validate_incremental` | 23 scénarios, 200 vérifications, tous PASS |
+| `docs/densite-perturbation.md` | **identique octet pour octet** |
+| Suite de tests | 286 → **295 verts** |
+
+Attendu : aucun de ces chemins n'exerce `InterWindowOptimizer`, qui n'intervient qu'au-delà
+du seuil exact. Les trois défauts **n'ont donc pas pu affecter les résultats publiés du
+projet**, tous produits sur l'instance à 10 jobs par résolution directe ou incrémentale.
+#### Amélioration de qualité identifiée mais DIFFÉRÉE — honorer `right_context` dans `solve_with_context`
+
+La garde de H10c élimine réellement le chevauchement, mais par **rejet** de la jonction
+débordante, pas par contrainte. C'est conservateur : des jonctions par ailleurs
+améliorables sont perdues.
+
+La correction structurelle consiste à **faire enfin servir le `right_context`** que le LNS
+construit déjà et que `solve_with_context` jette : modéliser la frontière droite par des
+intervalles fixes dans le `NoOverlap`, sur le modèle des obstacles de D10 côté incrémental.
+`InterWindowOptimizer` pourrait alors contraindre la jonction au lieu de la rejeter, et les
+fenêtres du LNS récursif y gagneraient une frontière droite réelle.
+
+**Volontairement non fait ici** : c'est du **code partagé** avec le LNS récursif, et cela
+change le comportement de toutes ses fenêtres. Exactement le type de changement qui a exigé
+une cartographie et une session dédiées pour l'arc du dépôt (D16) — pas une décision à
+prendre au fil de l'eau dans une session cadrée sur `InterWindowOptimizer`.
+
+**Non urgent** : la validité est déjà assurée par la garde locale. À traiter dans une
+session dédiée, avec sa propre cartographie, au même titre que l'arc du dépôt l'était après
+H8/H9.
+
+
+#### La cause profonde : aucun test direct
+
+`InterWindowOptimizer` n'avait **aucun test direct** avant cette session. Les quatre tests
+de `test_lns.py` exercent le solveur de bout en bout, jamais ce composant isolément.
+**C'est cette absence de couverture, et pas seulement la logique défectueuse, qui a permis
+aux trois défauts de rester indétectés.**
+
+`tests/test_inter_window_contexte_gauche.py` en est la première couverture directe, mais
+elle est **ciblée sur les trois défauts corrigés**. Une couverture de base du composant —
+`_compute_junction_costs`, `_build_applied`, le critère de convergence — reste un chantier
+identifié et **volontairement différé**, à traiter en priorité (voir la note de tête).
+
 
 ## Hypothèses en attente de validation par Khalid
 
-### H10 — `InterWindowOptimizer` neutralise son propre contexte gauche (2026-09-17)
+### H10 — RÉSOLUE le 2026-09-17 → voir D18
 
-**Découvert** en cartographiant D16, **non corrigé** : hors du périmètre autorisé pour
-cette session, et dans un troisième composant. Consigné ici pour arbitrage.
+**Découvert** en cartographiant D16, **corrigé le 2026-09-17**. La session dédiée a montré
+qu'il ne s'agissait pas d'un défaut mais de **trois**, tous dans `_optimize_junction`, dont
+deux produisant des plannings invalides — voir **D18** pour le détail, les mesures et la
+limite assumée.
 
-Le filtrage des setups de la micro-instance utilise un **`and`**, là où le LNS récursif
-utilise un **`or`** :
+Les trois : le filtrage `and` qui éliminait les paires du contexte gauche (H10a), le garde
+de taille qui le vidait entièrement (H10b), et `right_context`, paramètre accepté mais
+jamais lu par `solve_with_context`, qui laissait la jonction déborder à droite (H10c).
 
-```
-components/inter_window_optimizer.py:101-104   if k[0] in micro_job_ids and k[1] in micro_job_ids
-solvers/lns_recursive.py:201-204               if k[0] in job_ids    or  k[1] in job_ids
-```
+Le « non mesuré » qui figurait ici est levé : l'atteignabilité a été chiffrée (cinq unités
+de setup suffisent à provoquer un chevauchement), et il est confirmé que ce chemin
+n'étant pas exercé par l'instance à 10 jobs, **aucun résultat publié du projet n'a pu en
+être affecté**.
 
-Le `and` élimine exactement les paires dont le contexte gauche a besoin :
-`last_job_per_machine` est pris dans `left.window.jobs[:-junction_radius]`, c'est-à-dire
-des jobs **délibérément exclus** de `micro_jobs`. Vérifié : un setup valant 99 dans
-l'instance complète est lu à **0** par la micro-instance. Le setup de contexte gauche y est
-donc totalement inerte — avant comme après D16, qui ne change rien à ce point.
-
-**C'est une sous-réservation, pas une sur-réservation.** À la jonction, une micro-opération
-peut être placée directement à `machine_loads[m]` sans payer un setup pourtant réel dans le
-planning fusionné. Même famille que H8/H9, mais dans un composant que ni D12 ni cette
-session n'ont couvert.
-
-**Non mesuré** : l'ampleur sur des instances réelles reste à établir. `InterWindowOptimizer`
-n'intervient que sur les jonctions dont le `boundary_cost` est non nul, et le LNS n'est
-sollicité qu'au-delà du seuil exact — ce chemin n'est donc pas exercé par l'instance
-d'exemple à 10 jobs.
+Reste ouvert, non urgent : honorer `right_context` dans `solve_with_context` plutôt que de
+rejeter les jonctions débordantes — voir l'amélioration différée dans D18.
 
 ### H8 / H9 — RÉSOLUES le 2026-09-06 → voir D12
 
@@ -2098,7 +2226,7 @@ Composants livrés dans la Discussion 1 (un commit poussé par composant) :
 | 10 | Setups de jonction en variables (cf. D8) | `solvers/incremental_optimizer.py`, `components/schedule_merger.py` | +6 | livré |
 | 11 | Orchestrateur public `resolve_incremental` (cf. D9) | `scheduling/incremental.py` | 15 | livré |
 
-Suite complète hors tests API : **286 tests verts** (141 à la fin des 8 premiers commits,
+Suite complète hors tests API : **295 tests verts** (141 à la fin des 8 premiers commits,
 170 à la fin de la Discussion 1, 189 après le livrable 2 de la Discussion 2).
 `python -m tests.validate_example` passe toujours (TWT **4422.64** depuis la correction
 H8/H9 ; la valeur 3012.84 qui figurait ici datait d'avant D12), donc aucune régression sur
