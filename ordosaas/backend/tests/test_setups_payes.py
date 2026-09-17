@@ -277,6 +277,28 @@ def atelier_canari():
                            setup_times=setups, wr=2)
 
 
+def solveur_canari() -> CPSATSolver:
+    """Solveur DETERMINISTE, obligatoire pour un canari (cf. D12 et la cartographie).
+
+    Un garde-fou de non-regression ne doit jamais dependre de la charge de la machine
+    qui l'execute. Avec la configuration de production (4 workers, arret a l'horloge),
+    le solveur rend sur cette instance DEUX plannings differents mais egalement
+    optimaux ; le canari incremental echouait alors 3 fois sur 25 sous sur-souscription,
+    en FAUX POSITIF — la variante B deplace la cible de perturbation, reduit la zone a
+    une seule operation, et une operation seule n'a aucune transition a payer.
+
+    C'est la meme configuration que celle figee en D12 pour `expected_output.json`, ici
+    generalisee aux tests eux-memes. Elle ne sert QUE la reproductibilite : la
+    configuration de production reste inchangee.
+    """
+    return CPSATSolver(
+        timeout_seconds=15,
+        num_search_workers=1,
+        random_seed=42,
+        max_deterministic_time=10.0,
+    )
+
+
 def test_canari_le_solveur_initial_paie_toujours_des_setups(atelier_canari):
     """CANARI H8 : un temps de setup nul est impossible ici, donc revelateur.
 
@@ -303,7 +325,7 @@ def test_canari_lincremental_paie_toujours_des_setups(atelier_canari):
     from scheduling.incremental import IncrementalConfig, resolve_incremental
     from scheduling.models.perturbation import make_event
 
-    initial = CPSATSolver(timeout_seconds=15).solve(atelier_canari)
+    initial = solveur_canari().solve(atelier_canari)
     cible = min(initial.entries, key=lambda e: e.start_time)
     event = make_event("duration_change", timestamp=0, job_id=cible.job_id,
                        position_in_job=cible.position_in_job,
@@ -316,6 +338,23 @@ def test_canari_lincremental_paie_toujours_des_setups(atelier_canari):
                                  timeout_seconds=15),
     )
     zone_schedule = resolution.window_result.schedule
+
+    # PREALABLE : le scenario exerce-t-il vraiment ce que l'assertion suivante
+    # affirme ? `total_setup_time > 0` suppose qu'au moins une machine porte DEUX
+    # operations de zone, donc une transition a payer. Sans ce controle, une zone
+    # devenue degeneree ferait echouer le canari en accusant H9 a tort — et les deux
+    # causes appellent des reponses opposees : une regression de H9 est urgente, un
+    # scenario degenere est une simple maintenance de fixture.
+    par_machine = {}
+    for entree in zone_schedule.entries:
+        par_machine.setdefault(entree.machine_id, []).append(entree)
+    transitions = sum(max(0, len(v) - 1) for v in par_machine.values())
+    assert transitions >= 1, (
+        f"scenario degenere, pas une regression de H9 : la zone ne contient aucune "
+        f"transition a payer ({ {m: len(v) for m, v in par_machine.items()} }). "
+        f"Le canari n'exerce plus ce qu'il pretend verifier."
+    )
+
     assert zone_schedule.entries, "la zone devrait contenir des operations"
     assert zone_schedule.total_setup_time > 0, "le defaut H9 est revenu"
 
