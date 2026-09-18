@@ -421,3 +421,102 @@ def test_une_seule_fenetre_court_circuite_toute_la_phase(monkeypatch):
     assert calculs == [], (
         "une fenetre unique ne doit declencher aucun calcul de cout de jonction"
     )
+
+
+# ==========================================================================
+# Livrable 5 — scenario calcule A LA MAIN sur l'instance REELLE
+# ==========================================================================
+# Le cout attendu a ete calcule AVANT execution, a partir du planning de reference
+# deterministe de l'instance a 10 jobs, decoupee en deux fenetres :
+#
+#     fenetre 0 = {J8, J1, J6, J9}    fenetre 1 = {J2, J7, J4, J5, J3, J10}
+#
+#   machine  transition                        setup  ecart  manque
+#   M1       J9[fin 169] -> J2[debut 183]       14     14      0
+#   M2       J9[fin 314] -> J2[debut 233]       14    -81     95
+#   M3       J9[fin 352] -> J2[debut 307]        1    -45     46
+#                                                     sous-total 141
+#
+#   retards ponderes de la fenetre droite : 3357.59, ponderes 0.1 -> 335.759
+#
+#   COUT ATTENDU = 141 + 335.759 = 476.759
+#
+# Les ecarts NEGATIFS sur M2 et M3 ne sont pas une anomalie : les fenetres
+# partitionnent les JOBS, pas le temps, donc J9 peut finir sur une machine apres que
+# J2 y ait commence. Ce cas exerce la branche `setup_dur - gap` avec gap < 0, que les
+# tests synthetiques ci-dessus n'atteignaient pas.
+FENETRE_GAUCHE = ["J8", "J1", "J6", "J9"]
+FENETRE_DROITE = ["J2", "J7", "J4", "J5", "J3", "J10"]
+COUT_CALCULE_A_LA_MAIN = 476.759
+MANQUE_SETUPS_ATTENDU = 141
+
+
+def _decoupe_en_deux_fenetres(schedule, instance):
+    """Construit deux WindowResult a partir du planning de reference."""
+    jobs = {j.id: j for j in instance.jobs}
+    fenetres = []
+    for index, noms in enumerate((FENETRE_GAUCHE, FENETRE_DROITE)):
+        entrees = [e for e in schedule.entries if e.job_id in noms]
+        sous = Schedule(
+            entries=entrees, method_used="cpsat",
+            jobs_result=[r for r in schedule.jobs_result if r.job_id in noms],
+        )
+        fenetres.append(WindowResult(
+            window=Window(index=index,
+                          t_start=min(e.start_time for e in entrees),
+                          t_end=max(e.end_time for e in entrees),
+                          jobs=[jobs[n] for n in noms]),
+            schedule=sous, exit_context=BoundaryContext.empty(),
+            objective=0.0, method="cpsat",
+        ))
+    return fenetres
+
+
+def test_le_cout_de_jonction_vaut_exactement_le_calcul_manuel(
+    example_schedule, example_instance
+):
+    """Validation manuelle sur l'instance reelle, calcul pose avant execution."""
+    fenetres = _decoupe_en_deux_fenetres(example_schedule, example_instance)
+    couts = _optimiseur()._compute_junction_costs(fenetres, example_instance)
+
+    assert len(couts) == 1, "une seule frontiere pour deux fenetres"
+    assert couts[0]["cost"] == pytest.approx(COUT_CALCULE_A_LA_MAIN, abs=1e-3)
+
+
+def test_la_part_setups_du_cout_vaut_le_calcul_manuel(
+    example_schedule, example_instance
+):
+    """Isole la composante setups, pour que l'ecart soit localisable en cas d'echec.
+
+    Sans cette decomposition, un test global ne dirait pas LAQUELLE des deux
+    composantes a derive.
+    """
+    fenetres = _decoupe_en_deux_fenetres(example_schedule, example_instance)
+    couts = _optimiseur()._compute_junction_costs(fenetres, example_instance)
+
+    retards = sum(
+        r.weighted_tardiness for r in fenetres[1].schedule.jobs_result if r.is_late
+    )
+    part_setups = couts[0]["cost"] - retards * 0.1
+    assert part_setups == pytest.approx(MANQUE_SETUPS_ATTENDU, abs=1e-3)
+
+
+def test_un_ecart_negatif_majore_le_cout_au_dela_du_setup(
+    example_schedule, example_instance
+):
+    """La branche gap < 0, atteinte seulement par ce scenario reel.
+
+    Sur M2, le setup du vaut 14 mais l'ecart est de -81 : le cout retenu est 95, soit
+    `setup - gap`. Un simple `max(0, setup)` aurait donne 14 et sous-estime de 81.
+    """
+    fenetres = _decoupe_en_deux_fenetres(example_schedule, example_instance)
+    couts = _optimiseur()._compute_junction_costs(fenetres, example_instance)
+    retards = sum(
+        r.weighted_tardiness for r in fenetres[1].schedule.jobs_result if r.is_late
+    )
+    part_setups = couts[0]["cost"] - retards * 0.1
+    plus_grand_setup_du = 14 + 14 + 1
+    assert part_setups > plus_grand_setup_du, (
+        f"part setups {part_setups} : un ecart negatif doit couter PLUS que le setup "
+        f"nominal, sinon le recouvrement n'est pas facture"
+    )
