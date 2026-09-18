@@ -80,7 +80,7 @@ def atelier_jouet():
 
 def test_cas_jouet_le_makespan_inclut_exactement_les_setups(atelier_jouet):
     """Verification exacte : le setup n'est ni oublie, ni compte deux fois."""
-    schedule = CPSATSolver(timeout_seconds=10).solve(atelier_jouet)
+    schedule = solveur_deterministe(timeout_seconds=10).solve(atelier_jouet)
 
     assert schedule is not None
     assert schedule.horizon == 44, (
@@ -92,7 +92,7 @@ def test_cas_jouet_le_makespan_inclut_exactement_les_setups(atelier_jouet):
 
 def test_cas_jouet_chaque_transition_porte_son_setup(atelier_jouet):
     """Chaque transition emet un SetupEntry, aux dates du modele."""
-    schedule = CPSATSolver(timeout_seconds=10).solve(atelier_jouet)
+    schedule = solveur_deterministe(timeout_seconds=10).solve(atelier_jouet)
     entrees = sorted(schedule.entries, key=lambda e: e.start_time)
 
     assert entrees[0].setup is None, "la premiere operation n'a pas de predecesseur"
@@ -113,7 +113,8 @@ def test_sur_instance_reelle_tout_setup_du_est_paye(example_instance):
     Avant correction, cette instance presentait 18 transitions en violation et
     352 unites de setup dues pour 0 payee.
     """
-    schedule = CPSATSolver(timeout_seconds=30).solve(example_instance)
+    schedule = solveur_deterministe(timeout_seconds=30,
+                                    max_deterministic_time=1.0).solve(example_instance)
 
     assert schedule is not None
     manques = transitions_non_payees(schedule, example_instance)
@@ -128,7 +129,8 @@ def test_sur_instance_reelle_le_temps_de_setup_est_strictement_positif(example_i
     C'est le symptome le plus direct de H8 — `total_setup_time` valait exactement 0
     alors que l'instance declare 247 paires de setups non nuls.
     """
-    schedule = CPSATSolver(timeout_seconds=30).solve(example_instance)
+    schedule = solveur_deterministe(timeout_seconds=30,
+                                    max_deterministic_time=1.0).solve(example_instance)
 
     assert schedule.total_setup_time > 0, (
         "aucun setup paye : le defaut H8 est revenu"
@@ -152,7 +154,8 @@ def test_la_borne_dhorizon_est_resserree_et_reste_un_majorant(example_instance):
 
     assert resserree < example_instance.horizon, "la borne devrait etre plus fine"
 
-    schedule = CPSATSolver(timeout_seconds=30).solve(example_instance)
+    schedule = solveur_deterministe(timeout_seconds=30,
+                                    max_deterministic_time=1.0).solve(example_instance)
     assert schedule.horizon <= resserree, (
         f"makespan {schedule.horizon} au-dela de la borne {resserree} : "
         f"ce n'est plus un majorant"
@@ -176,7 +179,7 @@ def test_la_borne_dhorizon_majore_meme_un_cas_degenere():
     instance = ProblemInstance(jobs=jobs, machines=["M1"], setup_times=setups, wr=1)
 
     # 5 operations de 10, 4 transitions de 25 : makespan reel = 50 + 100 = 150.
-    schedule = CPSATSolver(timeout_seconds=10).solve(instance)
+    schedule = solveur_deterministe(timeout_seconds=10).solve(instance)
     assert schedule.horizon == 150
     assert schedule.horizon <= _borne_horizon(instance)
     assert transitions_non_payees(schedule, instance) == []
@@ -277,8 +280,9 @@ def atelier_canari():
                            setup_times=setups, wr=2)
 
 
-def solveur_canari() -> CPSATSolver:
-    """Solveur DETERMINISTE, obligatoire pour un canari (cf. D12 et la cartographie).
+def solveur_deterministe(timeout_seconds: int = 15,
+                         max_deterministic_time: float = 10.0) -> CPSATSolver:
+    """Solveur DETERMINISTE, obligatoire dans tout ce module (cf. D12 et la cartographie).
 
     Un garde-fou de non-regression ne doit jamais dependre de la charge de la machine
     qui l'execute. Avec la configuration de production (4 workers, arret a l'horloge),
@@ -292,10 +296,10 @@ def solveur_canari() -> CPSATSolver:
     configuration de production reste inchangee.
     """
     return CPSATSolver(
-        timeout_seconds=15,
+        timeout_seconds=timeout_seconds,
         num_search_workers=1,
         random_seed=42,
-        max_deterministic_time=10.0,
+        max_deterministic_time=max_deterministic_time,
     )
 
 
@@ -313,7 +317,7 @@ def test_canari_le_solveur_initial_paie_toujours_des_setups(atelier_canari):
     # donc la meme sensibilite structurelle. Dans ce projet, l'absence d'echec
     # observe n'est jamais une preuve d'innocuite : c'est le raisonnement qui a fait
     # trouver H9 apres H8, puis H10b et H10c apres H10a.
-    schedule = solveur_canari().solve(atelier_canari)
+    schedule = solveur_deterministe().solve(atelier_canari)
 
     assert schedule is not None
     assert schedule.total_setup_time > 0, "le defaut H8 est revenu"
@@ -332,7 +336,7 @@ def test_canari_lincremental_paie_toujours_des_setups(atelier_canari):
     from scheduling.incremental import IncrementalConfig, resolve_incremental
     from scheduling.models.perturbation import make_event
 
-    initial = solveur_canari().solve(atelier_canari)
+    initial = solveur_deterministe().solve(atelier_canari)
     cible = min(initial.entries, key=lambda e: e.start_time)
     event = make_event("duration_change", timestamp=0, job_id=cible.job_id,
                        position_in_job=cible.position_in_job,
@@ -378,7 +382,7 @@ def test_le_validateur_canonique_ne_detecte_toujours_pas_ce_defaut(atelier_canar
 
     from scheduling.validation import validate_schedule
 
-    schedule = solveur_canari().solve(atelier_canari)
+    schedule = solveur_deterministe().solve(atelier_canari)
     # On retire tous les setups sans toucher aux dates : le planning devient
     # physiquement infaisable, mais le validateur n'y voit rien.
     sans_setups = replace(
