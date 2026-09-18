@@ -2395,6 +2395,86 @@ D12** est le préalable à toute déterminisation de ce côté-là, et n'a pas �
 ici puisque déterminiser la seule résolution initiale a suffi. À garder en tête si un
 test incrémental se met un jour à clignoter.
 
+### Cartographie — couverture réelle d'`InterWindowOptimizer` (2026-09-18, avant tests)
+
+D18 avait nommé trois zones nues : `_compute_junction_costs`, `_build_applied` et le
+critère de convergence. **Le relevé exhaustif en montre davantage**, dont un trou que
+personne n'avait vu.
+
+#### La spécification fait autorité, et elle est hors dépôt
+
+Le rôle de la Phase 4 est défini dans `PFA_Descriptif_Technique_MVP_v2.docx`, qui vit
+dans `~/Desktop/PFA/files/` — **hors du dépôt**, exactement comme `schema_bdd.sql` avant
+l'audit H4. Le même risque de dérive silencieuse s'applique.
+
+Ce que la spécification dit, mot pour mot :
+
+> **Sous-phase Link State.** Chaque fenêtre diffuse son état complet (coûts de sortie,
+> setups actifs, retards) à un optimiseur global. Celui-ci construit un graphe
+> d'interactions inter-fenêtres où les nœuds sont les fenêtres et les arêtes sont les
+> **coûts de jonction (setups inter-fenêtres, violations WR, retard propagé)**.
+>
+> **Sous-phase Distance Vector ciblé.** Sur les frontières coûteuses, une micro-fenêtre
+> de jonction est créée (environ 10 jobs de chaque côté). CP-SAT réoptimise cette
+> micro-fenêtre localement. Le processus itère jusqu'à convergence (amélioration < ε)
+> ou atteinte d'un nombre maximal d'itérations (**MAX_ITERATIONS = 5**).
+
+#### Couverture, méthode par méthode
+
+| Méthode | État avant cette session |
+|---|---|
+| `__init__` | indirecte seulement |
+| **`optimize`** | **AUCUN test direct** — trou non identifié en D18 |
+| **`_compute_junction_costs`** | **aucune** |
+| `_optimize_junction` | **couverte** — 9 tests, D18 (H10a/b/c) |
+| `_deborde_a_droite` | couverte indirectement, via les tests H10c |
+| `_assemble_schedule` | appelée par 3 tests H10 **comme outil de vérification**, jamais testée pour elle-même |
+| `_recompute_window_kpis` | aucune |
+| **`_build_applied`** | appelée par 3 tests H10 **comme outil**, jamais testée pour elle-même |
+| `_assemble_from_mixed` | aucune |
+| `_apply_new_results` | aucune |
+| `_clone_window_result` | aucune |
+
+**Le trou que D18 n'avait pas nommé, c'est le point d'entrée public lui-même.** `optimize()`
+n'est exercé que de bout en bout par `test_lns.py`, qui assertit le nombre d'entrées, un
+TWT positif et la présence des KPI — **mais ne valide jamais le planning produit**. Or
+H10b et H10c produisaient précisément des plannings invalides : une assertion de validité
+à ce niveau les aurait attrapés sans attendre une session dédiée.
+
+Être « appelée par un test » n'est pas être « couverte » : `_assemble_schedule` et
+`_build_applied` servent d'outils pour vérifier autre chose, et aucune assertion ne porte
+sur leur propre comportement.
+
+#### Écarts relevés entre la spécification et le code, avant tout test
+
+1. **Les violations WR n'entrent pas dans le coût de jonction.** La spécification nomme
+   **trois** composantes d'arête — setups inter-fenêtres, violations WR, retard propagé —
+   et `_compute_junction_costs` n'en implémente que deux. Une frontière coûteuse
+   *uniquement* par contention WR n'est donc jamais identifiée, donc jamais réoptimisée.
+2. **Le terme de retard n'est pas du « retard propagé ».** Le code ajoute
+   `weighted_tardiness * 0.1` pour **tout** job en retard de la fenêtre droite, qu'il soit
+   ou non affecté par la jonction. Le facteur `0.1` n'apparaît nulle part dans la
+   spécification.
+3. **`sorted_junctions[:3]`** — seules les trois jonctions les plus coûteuses sont
+   traitées par itération. La spécification parle des « frontières les plus coûteuses »
+   sans plafond chiffré.
+
+Ces trois points sont des **décisions de conception**, pas des défauts de validité. Ils
+sont présentés avant correction, jamais glissés dans un commit de couverture.
+
+#### Partage de logique avec `_optimize_junction` (déjà corrigé en H10a/b/c)
+
+Vérifié, et la réponse est **non** : `_compute_junction_costs` interroge
+`instance.get_setup(...)` sur l'**instance complète**, jamais sur une micro-instance
+filtrée — le défaut H10a ne s'y reproduit pas. `_build_applied` ne construit aucun
+contexte et ne fait que substituer des entrées par identifiant de job. Aucune des zones
+visées ici ne reconstruit un contexte gauche ou droit.
+
+**Le point de contact réel est ailleurs** : `optimize()` accepte une jonction sur le seul
+critère d'amélioration du TWT, sans aucun contrôle de validité. C'est précisément ce qui a
+permis à H10b et H10c d'être *acceptés* — un planning invalide améliore le TWT. Les gardes
+posées en D18 vivent dans `_optimize_junction` ; rien ne protège la boucle elle-même.
+
 
 ## Hypothèses en attente de validation par Khalid
 
