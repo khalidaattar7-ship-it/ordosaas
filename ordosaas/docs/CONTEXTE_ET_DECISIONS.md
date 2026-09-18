@@ -2475,6 +2475,44 @@ critère d'amélioration du TWT, sans aucun contrôle de validité. C'est préci
 permis à H10b et H10c d'être *acceptés* — un planning invalide améliore le TWT. Les gardes
 posées en D18 vivent dans `_optimize_junction` ; rien ne protège la boucle elle-même.
 
+#### Cartographie de portée du correctif WR inter-fenêtres (2026-09-18, avant correction)
+
+Établie par lecture du code, avant toute modification, sur le modèle de H8/H9 et D16.
+
+**Qui appelle `ContextPropagator.build_left_context` ?** Deux appelants seulement :
+
+| Appelant | Effet du correctif |
+|---|---|
+| `lns_recursive.py:90` et `:178` | **affecté** — c'est le chemin à corriger |
+| `IncrementalContextBuilder:78` | **non affecté** — la ligne 79 suivante **écrase** `active_setups` avec `self._active_setups_at(state)`, calculé depuis l'état figé. Quoi que le propagateur renvoie, l'incrémental le remplace |
+
+L'incrémental est donc **structurellement insensible** à ce correctif. Ce n'est pas une
+estimation : c'est une écriture qui suit immédiatement l'appel.
+
+**Ce qui ne peut pas bouger, démontré et non supposé :**
+
+| Référence | Concernée ? | Démonstration |
+|---|---|---|
+| `expected_output.json` | **non** | `SEUIL_EXACT = 50`, instance de référence à **10 jobs** → `CPSATSolver.solve` direct, aucun fenêtrage, donc aucun `build_left_context` |
+| `validate_example` | **non** | même chemin |
+| `validate_incremental` | **non** | passe par l'incrémental, dont `active_setups` est écrasé ; ne mentionne le LNS que dans un commentaire sur H5 |
+| Matrice densité × perturbation | **non** | bâtie sur la même instance à 10 jobs |
+| `test_fallback_guard.py`, `test_incremental_orchestrator.py` | **non** | ne mentionnent le LNS que dans des docstrings — H5 n'étant pas routé, aucun n'exécute de résolution LNS |
+
+**Ce qui peut bouger :**
+
+| Test | Nature des assertions | Risque de re-baselining |
+|---|---|---|
+| `test_lns.py::test_lns_handles_large_instance` | `method_used`, nombre d'entrées, `TWT >= 0`, KPI non nuls — **propriétés, aucune valeur figée** | faible : le TWT peut changer sans casser l'assertion |
+| `test_lns.py::test_lns_progress_callback_invoked` | phases observées | nul |
+| `test_lns.py::test_dispatcher_*` | routage par taille, `method_used` | nul — n'exécutent pas de LNS multi-fenêtres |
+| `test_lns_validite.py` | les deux `xfail` doivent devenir verts | c'est l'objet même du correctif |
+
+**Conclusion de portée.** Aucune valeur de référence du projet n'est en jeu : la seule
+famille affectée est celle des résolutions LNS multi-fenêtres, qu'aucun fichier de
+référence ne fige. Le re-baselining consiste donc à **mesurer et documenter** l'effet sur
+le TWT du LNS, pas à mettre à jour un fichier.
+
 
 ## Hypothèses en attente de validation par Khalid
 
