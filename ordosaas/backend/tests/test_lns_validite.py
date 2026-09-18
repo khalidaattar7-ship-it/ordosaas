@@ -25,9 +25,13 @@ ISOLATION, mesuree avant d'accuser quoi que ce soit :
 
 `InterWindowOptimizer` n'en est donc ni la cause ni le remede.
 
-Ces tests sont marques `xfail(strict=True)` : ils DOIVENT echouer tant que le defaut est
-la, et le marqueur devra etre retire des qu'il sera corrige — un xpass est traite comme
-un echec, pour que la correction ne puisse pas passer inapercue.
+CORRIGE le 2026-09-18 : `build_left_context` transmet desormais les setups de la fenetre
+precedente pouvant encore consommer un technicien. Les marqueurs `xfail(strict=True)` qui
+exposaient le defaut ont ete retires des que la correction les a fait passer — c'est leur
+`strict=True` qui l'a signale, un xpass etant traite comme un echec.
+
+Ces tests restent en place comme GARDE-FOU permanent : ils echoueront si la contrainte WR
+inter-fenetres redevient inoperante.
 """
 import pytest
 
@@ -56,22 +60,16 @@ def test_le_lns_planifie_bien_toutes_les_operations(resolution_lns):
     assert len(schedule.entries) == attendu
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="WR non contrainte entre fenetres : build_left_context renvoie "
-           "toujours active_setups=[] (context_propagator.py:47)",
-)
 def test_le_planning_final_du_lns_respecte_la_capacite_wr(resolution_lns):
-    """LE test qui expose le defaut. Reproduit sur 3 instances sur 3."""
+    """LE test qui a expose le defaut, devenu garde-fou permanent.
+
+    Avant correction : 1 violation sur 20 executions sur 20, tous budgets confondus.
+    Apres : 0 sur 22.
+    """
     schedule, instance = resolution_lns
     assert find_wr_violations(schedule, instance.wr) == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="meme cause : la violation WR inter-fenetres fait echouer le "
-           "validateur canonique dans son ensemble",
-)
 def test_le_planning_final_du_lns_est_globalement_valide(resolution_lns):
     """Le validateur canonique du projet doit accepter ce que le LNS produit."""
     schedule, instance = resolution_lns
@@ -109,11 +107,11 @@ def test_chaque_fenetre_respecte_wr_isolement(resolution_lns):
         gauche = solveur.context_propagator.build_left_context(resultat, instance)
 
 
-def test_le_contexte_gauche_du_lns_ne_transmet_aucun_setup_actif(resolution_lns):
-    """La cause, verrouillee comme propriete observable du code actuel.
+def test_le_contexte_gauche_du_lns_transmet_les_setups_actifs(resolution_lns):
+    """La CAUSE, verrouillee comme propriete observable — pas seulement le symptome.
 
-    Ce test documente l'etat DEFECTUEUX : il devra etre inverse en meme temps que le
-    correctif. Il est ici pour que la cause soit tracee, pas seulement le symptome.
+    Ce test etait ecrit a l'envers lors de la decouverte (il affirmait que la liste
+    etait vide) ; il est inverse ici, en meme temps que le correctif.
     """
     from scheduling.models.context import BoundaryContext
 
@@ -128,7 +126,14 @@ def test_le_contexte_gauche_du_lns_ne_transmet_aucun_setup_actif(resolution_lns)
         right_context=None, atcs_schedule=atcs, depth=0,
     )
     contexte = solveur.context_propagator.build_left_context(resultat, instance)
-    assert contexte.active_setups == [], (
-        "si ce test echoue, c'est que le correctif est passe : retirer les xfail "
-        "ci-dessus et inverser cette assertion"
+    assert contexte.active_setups, (
+        "le contexte gauche ne transmet aucun setup actif : la Cumulative WR "
+        "redevient inoperante entre fenetres"
     )
+    # Format attendu par `CPSATSolver.solve_with_context` pour la Cumulative.
+    for machine_id, from_job, to_job, debut, fin in contexte.active_setups:
+        assert fin > debut, f"setup de duree nulle transmis : {machine_id} {from_job}->{to_job}"
+        assert fin > min(contexte.machine_loads.values()), (
+            "un setup s'achevant avant la frontiere ne peut rien chevaucher : "
+            "il n'a pas a etre transmis"
+        )
