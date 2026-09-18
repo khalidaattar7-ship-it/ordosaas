@@ -111,7 +111,39 @@ class LNSRecursiveSolver(BaseSolver):
         logger.info(
             "LNS completed: ATCS=%s, LNS=%s, improvement=%s%%", atcs_twt, final_twt, improvement
         )
+        self._signale_les_violations(final_schedule, instance)
         return final_schedule
+
+    @staticmethod
+    def _signale_les_violations(schedule: Schedule, instance: ProblemInstance) -> None:
+        """Garde-fou de validite : le LNS ne rend plus un planning invalide EN SILENCE.
+
+        Meme geste que le signal de troncature de D13 : on ne sait pas encore corriger
+        la cause, donc on empeche le defaut de rester invisible.
+
+        POURQUOI. Corriger la capacite WR inter-fenetres a supprime le defaut
+        SYSTEMATIQUE — 1 violation sur 20 executions sur 20 avant, 0 apres. Mais DEUX
+        sorties invalides ont ete observees ensuite, sous forte contention CPU, sans
+        jamais pouvoir etre reproduites : ni en rejouant la graine isolement, ni sous
+        charge, ni en forcant le divide & conquer, ni en rejouant le script a
+        l'identique. Leur cause reste inconnue.
+
+        C'est une ALERTE PURE. Contrairement au signal de D13, elle n'est branchee sur
+        AUCUNE action automatique de repli : elle expose et journalise, rien de plus.
+
+        La detection passe par `validate_schedule`, le validateur canonique du projet
+        (decision H2 / D3) — jamais par une logique de validation ad hoc.
+        """
+        from scheduling.validation import validate_schedule
+
+        violations = validate_schedule(schedule, instance=instance)
+        schedule.validation_violations = violations
+        if violations:
+            logger.error(
+                "LNS : le planning rendu est REJETE par le validateur canonique "
+                "(%d violation(s)). Premieres : %s",
+                len(violations), violations[:3],
+            )
 
     def _optimize_window_recursive(
         self, window: Window, instance: ProblemInstance, full_instance: ProblemInstance,

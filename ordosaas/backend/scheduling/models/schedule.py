@@ -43,6 +43,12 @@ class Schedule:
     # solver that produced it (method_used). Kept separate so method_used always
     # holds the solver name (cpsat/lns/atcs) expected by the DB constraint.
     solver_status: Optional[str] = None
+    # Violations relevees par le validateur canonique sur le planning RENDU.
+    # Vide = rien de detecte ; non vide = le solveur rend un planning que le
+    # validateur rejette, et le dit au lieu de le taire. Voir le garde-fou de
+    # validite du LNS. C'est une ALERTE PURE : aucune action automatique n'y est
+    # branchee aujourd'hui.
+    validation_violations: list = field(default_factory=list)
     # Optional KPIs / context attached by solvers
     atcs_twt: Optional[float] = None
     improvement_vs_atcs_pct: Optional[float] = None

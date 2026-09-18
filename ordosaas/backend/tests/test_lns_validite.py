@@ -137,3 +137,85 @@ def test_le_contexte_gauche_du_lns_transmet_les_setups_actifs(resolution_lns):
             "un setup s'achevant avant la frontiere ne peut rien chevaucher : "
             "il n'a pas a etre transmis"
         )
+
+
+# ==========================================================================
+# Garde-fou de validite : le LNS ne rend plus un planning invalide EN SILENCE
+# ==========================================================================
+def test_le_lns_expose_le_verdict_du_validateur(resolution_lns):
+    """Le champ existe toujours, meme quand tout va bien."""
+    schedule, _instance = resolution_lns
+    assert hasattr(schedule, "validation_violations")
+    assert schedule.validation_violations == []
+
+
+def test_le_garde_fou_utilise_le_validateur_canonique(monkeypatch):
+    """La detection passe par `validate_schedule`, jamais par une logique ad hoc.
+
+    Verifie aussi que le verdict est bien RECOPIE sur le Schedule rendu : c'est ce
+    qui rend l'anomalie observable en production si elle se reproduit.
+    """
+    from scheduling.models.job import Job, Operation, ProblemInstance
+    from scheduling.models.schedule import Schedule
+    from scheduling.solvers import lns_recursive as module
+
+    appels = []
+
+    def faux_validateur(schedule, instance=None, wr=None):
+        appels.append(schedule)
+        return ["violation fabriquee pour le test"]
+
+    monkeypatch.setattr(
+        "scheduling.validation.validate_schedule", faux_validateur
+    )
+    instance = ProblemInstance(
+        jobs=[Job(id="A", operations=[Operation("A", "M1", 5, 1)],
+                  deadline=50, weight=1.0)],
+        machines=["M1"], setup_times={}, wr=1,
+    )
+    planning = Schedule(method_used="lns")
+    module.LNSRecursiveSolver._signale_les_violations(planning, instance)
+
+    assert appels, "le garde-fou n'a pas appele le validateur canonique"
+    assert planning.validation_violations == ["violation fabriquee pour le test"]
+
+
+def test_le_garde_fou_naltere_pas_un_planning_valide():
+    """Aucun faux positif : un verdict vide laisse le champ vide."""
+    from scheduling.models.job import Job, Operation, ProblemInstance
+    from scheduling.models.schedule import Schedule, ScheduleEntry
+    from scheduling.solvers import lns_recursive as module
+
+    instance = ProblemInstance(
+        jobs=[Job(id="A", operations=[Operation("A", "M1", 5, 1)],
+                  deadline=50, weight=1.0)],
+        machines=["M1"], setup_times={}, wr=1,
+    )
+    planning = Schedule(method_used="lns", entries=[
+        ScheduleEntry(job_id="A", machine_id="M1", position_in_job=1,
+                      start_time=0, end_time=5, duration=5),
+    ])
+    module.LNSRecursiveSolver._signale_les_violations(planning, instance)
+    assert planning.validation_violations == []
+
+
+def test_le_garde_fou_est_bien_branche_dans_solve(monkeypatch):
+    """Le verdict doit remonter sur le planning RENDU par `solve()`.
+
+    Sans ce test, la couverture verifiait le drapeau mais pas son CABLAGE : retirer
+    l'appel dans `solve()` laissait tous les autres tests au vert, le champ valant
+    `[]` par defaut aussi bien que par validation reussie.
+    """
+    sentinelle = ["verdict fabrique, remonte par le garde-fou"]
+    monkeypatch.setattr(
+        "scheduling.validation.validate_schedule",
+        lambda schedule, instance=None, wr=None: sentinelle,
+    )
+    instance = generate_avgerinos_instance(nb_machines=2, nb_jobs=8, seed=4)
+    schedule = LNSRecursiveSolver(
+        cpsat_timeout=5, max_jobs_per_window=4, min_jobs_per_window=2,
+    ).solve(instance)
+    assert schedule.validation_violations == sentinelle, (
+        "le garde-fou n'est pas appele par solve() : le planning est rendu sans "
+        "que son verdict de validite soit expose"
+    )
