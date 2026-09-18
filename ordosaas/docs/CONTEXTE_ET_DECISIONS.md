@@ -2513,6 +2513,112 @@ famille affectée est celle des résolutions LNS multi-fenêtres, qu'aucun fichi
 référence ne fige. Le re-baselining consiste donc à **mesurer et documenter** l'effet sur
 le TWT du LNS, pas à mettre à jour un fichier.
 
+## ✅ RÉSOLU (avec risque résiduel signalé) — La capacité WR n'était pas contrainte entre les fenêtres du LNS (D20)
+
+> Découvert le 2026-09-18 **en écrivant la couverture manquante d'`InterWindowOptimizer`**,
+> exactement le risque que la session avait identifié en entrant. Documenté ici au même
+> niveau que H8/H9 et D16/D17 : c'est un défaut de **validité**, de la même famille — une
+> contrainte appliquée localement et jamais globalement.
+
+**Le défaut.** `ContextPropagator.build_left_context` renvoyait `active_setups=[]`
+**inconditionnellement**. La `Cumulative` WR n'était donc appliquée qu'**à l'intérieur**
+de chaque fenêtre, jamais **entre** elles : deux setups de fenêtres voisines pouvaient se
+chevaucher librement, et le planning final du LNS était **rejeté par le validateur
+canonique**.
+
+Le champ existait, `CPSATSolver.solve_with_context:306` savait déjà le consommer, et
+`IncrementalContextBuilder` le remplissait depuis toujours — son docstring précisant même
+« Ajout par rapport au LNS ». **L'architecture incrémentale avait identifié et comblé ce
+manque ; le LNS ne l'a jamais fait.**
+
+**Isolation, mesurée avant d'accuser quoi que ce soit :**
+
+| Étape | Violations |
+|---|---|
+| Chaque fenêtre isolément | **0** — CP-SAT applique bien la contrainte dans la fenêtre |
+| Assemblé après Phase 3 | **1** |
+| Après Phase 4 | **1, au même instant** |
+
+`InterWindowOptimizer` n'en était **ni la cause ni le remède** — alors que c'est lui que la
+session venait couvrir.
+
+**Pourquoi personne ne l'avait vu.** `test_lns.py` exerçait les quatre phases de bout en
+bout depuis toujours, mais n'assertait que le nombre d'entrées, un TWT positif et la
+présence des KPI — **jamais la validité du planning produit**. C'est le même trou qui avait
+laissé passer H10b et H10c.
+
+#### La correction
+
+Le contexte gauche transmet désormais les setups de la fenêtre précédente pouvant encore
+consommer un technicien. **Filtre** : la frontière est la charge machine la **plus
+précoce** — rien ne peut être placé avant elle, donc un setup qui s'achève avant ne peut
+rien chevaucher. Ce n'est pas une sur-réservation : pendant son propre intervalle, un setup
+consomme réellement un technicien.
+
+**Limite assumée** : `build_left_context` ne reçoit que le résultat de la fenêtre
+**immédiatement** précédente. Les fenêtres étant séquentielles, les setups plus anciens
+s'achèvent avant cette frontière dans le cas courant. Élargir exigerait de changer la
+signature de la méthode.
+
+| | Exécutions | Violations WR |
+|---|---|---|
+| **Avant** (budgets 1, 3 et 12 s) | 20 | **1 à chaque fois — 20/20** |
+| **Après** | ~30 | **0**, sauf deux observations ci-dessous |
+
+#### Risque résiduel — deux sorties invalides jamais reproduites
+
+**Rectification d'une affirmation antérieure.** Le message du commit `097fcac` indique
+« 0 violation sur 22 exécutions ». C'était vrai à l'instant où il a été écrit, mais une
+mesure ultérieure a montré un cas à 9 violations. **La formulation est donc devenue fausse
+et est corrigée ici.**
+
+Deux sorties invalides ont été observées après correction — 20 violations une fois, 9 une
+autre — **toutes deux sous forte contention CPU**, et jamais reproduites : ni en rejouant
+la graine isolément (4 fois), ni sous charge (4 fois), ni en forçant le *divide & conquer*
+(4 fois), ni en rejouant à l'identique le script de re-baselining. Le repli ATCS ne s'est
+déclenché dans **aucune** exécution instrumentée. **La cause reste inconnue.**
+
+Ordre de grandeur : **2 sorties invalides sur environ 30 exécutions**, soit **~6 %**. C'est
+un ordre de grandeur et non une mesure — les deux observations viennent de conditions qui
+n'ont pas pu être recréées.
+
+#### Le garde-fou de validité, et ce qu'il n'est pas
+
+Même geste que le signal de troncature de D13 : faute de savoir corriger la cause, on
+empêche le défaut de rester **invisible**. `validate_schedule` — le validateur canonique
+(H2 / D3), jamais une logique ad hoc — est appliqué au planning assemblé en fin de LNS ; le
+verdict est exposé sur `Schedule.validation_violations` et journalisé en `error`.
+
+**C'est une ALERTE PURE.** Contrairement au signal de D13, elle n'est branchée sur
+**aucune action automatique de repli**. Elle rend l'anomalie observable en production si
+elle se reproduit — ce n'est pas encore une décision opérationnelle.
+
+#### Portée : aucun résultat publié n'est affecté
+
+`SEUIL_EXACT = 50` et l'instance de référence compte **10 jobs** : elle passe par
+`CPSATSolver.solve` en résolution directe, sans fenêtrage, donc sans jamais appeler
+`build_left_context`. `expected_output.json`, `validate_example`, `validate_incremental` et
+la matrice densité × perturbation sont donc **hors d'atteinte**, ce qui a été démontré et
+non supposé. Seules les instances réelles de plus de 50 jobs étaient concernées.
+
+#### Une couverture fictive rattrapée en chemin
+
+Les trois premiers tests du garde-fou **passaient tous sans qu'il soit branché** : ils
+vérifiaient le drapeau, qui vaut `[]` aussi bien par défaut que par validation réussie,
+mais pas le **câblage** dans `solve()`. Un quatrième test injecte désormais une sentinelle
+dans le validateur et exige de la retrouver sur le planning rendu.
+
+C'est le motif « vérifier qu'un test échoue sans le correctif » d'*Approche & patterns* qui
+vient de rattraper une couverture fictive **dans la session même consacrée à la
+couverture**.
+
+#### Relevé sans y toucher
+
+`_atcs_fallback` (`lns_recursive.py:210`) recopie les entrées ATCS **telles quelles**, avec
+leurs dates d'origine, en ignorant totalement `left_context` — ni `machine_loads`, ni
+alignement sur la fenêtre précédente. Trou potentiel s'il se déclenchait ; il ne s'est
+déclenché dans **aucune** des exécutions instrumentées de cette session.
+
 
 ## Hypothèses en attente de validation par Khalid
 
@@ -2664,7 +2770,7 @@ Composants livrés dans la Discussion 1 (un commit poussé par composant) :
 | 10 | Setups de jonction en variables (cf. D8) | `solvers/incremental_optimizer.py`, `components/schedule_merger.py` | +6 | livré |
 | 11 | Orchestrateur public `resolve_incremental` (cf. D9) | `scheduling/incremental.py` | 15 | livré |
 
-Suite complète hors tests API : **325 tests verts** (141 à la fin des 8 premiers commits,
+Suite complète hors tests API : **334 tests verts** (141 à la fin des 8 premiers commits,
 170 à la fin de la Discussion 1, 189 après le livrable 2 de la Discussion 2).
 `python -m tests.validate_example` passe toujours (TWT **4422.64** depuis la correction
 H8/H9 ; la valeur 3012.84 qui figurait ici datait d'avant D12), donc aucune régression sur
