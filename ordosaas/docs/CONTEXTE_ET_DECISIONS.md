@@ -2512,6 +2512,47 @@ estimation : c'est une écriture qui suit immédiatement l'appel.
 famille affectée est celle des résolutions LNS multi-fenêtres, qu'aucun fichier de
 référence ne fige. Le re-baselining consiste donc à **mesurer et documenter** l'effet sur
 le TWT du LNS, pas à mettre à jour un fichier.
+#### État final de la couverture d'`InterWindowOptimizer` (2026-09-18)
+
+| Méthode | Avant la session | Après |
+|---|---|---|
+| `__init__` | indirecte | indirecte (suffisant) |
+| `optimize` | **aucune** | **couverte** — court-circuit à une fenêtre, boucle de convergence, plafond d'itérations, seuil d'epsilon |
+| `_compute_junction_costs` | **aucune** | **couverte** — terme de setup, terme de retard, écart négatif, frontière sans coût, machine occupée d'un seul côté, fenêtre unique |
+| `_optimize_junction` | couverte (D18) | inchangée |
+| `_deborde_a_droite` | indirecte (D18) | inchangée |
+| `_assemble_schedule` | outil de test | **couverte** — via le scénario calculé à la main et le court-circuit |
+| `_recompute_window_kpis` | aucune | **couverte** — recalcul du retard après substitution |
+| `_build_applied` | outil de test | **couverte** — jonction rejetée, index hors bornes, substitution, non-mutation |
+| `_assemble_from_mixed` | aucune | **couverte** indirectement, par la boucle de convergence |
+| `_apply_new_results` | aucune | **couverte** indirectement, même chemin |
+| `_clone_window_result` | aucune | **couverte** — la non-mutation des fenêtres d'origine en dépend |
+
+**39 tests au total sur ce composant** : 9 de D18 sur `_optimize_junction`, 21 ici, et 9
+sur la validité du LNS de bout en bout. Les 21 nouveaux tournent en **0,1 s sans aucun
+appel à CP-SAT**, donc déterministes par construction — la règle de D19 obtenue sans avoir
+à configurer un solveur.
+
+**Le critère d'acceptation a été tenu par test de mutation**, pas par simple passage au
+vert : 10 mutations appliquées au composant, 9 détectées. Deux tests ne détectaient rien au
+premier essai — ils vérifiaient le résultat sans vérifier que la boucle **sorte** — et ont
+été renforcés en comptant les appels à `_compute_junction_costs`. La dixième mutation est un
+**mutant équivalent** (`if not junction_costs: break` est un court-circuit : sans lui, la
+boucle atteint `if not improved: break` au même tour), consigné comme tel plutôt que masqué
+par une assertion de façade.
+
+**Deux écarts spécification / code sont désormais verrouillés par des tests** qui
+documentent l'état réel sans le présenter comme conforme : les **violations WR n'entrent pas
+dans le coût de jonction** alors que le document en fait l'une des trois composantes
+d'arête, et le facteur **0.1** du terme de retard n'apparaît nulle part dans la
+spécification. Les deux tests portent le message à suivre le jour où ces points seront
+traités.
+
+**Ce que la couverture a trouvé** : un défaut de validité, documenté en **D20** — la
+capacité WR n'était jamais contrainte entre les fenêtres du LNS. Il n'était dans aucune des
+trois zones visées ; c'est la question jamais posée — *le planning final est-il valide ?* —
+qui l'a révélé.
+
 
 ## ✅ RÉSOLU (avec risque résiduel signalé) — La capacité WR n'était pas contrainte entre les fenêtres du LNS (D20)
 
@@ -2770,7 +2811,7 @@ Composants livrés dans la Discussion 1 (un commit poussé par composant) :
 | 10 | Setups de jonction en variables (cf. D8) | `solvers/incremental_optimizer.py`, `components/schedule_merger.py` | +6 | livré |
 | 11 | Orchestrateur public `resolve_incremental` (cf. D9) | `scheduling/incremental.py` | 15 | livré |
 
-Suite complète hors tests API : **334 tests verts** (141 à la fin des 8 premiers commits,
+Suite complète hors tests API : **355 tests verts** (141 à la fin des 8 premiers commits,
 170 à la fin de la Discussion 1, 189 après le livrable 2 de la Discussion 2).
 `python -m tests.validate_example` passe toujours (TWT **4422.64** depuis la correction
 H8/H9 ; la valeur 3012.84 qui figurait ici datait d'avant D12), donc aucune régression sur
