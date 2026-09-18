@@ -159,6 +159,44 @@ Les quatre partagent la même cause : le code qui **rapporte** le setup et le co
 **contraint** ont été écrits séparément, et rien ne vérifiait leur appariement. Le
 validateur canonique ne peut pas rattraper l'écart — il ne voit que ce qui est rapporté.
 
+### Un garde-fou doit être déterministe, et dire ce qu'il suppose
+
+Deux règles apparues ensemble le 2026-09-17, en stabilisant le canari H8/H9. Elles
+portent sur les tests, pas sur le code de production.
+
+**1. Tout test qui instancie un solveur CP-SAT dans un but de garde-fou de
+non-régression — pas seulement de performance — doit utiliser une configuration
+déterministe, jamais un simple `timeout` mural.** La configuration est celle figée en
+D12 pour `expected_output.json` : `num_search_workers=1`, `random_seed`,
+`max_deterministic_time`. Elle ne sert que la reproductibilité ; la configuration de
+production reste inchangée.
+
+**Pourquoi** : sous un arrêt à l'horloge, le solveur rend, selon la charge de la machine,
+des solutions **différentes mais également optimales**. Le canari incrémental échouait
+ainsi **3 fois sur 25** en sur-souscription — en faux positif, en annonçant le retour du
+défaut le plus grave du projet. Un garde-fou qui crie parfois à tort est un garde-fou
+qu'on apprend à ignorer : le laisser instable revenait à désarmer la protection la plus
+importante du projet sans jamais l'avoir décidé.
+
+Le budget déterministe se **mesure**, il ne se recopie pas. Reprendre le
+`max_deterministic_time=10.0` de D12 sur les tests de l'instance réelle aurait coûté 73 à
+114 s chacun ; la mesure a montré que 1.0 suffit largement (feasible, 0 transition
+impayée, makespan 771 pour une borne de 2020).
+
+**2. Tout canari qui affirme une propriété sur le résultat d'un scénario — « X est
+toujours vrai » — doit d'abord affirmer que le scénario exerce réellement les conditions
+nécessaires à cette propriété.**
+
+**Pourquoi** : `total_setup_time > 0` supposait implicitement que la zone contienne au
+moins une transition à payer. Quand la variante B du planning initial réduisait la zone à
+une seule opération, il n'y avait plus aucune transition — et le canari annonçait « le
+défaut H9 est revenu ». Sans préalable explicite, un échec reste **ambigu** entre une
+vraie régression — urgente, au sens de H8/H9 — et un scénario devenu dégénéré — simple
+maintenance de fixture. Deux causes qui appellent des réponses opposées.
+
+Un scénario qui se dégrade silencieusement **fait taire le garde-fou** au lieu de le faire
+échouer pour la bonne raison ; le préalable transforme ce silence en message clair.
+
 ### Ne jamais affirmer qu'une conclusion tient sans l'avoir re-mesurée
 
 Quand un correctif change ce que le système produit, les conclusions qualitatives déjà
@@ -2279,6 +2317,83 @@ fixture. Deux causes très différentes qui méritent des réponses différentes
 
 Le canari affirme donc désormais d'abord que le scénario **exerce** les conditions
 nécessaires, avant d'affirmer la propriété.
+
+### D19 — Le module de garde-fou H8/H9 est entièrement déterministe (2026-09-17)
+
+Suite de la cartographie ci-dessus. Ce n'est pas une correction de défaut fonctionnel :
+aucun comportement de production ne change. C'est la remise en état du **garde-fou le
+plus important du projet**, celui qui surveille que les setups séquence-dépendants
+restent payés dans les deux solveurs.
+
+#### La configuration retenue
+
+Un helper unique, `solveur_deterministe(timeout_seconds, max_deterministic_time)`, appliqué
+à **toutes** les instanciations du module : `num_search_workers=1`, `random_seed=42`,
+`max_deterministic_time`. Plus aucun `CPSATSolver(timeout_seconds=…)` nu ne subsiste dans
+`tests/test_setups_payes.py`.
+
+**Le budget a été mesuré, pas recopié.** Sur l'instance réelle, reprendre le `10.0` de D12
+aurait coûté 73 à 114 s par test et activé le plafond d'horloge de 900 s :
+
+| `max_deterministic_time` | Statut | Setup | Makespan (borne 2020) | Transitions impayées |
+|---|---|---|---|---|
+| 0.25 | feasible | 304 | 778 | 0 |
+| **1.0 — retenu** | feasible | 317 | 771 | 0 |
+| 2.0 | feasible | 277 | 748 | 0 |
+
+Les trois assertions concernées sont des **propriétés** satisfaites par toute solution
+faisable, pas des valeurs figées : un petit budget suffit. Le module tourne en 132 s sous
+saturation, comme avant.
+
+#### Le préalable explicite du canari H9
+
+L'assertion `total_setup_time > 0` supposait implicitement une zone contenant au moins une
+transition. Le test l'**affirme désormais d'abord**, avec un message qui nomme la bonne
+cause : « scenario degenere, pas une regression de H9 ». C'est un renforcement, jamais un
+relâchement — l'assertion d'origine est strictement conservée.
+
+#### Le second canari était concerné, sans échouer
+
+`test_canari_le_solveur_initial_paie_toujours_des_setups` produit **deux plannings
+distincts** sous charge, mais ses quatre assertions passent **25/25** : le fixture interdit
+toute solution valide à setup nul. Il n'échouait donc pas — ce qui n'est pas une preuve
+d'innocuité. Il reçoit le même traitement. **Les deux canaris partagent désormais la même
+discipline de configuration déterministe**, et c'est écrit ici pour que cette symétrie soit
+explicite plutôt qu'à redécouvrir.
+
+#### La couverture va au-delà des deux canaris nommés
+
+La mesure a révélé un **troisième** test instable, hors des deux canaris :
+`test_cas_jouet_le_makespan_inclut_exactement_les_setups`, **1 échec sur 12** exécutions du
+module sous saturation. Le périmètre a donc été étendu : **tout le module
+`test_setups_payes.py` suit uniformément la même discipline**, soit 9 instanciations au
+total, et pas seulement les deux canaris initialement visés.
+
+Ce n'était pas un élargissement au sens où le projet l'a refusé ailleurs — le champ est
+fini et énuméré, le correctif est mécanique et déjà validé deux fois, et rien ne touche au
+comportement de production. Laisser 5 instanciations non déterministes dans ce fichier
+précis aurait reproduit, à plus grande échelle, l'incohérence que l'on venait d'écarter
+entre les deux canaris.
+
+#### Ce qui reste hors de ce module — inventaire complet
+
+Relevé exhaustif du reste du dépôt, pour qu'il n'y ait pas à le refaire :
+
+| État | Sites | Suite à donner |
+|---|---|---|
+| **Formellement déterministes** (`workers=1` + graine + `max_deterministic_time`) | `conftest.example_schedule`, `densite_variants`, `validate_example`, `test_cpsat.py:38` | rien |
+| **Déterministes en pratique** (`workers=1` + graine, sans budget déterministe) | `test_contexte_gauche_arc_depot`, `test_contexte_gauche_calcule_a_la_main`, `test_inter_window_contexte_gauche`, `test_setup_gauche_reserve` | instances minuscules, optimalité prouvée instantanément, l'arrêt mural ne se déclenche jamais ; ajouter le budget serait de la rigueur formelle |
+| **Non déterministes, corrigeables tout de suite** | `test_cpsat.py` l. 64, 71, 84, 96, 103 | `CPSATSolver` accepte déjà les paramètres ; ce sont des tests de comportement, pas des garde-fous de validité |
+| **Non déterministes, NON corrigeables aujourd'hui** | ~8 sites instanciant `IncrementalOptimizer` (`test_incremental_optimizer`, `test_incremental_orchestrator`, `test_schedule_merger`, `test_contexte_gauche_arc_depot`) | **`IncrementalOptimizer` n'expose ni `random_seed` ni `max_deterministic_time`** et s'arrête à l'horloge. Les déterminiser exigerait d'étendre son API, comme D12 l'a fait pour `CPSATSolver` |
+| **Non déterministes, `LNSRecursiveSolver`** | `test_lns.py` l. 10, 22 | même limite, via le solveur qu'il encapsule |
+| **Délibérément non déterministe** | `tests/benchmarks/run_benchmarks.py` | c'est un banc de mesure de performance : le déterminisme y serait contre-productif |
+
+Aucun de ces sites n'est un garde-fou de non-régression sur un défaut de validité — la
+catégorie qui justifiait l'urgence de cette session. La ligne la plus notable est la
+quatrième : **étendre `IncrementalOptimizer` avec les paramètres de reproductibilité de
+D12** est le préalable à toute déterminisation de ce côté-là, et n'a pas été nécessaire
+ici puisque déterminiser la seule résolution initiale a suffi. À garder en tête si un
+test incrémental se met un jour à clignoter.
 
 
 ## Hypothèses en attente de validation par Khalid
