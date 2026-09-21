@@ -2661,6 +2661,126 @@ alignement sur la fenêtre précédente. Trou potentiel s'il se déclenchait ; i
 déclenché dans **aucune** des exécutions instrumentées de cette session.
 
 
+### Cartographie — `right_context` dans `solve_with_context` (2026-09-21, avant correction)
+
+Établie par lecture du code **et sonde instrumentée sur six exécutions LNS réelles**
+(instances Avgerinos 60 et 80 jobs, graines 3/9/11, `max_jobs_per_window=20`). Elle
+**contredit la prémisse d'ouverture de la session** et doit être lue avant d'écrire la
+moindre ligne de correctif.
+
+#### La prémisse était qu'`InterWindowOptimizer` passe un `right_context` — c'est faux
+
+`inter_window_optimizer.py:155` appelle :
+
+```python
+result = self.cpsat_solver.solve_with_context(micro_instance, left_context, None)
+```
+
+Il passe **`None`**. Le composant qui a révélé H10c, et pour lequel cette session existe,
+ne construit aucun contexte droit et n'en a jamais passé. **Honorer `right_context` dans
+`solve_with_context` serait donc, à lui seul, strictement sans effet sur lui.**
+
+#### Qui passe réellement un `right_context` non vide — mesuré, pas supposé
+
+| Chemin | `right_context` passé | Occurrences mesurées |
+|---|---|---|
+| `CPSATSolver.solve` (résolution directe) | `None` (l. 89) | — |
+| **Fenêtres du LNS**, sauf la dernière | **non vide** (`build_right_context`) | **15 / 36 appels** |
+| Fenêtre LNS **dernière** de sa liste | `None` (`i + 1 < len(windows)` faux) | 6 / 36 |
+| **`InterWindowOptimizer`** (jonctions) | **`None`** | 15 / 36 |
+| `IncrementalOptimizer` | **n'appelle pas** `solve_with_context` — modèle dédié (D2) | — |
+
+#### Le fait décisif : aucun `right_context` ne porte de DATE
+
+`ContextPropagator.build_right_context` (l. 112-115) renvoie `machine_loads={}` **en dur**.
+Mesuré sur les 36 appels : **0 `right_context` avec un `machine_loads` non vide**. Ce qu'il
+porte est uniquement `last_job_per_machine` — et sous ce nom, l'**inverse** de son sens
+habituel : le *premier* job par machine de la fenêtre **suivante**, lu sur le planning
+**ATCS**.
+
+**« Modéliser la frontière droite par des intervalles fixes » n'a donc aujourd'hui aucune
+donnée sur quoi s'appuyer.** Ce n'est pas un détail d'implémentation : c'est exactement
+l'« Écart 2 » de D6, qui avait dû enrichir le contexte droit de l'incrémental avec un
+`machine_loads` porteur d'une **date au plus tard**, précisément parce que le contexte
+droit du LNS n'en porte pas.
+
+#### Et la source du contexte droit du LNS est APPROXIMATIVE par conception
+
+La docstring de `ContextPropagator` en fait sa « règle fondamentale » : contexte gauche
+exact, contexte droit **toujours approximatif**, parce qu'il vient d'ATCS. D2 a tranché sur
+cette base — `solve_with_context` traite le contexte droit comme « approximatif et purement
+informationnel », et c'est la raison pour laquelle l'incrémental, qui a besoin d'un contexte
+droit **exact et contraignant**, a reçu un modèle CP-SAT séparé.
+
+**Conséquence directe.** Rendre `solve_with_context` contraignant sur le `right_context`
+qu'il reçoit **déjà** transformerait une approximation ATCS en contrainte dure sur les 15
+fenêtres LNS mesurées. La fenêtre *i* serait bornée par des dates que la résolution de la
+fenêtre *i+1* n'a pas encore produites et va remplacer. Ce serait :
+
+- **incorrect** — la borne ne décrit aucun engagement réel ;
+- **potentiellement infaisable** — `solve_with_context` renvoie alors `None`, et une fenêtre
+  LNS est perdue en silence, exactement le défaut corrigé en D16 sur `_borne_horizon` ;
+- **contraire à D2**, qui a séparé les deux sémantiques au lieu de les fusionner.
+
+C'est le vrai risque de code partagé de cette session, et il n'est pas là où la note de
+report de D18 le situait.
+
+#### La garde H10c est réellement active en production — chiffré
+
+| Mesure sur 6 exécutions LNS | Valeur |
+|---|---|
+| Jonctions tentées | **15** |
+| Rejetées par la garde `_deborde_a_droite` | **4 — 27 %** |
+| Rejetées pour une autre cause | 0 |
+| Plannings finaux rejetés par le validateur canonique | **0 / 6** |
+
+Plus d'une jonction sur quatre est perdue par rejet conservateur. Le gain visé par cette
+session est donc réel et mesurable, et non théorique.
+
+**Ce que le rejet ne dit pas.** Une jonction rejetée n'est pas forcément récupérable : si le
+travail du micro-voisinage ne **tient pas** dans l'espace disponible, la borne rend le modèle
+infaisable et la jonction reste perdue — par un meilleur chemin, sans gain. Sont récupérables
+les seules jonctions où un agencement tenant dans la borne **existe** et où CP-SAT, non
+borné, en avait choisi un autre. Ce cas est structurel : l'objectif du modèle **ne contient
+aucun terme de setup ni de makespan** (`model.Minimize` sur le seul retard pondéré), donc
+entre deux solutions de même retard le solveur est **indifférent** et rend la première
+trouvée. C'est le même phénomène qu'en D8 (« effet de bord sur un test ») et dans le constat
+du 2026-09-12. **Le taux de récupération réel reste à mesurer** — c'est l'objet de la
+revalidation, il n'est pas supposé ici.
+
+#### `_deborde_a_droite` calcule déjà exactement la donnée manquante
+
+La garde H10c calcule, par machine, le **début d'occupation le plus précoce** parmi les
+fenêtres `[index + 2:]`, setup compris (l. 191-201). C'est précisément la « date au plus
+tard » qu'un contexte droit contraignant devrait porter. La donnée existe donc déjà, au bon
+endroit ; elle n'est simplement jamais transmise au modèle.
+
+#### Fichiers de référence — ce qui ne peut pas bouger, démontré
+
+| Référence | Concernée ? | Démonstration |
+|---|---|---|
+| `expected_output.json`, `validate_example` | **non** | instance à 10 jobs, `SEUIL_EXACT = 50` → `CPSATSolver.solve`, `right_context=None` |
+| `validate_incremental` | **non** | passe par `IncrementalOptimizer`, qui n'appelle pas `solve_with_context` |
+| Matrice densité × perturbation | **non** | même instance à 10 jobs |
+| `docs/densite-perturbation.md`, `repli-signal.md`, `absorption-precedence.md` | **non** | même chemin |
+| `test_lns.py` | **oui, sans valeur figée** | assertions de propriété (`method_used`, nombre d'entrées, `TWT >= 0`, KPI non nuls) |
+| `test_lns_validite.py`, `test_inter_window_*` | **oui** | portent directement sur ce chemin |
+
+Aucune valeur de référence du projet n'est en jeu. La revalidation consiste à **mesurer et
+documenter** l'effet sur le TWT du LNS multi-fenêtres et sur le taux de jonctions
+récupérées, pas à mettre à jour un fichier.
+
+#### Ce que la cartographie impose au correctif
+
+1. Le mécanisme doit être **piloté par une donnée portant des dates**, qu'aucun appelant ne
+   fournit aujourd'hui. Il faut donc la **produire** dans `InterWindowOptimizer`, pas
+   seulement la consommer dans le solveur.
+2. Il doit rester **inerte** sur les 15 fenêtres LNS qui passent un contexte droit
+   approximatif — sans quoi on transforme une approximation en contrainte dure, contre D2.
+3. Le `last_job_per_machine` du contexte droit (réservation du setup **sortant**) est une
+   amélioration **distincte**, qui toucherait elle toutes les fenêtres LNS sur une donnée
+   ATCS approximative. Elle est **hors périmètre** de cette session et signalée comme telle.
+
 ## Documents de référence versionnés
 
 Section créée le 2026-09-21. Elle regroupe les documents de **conception** du projet, versés
