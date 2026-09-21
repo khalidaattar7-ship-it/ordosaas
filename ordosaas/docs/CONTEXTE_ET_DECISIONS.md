@@ -2661,6 +2661,74 @@ alignement sur la fenêtre précédente. Trou potentiel s'il se déclenchait ; i
 déclenché dans **aucune** des exécutions instrumentées de cette session.
 
 
+## Documents de référence versionnés
+
+Section créée le 2026-09-21. Elle regroupe les documents de **conception** du projet, versés
+dans le dépôt pour une seule raison : un document non versionné avec le code ne peut pas être
+« réconcilié en continu ». Rien ne signale qu'il a divergé, et une session qui le cherche ne
+le trouve pas. C'est la cause mécanique de la dérive que H4 a mis plusieurs sessions à
+découvrir et corriger pour `schema_bdd.sql`.
+
+**Statut commun aux deux documents : ils décrivent ce qui était conçu, pas ce qui tourne.**
+En cas de conflit factuel, c'est le code — et, pour la base, les migrations Alembic — qui
+fait foi. Ce sont des références de conception, pas des spécifications opposables au code.
+
+| Document | Couvre | Diffable par git ? |
+|---|---|---|
+| `docs/schema_bdd.sql` | Schéma de la base de données (versé lors de l'audit H4, ses propres défauts corrigés dans un commit séparé) | **oui** — texte |
+| `docs/architecture/PFA_Descriptif_Technique_MVP_v2.docx` | Descriptif technique détaillé du MVP v2 | **non** — binaire |
+
+### `PFA_Descriptif_Technique_MVP_v2.docx` (versé verbatim le 2026-09-21)
+
+Provenance : `~/Desktop/PFA/PFA_Descriptif_Technique_MVP_v2.docx` (copie identique dans
+`~/Downloads/`, même MD5). Copié **verbatim**, sans aucune modification de contenu — c'est un
+binaire, on n'y insère pas d'en-tête de mise en garde comme dans `schema_bdd.sql` ; cette
+mise en garde vit ici. `git log --all --diff-filter=ADM -- "*.docx"` ne renvoyait rien :
+aucun `.docx` n'avait jamais existé dans l'histoire du dépôt, sur aucune branche — même
+constat que pour `schema_bdd.sql`.
+
+**Ce qu'il couvre.** Formalisation mathématique du problème (retard pondéré, setups
+séquence-dépendants `s(i,j,m)`, `Cumulative` WR) ; la stratégie **LNS récursif en 4 phases**
+(ATCS → `WindowManager` → Divide & Conquer récursif + `ContextPropagator` → `InterWindowOptimizer`
+Link State / Distance Vector) ; l'architecture SaaS et le `SolverDispatcher` ; l'arborescence
+du service de scheduling et les dataclasses ; le protocole de validation (Avgerinos, Taillard) ;
+le tableau des constantes (`SEUIL_EXACT`, `CPSAT_TIMEOUT`, `MAX_ITERATIONS`, `EPSILON`,
+`JUNCTION_RADIUS`, …) ; la planification AFNOR et les risques.
+
+C'est déjà la source citée mot pour mot par la cartographie de couverture
+d'`InterWindowOptimizer` (2026-09-18) pour les sous-phases Link State et Distance Vector.
+
+**Contrainte propre à ce document : il n'est pas diffable.** `git` le versionne mais ne peut
+pas en montrer l'évolution ligne à ligne, et aucun outil du dépôt ne peut comparer son
+contenu au code. **Toute vérification de cohérence avec l'implémentation devra donc se faire
+par lecture manuelle**, jamais par diff automatique — à l'inverse de `schema_bdd.sql`, dont
+les écarts ont pu être audités table par table. Un versement au format texte n'a pas été fait
+ici : cela sortirait du versement verbatim, seul objet de cette étape.
+
+**Aucune vérification de cohérence n'a été faite** — ce n'était pas l'objet. Deux divergences
+relevées **en passant** en parcourant le document pour rédiger cette note, signalées sans être
+corrigées ni instruites :
+
+1. **Le document ne couvre pas le réordonnancement incrémental.** Il ne mentionne ni
+   `PerturbationEvent`, ni `ImpactAnalyzer`, ni `ScheduleMerger`, ni `resolve_incremental` —
+   toute la Discussion 1 et 2. La référence de conception de cette partie est
+   `docs/architecture-incremental.md`, pas ce document. Même motif que `stability_weight` en
+   D15 : la brique est **née après** le document. À ne pas confondre avec un écart
+   d'implémentation.
+2. **« Solutions déterministes » est faux en configuration de production.** Le document
+   justifie le choix d'OR-Tools par « solutions déterministes et mathématiquement valides —
+   aucun risque de résultat incohérent ». D12 a mesuré 2,56 % de variation du TWT entre
+   exécutions avec les 4 workers de production, et D19 un canari qui échouait 3 fois sur 25
+   sous contention. Le déterminisme n'existe qu'avec la configuration de reproductibilité
+   (`num_search_workers=1`, `random_seed`, `max_deterministic_time`), réservée aux références
+   et aux tests. La validité, elle, reste assurée.
+
+Déjà consignée ailleurs, rappelée pour mémoire : les **violations WR** figurent au document
+comme l'une des trois composantes du coût de jonction et n'entrent pas dans
+`_compute_junction_costs`, et le facteur `0.1` du terme de retard n'apparaît nulle part dans
+le document (cartographie du 2026-09-18, verrouillé par des tests).
+
+
 ## Hypothèses en attente de validation par Khalid
 
 ### H10 — RÉSOLUE le 2026-09-17 → voir D18
